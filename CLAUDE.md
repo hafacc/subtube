@@ -105,9 +105,11 @@ reasoning that belongs in a commit message. Don't comment the obvious.
   not streamed: an edit applies to `channels` locally and saves to Firestore, but
   a remote change waits for the next load — so the feed never re-filters on its
   own. Shorts stay listener-driven (`watchShortsVerdicts`), the one thing that
-  arrives after the load and patches the cards in place. A watched toggle made
-  mid-load is re-applied over the load's result (that read is a point-in-time
-  snapshot).
+  arrives after the load and patches the cards in place. A watched mark made this
+  session stays on screen (dimmed) until the next load; a refresh hides all of
+  them at once (the local state is trusted) and the load's read only brings one
+  back if the server disagrees. A toggle made mid-load is re-applied over the
+  load's result (that read is a point-in-time snapshot).
 - `components/{video-card,playlist-card,channel-filters,player,login,...}.tsx` —
   UI. `next/image` with `images.unoptimized`; thumbnails guarded against empty
   src.
