@@ -225,9 +225,9 @@ export default function Feed({
     new Map(),
   );
   const [watched, setWatched] = useState<Set<string>>(new Set());
-  // Snapshot of watched-at-load used to decide what to HIDE, so items watched
-  // during this session stay (dimmed) and only drop out on the next load.
-  const [hiddenWatched, setHiddenWatched] = useState<Set<string>>(new Set());
+  // the ids marked watched this session, which stay on screen (dimmed) until the
+  // next load; a load empties it, so a refresh hides them at once
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   // true until the cached feed has been read back, so the empty states don't
@@ -275,8 +275,8 @@ export default function Feed({
   /*
    * Apply the watched state a load read for one batch of items. The batch is
    * authoritative for its own ids, except where a mark made during the load raced
-   * that read: that one stays applied, and stays on screen (dimmed) until the
-   * next load, like any other in-session mark.
+   * that read: that one stays applied, and stays on screen (dimmed), since it
+   * joined `revealed` after the load cleared it.
    */
   const applyWatchedBatch = useCallback(
     (batch: FeedItem[], loaded: Set<string>) => {
@@ -287,17 +287,6 @@ export default function Feed({
         for (const id of ids) {
           const raced = pending.get(id);
           if (raced ? raced.value : loaded.has(id)) {
-            next.add(id);
-          } else {
-            next.delete(id);
-          }
-        }
-        return next;
-      });
-      setHiddenWatched((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) {
-          if (loaded.has(id) && !pending.has(id)) {
             next.add(id);
           } else {
             next.delete(id);
@@ -470,6 +459,9 @@ export default function Feed({
       return;
     }
     loadInFlight.current = true;
+    // before any await, so every mark made this session drops out of the grid on
+    // the click; only the reads below can bring one back
+    setRevealed(new Set());
     // taken before the reads, so a write acknowledged earlier is guaranteed to be
     // in what they return; the rest raced them and is re-applied over the result
     const startedAt = Date.now();
@@ -498,20 +490,15 @@ export default function Feed({
         data = await fetchEverything(await silentRefresh(), sink);
       }
       const loadedWatched = new Set(data.watched);
-      const loadedHidden = new Set(data.watched);
       for (const [id, entry] of pendingWatched.current) {
         if (entry.value) {
           loadedWatched.add(id);
         } else {
           loadedWatched.delete(id);
         }
-        // toggled during this load, so it stays on screen (dimmed) until the next
-        // one, like any other in-session mark
-        loadedHidden.delete(id);
       }
       setChannels(data.channels);
       setWatched(loadedWatched);
-      setHiddenWatched(loadedHidden);
       setItems(data.items);
       feedApplied.current = true;
       // a partial load must not overwrite the good cache; surface a notice instead
@@ -554,7 +541,6 @@ export default function Feed({
       if (cached && !feedApplied.current) {
         setChannels(cached.channels);
         setWatched(cached.watched);
-        setHiddenWatched(cached.watched);
         setItems(cached.items);
         rememberVerdicts(cached.items);
       }
@@ -625,7 +611,6 @@ export default function Feed({
           return next;
         };
         setWatched(merge);
-        setHiddenWatched(merge);
       } catch (caught) {
         if (!cancelled) {
           setChannelError((caught as Error).message);
@@ -669,8 +654,21 @@ export default function Feed({
     [user.uid],
   );
 
-  const persistWatched = useCallback(
+  /**
+   * Record a watched mark: it keeps the item on screen until the next load, is
+   * tracked against a load in flight, and is persisted.
+   */
+  const recordWatched = useCallback(
     (id: string, isWatched: boolean) => {
+      setRevealed((prev) => {
+        const next = new Set(prev);
+        if (isWatched) {
+          next.add(id);
+        } else {
+          next.delete(id);
+        }
+        return next;
+      });
       const entry = trackPending(pendingWatched.current, id, isWatched);
       settlePending(
         entry,
@@ -694,9 +692,9 @@ export default function Feed({
         }
         return next;
       });
-      persistWatched(id, !isWatched);
+      recordWatched(id, !isWatched);
     },
-    [persistWatched, watched],
+    [recordWatched, watched],
   );
 
   // The player calls this when you leave a video (queue advance or close), so it
@@ -704,9 +702,9 @@ export default function Feed({
   const markItemWatched = useCallback(
     (id: string) => {
       setWatched((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
-      persistWatched(id, true);
+      recordWatched(id, true);
     },
-    [persistWatched],
+    [recordWatched],
   );
 
   const feed = useMemo(() => {
@@ -737,7 +735,8 @@ export default function Feed({
         if (filter && !bypassFilters && !videoPassesFilter(item, filter)) {
           return false;
         }
-        if (!showWatched && hiddenWatched.has(feedItemId(item))) {
+        const id = feedItemId(item);
+        if (!showWatched && watched.has(id) && !revealed.has(id)) {
           return false;
         }
         return true;
@@ -749,7 +748,8 @@ export default function Feed({
     onDemandChannel,
     channelMode,
     channels,
-    hiddenWatched,
+    watched,
+    revealed,
     showWatched,
     bypassFilters,
     channelView,
