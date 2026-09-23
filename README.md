@@ -1,10 +1,10 @@
 # Subtube
 
-[![build](https://github.com/hafaio/subtube/actions/workflows/build.yml/badge.svg)](https://github.com/hafaio/subtube/actions/workflows/build.yml)
+[![build](https://github.com/hafacc/subtube/actions/workflows/build.yml/badge.svg)](https://github.com/hafacc/subtube/actions/workflows/build.yml)
 
 A personal, subscription-driven YouTube reader: per-channel filters,
 self-tracked watched state, and playback through the official embed. Live at
-[hafaio.github.io/subtube](https://hafaio.github.io/subtube/).
+[subtube.hafa.cc](https://subtube.hafa.cc/).
 
 ## Develop
 
