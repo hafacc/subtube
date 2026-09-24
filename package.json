@@ -7,7 +7,7 @@
   "author": "Erik Brinkman",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hafaio/subtube.git"
+    "url": "https://github.com/hafacc/subtube.git"
   },
   "type": "module",
   "scripts": {
