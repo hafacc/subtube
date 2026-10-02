@@ -91,25 +91,24 @@ reasoning that belongs in a commit message. Don't comment the obvious.
   later.
 - `components/feed.tsx` — workhorse: hydrate from the cache (items **and**
   filters, so the first frame is already filtered), then load → `enrichItems`
-  (watched + known Shorts verdicts) → filter/sort grid. A load **paints as it
-  goes** (`LoadSink`): the channels land first, then each channel's items swap
-  into the grid as that channel returns, rather than every tile staying stale
-  until the slowest one does; the final assignment prunes what no channel
-  claimed. The Shorts listeners are held still while a load is in flight, since
-  the candidate set grows with every channel and re-subscribing per channel would
-  re-read every verdict. Channel pages (scoped
-  feed, on-demand fetch for disabled); mid-load 401 silent-refreshes once. A load
-  runs once on connect and thereafter **only when asked** — the Refresh button or
-  a page reload; returning to the app shows the last-loaded feed, it doesn't
-  re-fetch. Filters are snapshotted at each load (one-shot `loadChannelFilters`),
-  not streamed: an edit applies to `channels` locally and saves to Firestore, but
-  a remote change waits for the next load — so the feed never re-filters on its
-  own. Shorts stay listener-driven (`watchShortsVerdicts`), the one thing that
-  arrives after the load and patches the cards in place. A watched mark made this
-  session stays on screen (dimmed) until the next load; a refresh hides all of
-  them at once (the local state is trusted) and the load's read only brings one
-  back if the server disagrees. A toggle made mid-load is re-applied over the
-  load's result (that read is a point-in-time snapshot).
+  (watched + known Shorts verdicts) → filter → grid, **oldest first**. The grid's
+  order is state (`order`, built by `src/feed-order.ts`), not a sort on every
+  render: **only a click moves a card**. Refresh (or changing the view) rebuilds
+  it — drops watched cards and what the last load no longer returned, and sorts
+  the rest. Everything that arrives on its own can only **append**: each
+  channel's new videos join the end as that channel returns, and a video joins
+  when its Shorts verdict lands — nothing waits. Whenever that leaves the grid
+  out of order, the Refresh button shows a dot. A card marked watched (here, or
+  found watched by a load) stays, dimmed, until the next click. The Shorts
+  listeners are held still while a load is in flight, since the candidate set
+  grows with every channel and re-subscribing per channel would re-read every
+  verdict. Channel pages (scoped feed, on-demand fetch for disabled); mid-load
+  401 silent-refreshes once. A load runs on connect, on Refresh, and on
+  returning to the tab after `STALE_AFTER_MS`. Filters are snapshotted at each
+  load (one-shot `loadChannelFilters`), not streamed: an edit applies to
+  `channels` locally and saves to Firestore, but a remote change waits for the
+  next load. A watched toggle made mid-load is re-applied over the load's result
+  (that read is a point-in-time snapshot).
 - `components/{video-card,playlist-card,channel-filters,player,login,...}.tsx` —
   UI. `next/image` with `images.unoptimized`; thumbnails guarded against empty
   src.
