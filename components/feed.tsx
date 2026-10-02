@@ -26,6 +26,7 @@ import {
   saveCachedFeed,
 } from "../src/feed-cache";
 import { feedItemId, withVerdicts } from "../src/feed-item";
+import { byOldest, extendOrder, isOldestFirst } from "../src/feed-order";
 import { compileFilter, videoPassesFilter } from "../src/filters";
 import {
   loadChannelFilters,
@@ -69,6 +70,8 @@ import VideoCard from "./video-card";
 // so this is free relative to 15 and gives the regex tester more to preview.
 const UPLOADS_PER_CHANNEL = 50;
 const FETCH_CONCURRENCY = 6;
+/** Returning to the app after this long away loads the feed again. */
+const STALE_AFTER_MS = 15 * 60_000;
 
 /**
  * A watched write Firestore may not have made durable yet. The watched set is read
@@ -160,22 +163,12 @@ async function enrichItems(
 }
 
 /**
- * Swap one channel's freshly loaded items into a feed, so a load can paint each
- * channel as it lands instead of at the end. Drops what they replace: that
- * channel's previous items, and any entry that has since moved to it.
+ * Fold freshly loaded items into a feed: an entry already there is updated, a new
+ * one is added. Nothing is dropped, since a load must not pull a card off screen.
  */
-function replaceChannelItems(
-  items: FeedItem[],
-  channelId: string,
-  fresh: FeedItem[],
-): FeedItem[] {
+function mergeItems(items: FeedItem[], fresh: FeedItem[]): FeedItem[] {
   const ids = new Set(fresh.map(feedItemId));
-  return [
-    ...items.filter(
-      (item) => item.channelId !== channelId && !ids.has(feedItemId(item)),
-    ),
-    ...fresh,
-  ];
+  return [...items.filter((item) => !ids.has(feedItemId(item))), ...fresh];
 }
 
 interface FeedData {
@@ -184,10 +177,10 @@ interface FeedData {
   watched: Set<string>;
   items: FeedItem[];
   /**
-   * Whether a channel's fetch failed non-fatally (e.g. a quota 403), making the
+   * The channels whose fetch failed non-fatally (e.g. a quota 403). Any makes the
    * result partial — it must not overwrite the cache.
    */
-  partial: boolean;
+  failed: Set<string>;
 }
 
 /** Where a load publishes its results as they arrive, before it has finished. */
@@ -195,10 +188,7 @@ interface LoadSink {
   /** The subscribed channels with their filters, known before any items are. */
   channels: (channels: Map<string, ChannelFilter>) => void;
   /** One channel's items with the watched state read for them. */
-  channelItems: (
-    channelId: string,
-    loaded: { items: FeedItem[]; watched: Set<string> },
-  ) => void;
+  channelItems: (loaded: { items: FeedItem[]; watched: Set<string> }) => void;
 }
 
 export default function Feed({
@@ -225,10 +215,16 @@ export default function Feed({
     new Map(),
   );
   const [watched, setWatched] = useState<Set<string>>(new Set());
-  // the ids marked watched this session, which stay on screen (dimmed) until the
-  // next load; a load empties it, so a refresh hides them at once
-  const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [items, setItems] = useState<FeedItem[]>([]);
+  /*
+   * The ids on screen, in the order they are shown, for one view. Only a click
+   * rebuilds it (Refresh, or changing the view); everything that arrives on its
+   * own — a load, a Shorts verdict — can only add to the end, so a card never
+   * moves under the pointer. Null asks the next render to rebuild it.
+   */
+  const [order, setOrder] = useState<{ view: string; ids: string[] } | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   // true until the cached feed has been read back, so the empty states don't
   // flash before the instant paint
@@ -258,6 +254,11 @@ export default function Feed({
   const [channelError, setChannelError] = useState<string | null>(null);
 
   const loadInFlight = useRef(false);
+  const lastLoadedAt = useRef(0);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  // what the last load no longer returned; kept on screen until Refresh is clicked
+  const staleIds = useRef<Set<string>>(new Set());
   // whether a load has landed, so a slow cache read can't overwrite one that beat it
   const feedApplied = useRef(false);
   // Short-ness never changes, so verdicts carry across loads
@@ -275,8 +276,7 @@ export default function Feed({
   /*
    * Apply the watched state a load read for one batch of items. The batch is
    * authoritative for its own ids, except where a mark made during the load raced
-   * that read: that one stays applied, and stays on screen (dimmed), since it
-   * joined `revealed` after the load cleared it.
+   * that read: that one stays applied.
    */
   const applyWatchedBatch = useCallback(
     (batch: FeedItem[], loaded: Set<string>) => {
@@ -299,9 +299,8 @@ export default function Feed({
   );
 
   /*
-   * A load paints through here as it goes, so a refresh over dozens of channels
-   * updates the tiles it has instead of leaving all of them stale until the
-   * slowest channel returns. What no channel claimed is pruned when it finishes.
+   * A load paints through here as it goes: each channel's new videos join the
+   * end of the grid as that channel returns.
    */
   const sink = useMemo<LoadSink>(
     () => ({
@@ -309,9 +308,9 @@ export default function Feed({
         feedApplied.current = true;
         setChannels(loaded);
       },
-      channelItems: (channelId, loaded) => {
+      channelItems: (loaded) => {
         feedApplied.current = true;
-        setItems((prev) => replaceChannelItems(prev, channelId, loaded.items));
+        setItems((prev) => mergeItems(prev, loaded.items));
         applyWatchedBatch(loaded.items, loaded.watched);
       },
     }),
@@ -403,7 +402,7 @@ export default function Feed({
       const enabled = Array.from(merged.values()).filter(
         (channel) => channel.enabled,
       );
-      let failed = 0;
+      const failed = new Set<string>();
       const watched = new Set<string>();
       const loaded = await mapWithConcurrency(
         enabled,
@@ -427,8 +426,7 @@ export default function Feed({
             ) {
               throw caught;
             }
-            failed++;
-            // leaves this channel's items as they were until the load finishes
+            failed.add(channel.channelId);
             return [] as FeedItem[];
           }
           const enriched = await enrichItems(
@@ -440,7 +438,7 @@ export default function Feed({
           for (const id of enriched.watched) {
             watched.add(id);
           }
-          publish.channelItems(channel.channelId, enriched);
+          publish.channelItems(enriched);
           return enriched.items;
         },
       );
@@ -448,7 +446,7 @@ export default function Feed({
         channels: merged,
         watched,
         items: loaded.flat(),
-        partial: failed > 0,
+        failed,
       };
     },
     [user.uid, rememberVerdicts],
@@ -459,9 +457,6 @@ export default function Feed({
       return;
     }
     loadInFlight.current = true;
-    // before any await, so every mark made this session drops out of the grid on
-    // the click; only the reads below can bring one back
-    setRevealed(new Set());
     // taken before the reads, so a write acknowledged earlier is guaranteed to be
     // in what they return; the rest raced them and is re-applied over the result
     const startedAt = Date.now();
@@ -498,11 +493,19 @@ export default function Feed({
         }
       }
       setChannels(data.channels);
-      setWatched(loadedWatched);
-      setItems(data.items);
       feedApplied.current = true;
+      const loadedIds = new Set(data.items.map(feedItemId));
+      staleIds.current = new Set(
+        itemsRef.current
+          .filter(
+            (item) =>
+              !loadedIds.has(feedItemId(item)) &&
+              !data.failed.has(item.channelId),
+          )
+          .map(feedItemId),
+      );
       // a partial load must not overwrite the good cache; surface a notice instead
-      if (data.partial) {
+      if (data.failed.size > 0) {
         setNotice("Some channels couldn't be loaded; showing partial results.");
       } else {
         setNotice(null);
@@ -528,8 +531,23 @@ export default function Feed({
     } finally {
       setLoading(false);
       loadInFlight.current = false;
+      lastLoadedAt.current = Date.now();
     }
   }, [fetchEverything, sink, onTokenLost, user.uid]);
+
+  /*
+   * The Refresh click. It is the one moment cards may move, so before the load
+   * starts it drops what is gone or watched and puts the rest back in order.
+   */
+  const refresh = useCallback(() => {
+    const stale = staleIds.current;
+    if (stale.size > 0) {
+      staleIds.current = new Set();
+      setItems((prev) => prev.filter((item) => !stale.has(feedItemId(item))));
+    }
+    setOrder(null);
+    void loadFeed();
+  }, [loadFeed]);
 
   // Paint the cached feed immediately; the load below refreshes it underneath.
   useEffect(() => {
@@ -543,6 +561,7 @@ export default function Feed({
         setWatched(cached.watched);
         setItems(cached.items);
         rememberVerdicts(cached.items);
+        setOrder(null);
       }
       setHydrating(false);
     });
@@ -551,12 +570,22 @@ export default function Feed({
     };
   }, [user.uid, rememberVerdicts]);
 
-  // A load runs once on connect and thereafter only when asked — the Refresh
-  // button or a page reload. Returning to the app shows the last-loaded feed.
+  // A load runs on connect, on Refresh, and on returning after a while away.
   useEffect(() => {
-    if (ready) {
-      void loadFeed();
+    if (!ready) {
+      return;
     }
+    void loadFeed();
+    const onVisible = () => {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() - lastLoadedAt.current > STALE_AFTER_MS
+      ) {
+        void loadFeed();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [ready, loadFeed]);
 
   // Enabled channels are already in the loaded feed; only a disabled (or unknown)
@@ -654,21 +683,9 @@ export default function Feed({
     [user.uid],
   );
 
-  /**
-   * Record a watched mark: it keeps the item on screen until the next load, is
-   * tracked against a load in flight, and is persisted.
-   */
+  /** Record a watched mark: tracked against a load in flight, and persisted. */
   const recordWatched = useCallback(
     (id: string, isWatched: boolean) => {
-      setRevealed((prev) => {
-        const next = new Set(prev);
-        if (isWatched) {
-          next.add(id);
-        } else {
-          next.delete(id);
-        }
-        return next;
-      });
       const entry = trackPending(pendingWatched.current, id, isWatched);
       settlePending(
         entry,
@@ -707,7 +724,8 @@ export default function Feed({
     [recordWatched],
   );
 
-  const feed = useMemo(() => {
+  // Everything the current view could show, watched or not, by id.
+  const passing = useMemo(() => {
     const compiled = new Map(
       Array.from(channels.values()).map((channel) => [
         channel.channelId,
@@ -721,39 +739,55 @@ export default function Feed({
         ? channelItems.items
         : []
       : items;
-    return source
-      .filter((item) => {
-        if (channelView && item.channelId !== channelView) {
-          return false;
-        }
-        const filter = compiled.get(item.channelId);
-        // The main feed shows only enabled channels; a channel page shows the one
-        // you navigated to regardless of its enabled state.
-        if (!channelView && !filter?.enabled) {
-          return false;
-        }
-        if (filter && !bypassFilters && !videoPassesFilter(item, filter)) {
-          return false;
-        }
-        const id = feedItemId(item);
-        if (!showWatched && watched.has(id) && !revealed.has(id)) {
-          return false;
-        }
-        return true;
-      })
-      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+    const shown = new Map<string, FeedItem>();
+    for (const item of source) {
+      if (channelView && item.channelId !== channelView) {
+        continue;
+      }
+      const filter = compiled.get(item.channelId);
+      // The main feed shows only enabled channels; a channel page shows the one
+      // you navigated to regardless of its enabled state.
+      if (!channelView && !filter?.enabled) {
+        continue;
+      }
+      if (filter && !bypassFilters && !videoPassesFilter(item, filter)) {
+        continue;
+      }
+      shown.set(feedItemId(item), item);
+    }
+    return shown;
   }, [
     items,
     channelItems,
     onDemandChannel,
     channelMode,
     channels,
-    watched,
-    revealed,
-    showWatched,
     bypassFilters,
     channelView,
   ]);
+
+  const view = `${channelView ?? ""}|${showWatched}|${bypassFilters}`;
+  // A card already on screen stays when it becomes watched (dimmed); watched
+  // only keeps a card from being added.
+  const arrivals = Array.from(passing.values()).filter(
+    (item) => showWatched || !watched.has(feedItemId(item)),
+  );
+  const shownIds =
+    order === null || order.view !== view
+      ? arrivals.sort(byOldest).map(feedItemId)
+      : extendOrder(order.ids, passing, arrivals);
+  if (order === null || order.view !== view || order.ids !== shownIds) {
+    setOrder({ view, ids: shownIds });
+  }
+  const feed = useMemo(
+    () =>
+      shownIds.flatMap((id) => {
+        const item = passing.get(id);
+        return item ? [item] : [];
+      }),
+    [shownIds, passing],
+  );
+  const outOfOrder = useMemo(() => !isOldestFirst(feed), [feed]);
 
   const hasUnwatched = useMemo(
     () => feed.some((item) => !watched.has(feedItemId(item))),
@@ -816,7 +850,7 @@ export default function Feed({
   // Every kind of in-flight work reads out through the Refresh icon, the one
   // loading indicator in the header — including restoring access, which is the
   // expected path on load and so gets no banner of its own. Spinning doesn't
-  // disable it: only a feed load already in flight makes clicking a no-op.
+  // disable it: a click still tidies the grid while a load is in flight.
   const spinning =
     loading || checking || connecting || channelLoading || pendingVerdicts;
 
@@ -870,14 +904,17 @@ export default function Feed({
         <div className="ml-auto flex items-center gap-1 text-base">
           <button
             type="button"
-            className="flex items-center rounded p-1.5 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
-            onClick={() => void loadFeed()}
-            disabled={loading || !ready}
+            className="relative flex items-center rounded p-1.5 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+            onClick={refresh}
+            disabled={!ready}
             title={spinning ? "Loading…" : "Refresh"}
             aria-label="Refresh"
             aria-busy={spinning}
           >
             <MdRefresh className={spinning ? "animate-spin" : ""} />
+            {outOfOrder ? (
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-600" />
+            ) : null}
           </button>
           <button
             type="button"
