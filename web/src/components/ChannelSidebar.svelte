@@ -10,6 +10,7 @@
     feed,
     selected,
     onselect,
+    onhome,
     collapsed,
     ontoggle,
   }: {
@@ -17,8 +18,10 @@
     feed: FeedController;
     /** the channel whose page is open, or null for the feed */
     selected: string | null;
-    /** open the feed (null) or a channel's page */
+    /** a row was clicked: the feed (null) or a channel; the current one again refreshes */
     onselect: (channelId: string | null) => void;
+    /** the logo was clicked: show the feed and refresh it */
+    onhome: () => void;
     /** whether the sidebar is collapsed to its icons, widening only on hover */
     collapsed: boolean;
     /** collapse the sidebar, or pin it open */
@@ -33,7 +36,12 @@
 <nav aria-label="Channels">
   <div class="list">
     <div class="head">
-      <button type="button" class="brand home" onclick={() => onselect(null)}>
+      <button
+        type="button"
+        class="brand home"
+        aria-label="Refresh"
+        onclick={onhome}
+      >
         <Logo />
         <span class="wide-only">SubTube</span>
       </button>

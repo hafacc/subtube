@@ -1,7 +1,7 @@
 # apple/ — subtube for macOS and iOS
 
 One Xcode project, `subtube.xcodeproj`, committed and opened directly (no
-generator). Targets `subtube-macOS` (macOS 15+) and `subtube-iOS` (iOS 18+),
+generator). Targets `SubTube-macOS` (macOS 15+) and `SubTube-iOS` (iOS 18+),
 bundle id `cc.hafa.subtube`, signing automatic with the team in
 `Config/Signing.xcconfig`. Both depend on the local Swift package `SubtubeCore`, whose
 tests run from either app scheme (⌘U) or `swift test`.
@@ -51,12 +51,16 @@ the pbxproj.
   loads channels only and saves its switches and Shorts choice on Next,
   which then fetches the channels left on; the filter screens edit a draft
   saved once when the last is left; the decisions are in `Setup.swift`),
-  `SettingsViews`, `Brand`, `Strings`.
+  `SettingsViews`, `Brand` (also the one shimmer, `shimmering()`, and
+  `skeleton()` for stand-ins: a first load shows skeleton cards, a reload
+  sweeps the greyed feed; still under reduced motion), `Strings`.
 - `App/macOS/` — `NavigationSplitView` (sidebar: Feed + channels; every channel list but setup's uses
   `FeedModel.orderedChannels`; detail: grid; inspector: filters, opened
-  only from the toolbar), the player takes over the
+  only from the toolbar; no Refresh button: clicking the sidebar row already
+  showing refreshes, as does Feed → Refresh, Cmd-R), the player takes over the
   window, `FeedCommands` (Feed menu), Settings scene (General, Account).
-- `App/iOS/` — tab bar (Feed, Channels, Settings); a channel's page is pushed
+- `App/iOS/` — tab bar (Feed, Channels, Settings; tapping Feed while the feed shows
+  scrolls to the top and refreshes, and pull to refresh stays); a channel's page is pushed
   from a feed card or the Channels list, and its Filters button opens the
   filter sheet over it; full-screen player.
 
@@ -83,8 +87,8 @@ platform (web, Android); only capitalization follows the platform.
 
 ## Run and look
 
-- `xcodebuild -project subtube.xcodeproj -scheme subtube-macOS build CODE_SIGN_IDENTITY=-`
-- `xcodebuild -project subtube.xcodeproj -scheme subtube-iOS -destination 'generic/platform=iOS Simulator' build CODE_SIGN_IDENTITY=-`
+- `xcodebuild -project subtube.xcodeproj -scheme SubTube-macOS build CODE_SIGN_IDENTITY=-`
+- `xcodebuild -project subtube.xcodeproj -scheme SubTube-iOS -destination 'generic/platform=iOS Simulator' build CODE_SIGN_IDENTITY=-`
 - `CODE_SIGN_IDENTITY=-` signs ad hoc, so a machine without the team's
   certificate can build; the macOS build fails without it, the simulator
   build doesn't need it.
@@ -95,7 +99,8 @@ platform (web, Android); only capitalization follows the platform.
   `-tab:channels|settings`, `-channel:<channelId>` (with `-tab:channels`,
   opens that channel's page), `-filter:<channelId>` (the page, then its filter
   sheet), `-bottom` (the filter sheet and Settings start scrolled to the
-  end); both platforms take `-hideWatched` and `-confirmDelete` (the Delete
+  end); both platforms take `-loading` (the feed as
+  during a reload; with `-empty`, as during the first load), `-hideWatched` and `-confirmDelete` (the Delete
   Profile confirmation, once Settings shows). Values ride in the same
   argument: macOS opens any bare argument as a file and then skips the main
   window.

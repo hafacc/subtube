@@ -77,15 +77,32 @@ private struct MacSidebar: View {
     case channel(String)
   }
 
+  /// When the selection last moved, to tell a click on the row already
+  /// selected from the click that selected it.
+  @State private var selectionMovedAt = Date.distantPast
+
   private var selection: Binding<Row?> {
     Binding(
       get: { feed.selectedChannel.map(Row.channel) ?? .feed },
       set: { row in
+        if row != feed.selectedChannel.map(Row.channel) ?? .feed {
+          selectionMovedAt = Date()
+        }
         switch row {
         case .channel(let channelId): feed.selectedChannel = channelId
         case .feed, nil: feed.selectedChannel = nil
         }
       })
+  }
+
+  /// Clicking the row already showing refreshes it. The list reports no
+  /// selection change for that click, so the row watches for it itself.
+  private func refreshOnReclick(_ row: Row) -> some Gesture {
+    TapGesture().onEnded {
+      if selection.wrappedValue == row && Date().timeIntervalSince(selectionMovedAt) > 0.5 {
+        feed.refresh()
+      }
+    }
   }
 
   var body: some View {
@@ -107,6 +124,8 @@ private struct MacSidebar: View {
           .foregroundStyle(selected == .feed ? Color.ink : Color.gold)
       }
       .foregroundStyle(selected == .feed ? Color.ink : Color.primary)
+      .contentShape(Rectangle())
+      .simultaneousGesture(refreshOnReclick(.feed))
       .tag(Row.feed)
       Section(Strings.channels) {
         ForEach(feed.orderedChannels, id: \.channelId) { channel in
@@ -118,6 +137,9 @@ private struct MacSidebar: View {
           }
           .foregroundStyle(isSelected ? Color.ink : Color.primary)
           .opacity(channel.enabled ? 1 : 0.45)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
+          .simultaneousGesture(refreshOnReclick(.channel(channel.channelId)))
           .tag(Row.channel(channel.channelId))
         }
       }
@@ -131,10 +153,6 @@ private struct MacFeedToolbar: ToolbarContent {
 
   var body: some ToolbarContent {
     ToolbarItemGroup(placement: .primaryAction) {
-      Button(action: feed.refresh) {
-        RefreshLabel(loading: feed.loading)
-      }
-      .help(Strings.refresh)
       Button {
         feed.hideWatched.toggle()
       } label: {
@@ -190,7 +208,7 @@ private struct MacFeedGrid: View {
           }
         }
         .loadingDimmed(feed.loading)
-        FeedEmptyState(feed: feed).padding(.top, 40)
+        FeedEmptyState(feed: feed)
       }
       .padding(20)
     }

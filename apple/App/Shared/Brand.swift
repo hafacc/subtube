@@ -62,20 +62,6 @@ extension ButtonStyle where Self == ProminentButtonStyle {
   static var prominentWide: ProminentButtonStyle { ProminentButtonStyle(fullWidth: true) }
 }
 
-/// The Refresh icon, spinning while a load runs.
-struct RefreshLabel: View {
-  let loading: Bool
-
-  var body: some View {
-    Label {
-      Text(Strings.refresh)
-    } icon: {
-      Image(systemName: "arrow.clockwise")
-        .symbolEffect(.rotate.clockwise, options: .repeat(.continuous).speed(1.5), isActive: loading)
-    }
-  }
-}
-
 /// A channel's avatar, or its initial while that loads or when it has none.
 struct Avatar: View {
   let url: String
@@ -123,6 +109,72 @@ struct Thumbnail: View {
         }
       }
       .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+  }
+}
+
+/// A lighter band sweeping across a view, to say it is loading. Still when
+/// the system asks for reduced motion.
+private struct Shimmer: ViewModifier {
+  let active: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  /// Seconds per sweep.
+  private static let period = 1.4
+  /// The band's width as a share of the view's.
+  private static let band = 0.4
+
+  func body(content: Content) -> some View {
+    if active && !reduceMotion {
+      content.overlay {
+        // the phase comes from the clock, so every shimmering view sweeps together
+        TimelineView(.animation) { context in
+          GeometryReader { proxy in
+            let phase =
+              context.date.timeIntervalSinceReferenceDate
+              .truncatingRemainder(dividingBy: Self.period) / Self.period
+            let width = proxy.size.width
+            LinearGradient(
+              colors: [.clear, .white.opacity(0.4), .clear], startPoint: .leading,
+              endPoint: .trailing
+            )
+            .frame(width: width * Self.band)
+            .offset(x: width * (phase * (1 + Self.band) - Self.band))
+          }
+        }
+        .mask(content)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+      }
+    } else {
+      content
+    }
+  }
+}
+
+extension View {
+  /// Sweep a shimmer across the view while `active`.
+  func shimmering(_ active: Bool = true) -> some View {
+    modifier(Shimmer(active: active))
+  }
+
+  /// Stand in for content that is loading: hidden from accessibility but
+  /// for one progress indicator, and shimmering.
+  func skeleton() -> some View {
+    shimmering()
+      .accessibilityElement(children: .ignore)
+      .accessibilityRepresentation { ProgressView() }
+  }
+}
+
+/// A grey bar standing in for a line of text.
+struct SkeletonLine: View {
+  var width: CGFloat?
+  var height: CGFloat = 12
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: height / 2.5)
+      .fill(Color.secondary.opacity(0.15))
+      .frame(maxWidth: width ?? .infinity)
+      .frame(height: height)
   }
 }
 

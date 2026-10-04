@@ -76,9 +76,11 @@ struct ItemCard: View {
 }
 
 extension View {
-  /// Grey out the previous feed and keep it from being used while a load runs.
+  /// Grey out the previous feed, shimmering, and keep it from being used
+  /// while a load runs.
   func loadingDimmed(_ loading: Bool) -> some View {
     opacity(loading ? 0.45 : 1)
+      .shimmering(loading)
       .disabled(loading)
       .animation(.default, value: loading)
   }
@@ -122,16 +124,51 @@ struct FeedBanners: View {
   }
 }
 
-/// What the grid shows when it has nothing.
+/// A card's shape while its feed loads: thumbnail, two title lines, the
+/// channel line.
+struct SkeletonCard: View {
+  var large = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: large ? 10 : 6) {
+      Thumbnail(url: "", cornerRadius: large ? 14 : 8)
+      SkeletonLine(height: large ? 15 : 12)
+      SkeletonLine(width: large ? 220 : 140, height: large ? 15 : 12)
+      SkeletonLine(width: large ? 150 : 100, height: large ? 11 : 9)
+    }
+  }
+}
+
+/// What the grid shows when it has nothing: skeleton cards while loading,
+/// otherwise that there is nothing new.
 struct FeedEmptyState: View {
   let feed: FeedModel
 
   var body: some View {
     if feed.shown.isEmpty {
       if feed.loading || feed.channelLoading {
-        ProgressView()
+        #if os(macOS)
+          LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 220), spacing: 16, alignment: .top)],
+            alignment: .leading, spacing: 18
+          ) {
+            ForEach(0..<16, id: \.self) { _ in SkeletonCard() }
+          }
+          .skeleton()
+        #else
+          ForEach(0..<4, id: \.self) { _ in
+            SkeletonCard(large: true)
+              .listRowInsets(EdgeInsets(top: 11, leading: 16, bottom: 11, trailing: 16))
+          }
+          .skeleton()
+        #endif
       } else if feed.error == nil {
-        Text(Strings.noMatches).foregroundStyle(.secondary)
+        Text(Strings.noMatches)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity)
+          #if os(macOS)
+            .padding(.top, 40)
+          #endif
       }
     }
   }

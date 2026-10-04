@@ -44,6 +44,18 @@ After sign-in, before "Choose channels", `Nux` loads the Drive folder: any
 `device-*.json` there (`hasProfile` in `sync-merge.ts`) marks setup done and
 opens the feed.
 
+## Loading
+
+One shimmer for the whole app: the `.shimmer` class in `src/app.css` sweeps a
+lighter band (1.4 s) across whatever is inside, and is still under
+`prefers-reduced-motion`. Nothing is kept between page opens (there
+is no feed cache), so the first load of a page always puts
+`FeedCardSkeleton`s (`.skeleton-block` shapes, hidden from accessibility) in
+the grid; a reload keeps the previous cards, dimmed and inert, under the same
+shimmer (`.over-cards` makes its band darker on a light page, where a
+lighter one wouldn't show over pale cards); setup's channel list loads as skeleton rows. The grid's `aria-busy`
+is what announces loading.
+
 ## Layout
 
 - `src/lib/` — logic, ported from the old root `src/` and tested with `bun test`
@@ -63,7 +75,7 @@ opens the feed.
     load and when the tab is hidden; a Drive file of this device that this
     version can't read is never overwritten. `deleteProfile()` (Settings →
     "Delete profile") deletes every file in the Drive folder, then the local
-    copy; `Session.deleteProfile` also drops the feed and channel caches and
+    copy; `Session.deleteProfile` also drops the kept channel names and
     the setup-done mark, signs out, and setup starts over. A store marks in
     localStorage (`subtube.uploaded.<account>`) that its file was uploaded; a
     later successful listing without that file (`deletedElsewhere`) means
@@ -93,14 +105,15 @@ opens the feed.
   - `session.svelte.ts` — account, token state, the account's `SyncStore`.
   - `router.ts` / `router.svelte.ts` — `?channel=x&v=y|list=y`; Back
     closes the player.
-  - `feed-cache.ts` — IndexedDB stale-while-revalidate (DB version 4).
   - `platform/` + `auth.ts` — the extension bridge. Protocol types come from
     `../extension/src/protocol.ts` (type-only import; single source).
   - `config.ts` — public ids and store links (TODO constants).
 - `src/components/` — `Feed` is the signed-in app, laid out like the Mac app:
-  `ChannelSidebar` on the left (the brand, "Feed" with its unwatched count,
+  `ChannelSidebar` on the left (the brand, which goes to the feed and
+  refreshes; there is no Refresh button — clicking the row of the page
+  already showing, Feed or a channel, refreshes it; "Feed" with its unwatched count,
   every channel in `channel-order.ts` order with off channels dimmed); the feed or a channel's page
-  (`?channel=`) in the middle under a toolbar (Refresh, show/hide watched,
+  (`?channel=`) in the middle under a toolbar (show/hide watched,
   theme, show/hide details, account → `Settings`); `FilterEditor` on the
   right, hidden until its toolbar button is pressed, editing the open
   channel's filter with no preview (the page beside it is the preview), with

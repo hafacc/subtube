@@ -1,0 +1,9 @@
+{
+  "id" : "e4a243bf-4112-4427-9a9e-abf6a2f40a57",
+  "targets" : [
+    {
+      "id" : "e5275e30-5b23-40fc-b4b5-32908c1fc93f",
+      "name" : "SubTube-iOS"
+    }
+  ]
+}

@@ -9,6 +9,8 @@ struct PlatformMainView: View {
   @State private var tab = MainTab.feed
   @State private var feedPath: [ChannelRoute] = []
   @State private var channelsPath: [ChannelRoute] = []
+  /// Counts taps on the Feed tab while the feed shows.
+  @State private var feedTopTaps = 0
 
   /// The channel page on top of the tab in front, if any.
   private var openChannel: String? {
@@ -25,10 +27,24 @@ struct PlatformMainView: View {
     case settings
   }
 
+  /// The tab in front; tapping Feed while the feed itself is showing scrolls
+  /// it to the top and refreshes.
+  private var tabSelection: Binding<MainTab> {
+    Binding(
+      get: { tab },
+      set: { tapped in
+        if tapped == .feed && tab == .feed && feedPath.isEmpty {
+          feedTopTaps += 1
+          feed.refresh()
+        }
+        tab = tapped
+      })
+  }
+
   var body: some View {
-    TabView(selection: $tab) {
+    TabView(selection: tabSelection) {
       Tab(Strings.feed, systemImage: "rectangle.stack", value: MainTab.feed) {
-        IOSFeedTab(app: app, feed: feed, path: $feedPath)
+        IOSFeedTab(app: app, feed: feed, path: $feedPath, scrollToTop: feedTopTaps)
       }
       Tab(Strings.channels, systemImage: "slider.horizontal.3", value: MainTab.channels) {
         IOSChannelsTab(app: app, feed: feed, path: $channelsPath)
@@ -105,10 +121,14 @@ private struct IOSFeedTab: View {
   let app: AppModel
   @Bindable var feed: FeedModel
   @Binding var path: [ChannelRoute]
+  let scrollToTop: Int
 
   var body: some View {
     NavigationStack(path: $path) {
-      IOSFeedList(app: app, feed: feed, openChannel: { path.append(ChannelRoute(channelId: $0)) })
+      IOSFeedList(
+        app: app, feed: feed, openChannel: { path.append(ChannelRoute(channelId: $0)) },
+        scrollToTop: scrollToTop
+      )
         .navigationTitle(Strings.feed)
         .toolbar {
           ToolbarItem(placement: .topBarTrailing) {
@@ -141,8 +161,20 @@ private struct IOSFeedList: View {
   let app: AppModel
   let feed: FeedModel
   let openChannel: (String) -> Void
+  /// Scrolls to the top each time it changes.
+  var scrollToTop = 0
 
   var body: some View {
+    ScrollViewReader { proxy in
+      list.onChange(of: scrollToTop) {
+        if let first = feed.shown.first {
+          withAnimation { proxy.scrollTo(first.id, anchor: .top) }
+        }
+      }
+    }
+  }
+
+  private var list: some View {
     List {
       if feed.error != nil || feed.notice != nil {
         FeedBanners(feed: feed, app: app)
@@ -171,7 +203,6 @@ private struct IOSFeedList: View {
         .loadingDimmed(feed.loading)
       }
       FeedEmptyState(feed: feed)
-        .frame(maxWidth: .infinity)
         .listRowSeparator(.hidden)
     }
     .listStyle(.plain)

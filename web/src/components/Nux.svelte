@@ -97,6 +97,7 @@
     "Try a filter",
   ];
   const PREVIEW_COUNT = 12;
+  const SKELETON_ROWS = Array.from({ length: 16 }, (_, index) => index);
   const FETCH_CONCURRENCY = 6;
 
   /** How often the extension step looks for the extension while it is missing. */
@@ -633,11 +634,15 @@
           <div class="content tight">
             {#if !channelsLoaded}
               {#if loadingChannels}
-                <p class="secondary loading">
-                  <span class="spinning"
-                    ><Icon name="refresh" size={20} /></span
-                  >
-                </p>
+                <div class="channel-grid shimmer" aria-busy="true">
+                  {#each SKELETON_ROWS as index (index)}
+                    <div class="channel-row" aria-hidden="true">
+                      <span class="skeleton-block skeleton-avatar"></span>
+                      <span class="skeleton-block skeleton-name"></span>
+                      <span class="skeleton-block skeleton-switch"></span>
+                    </div>
+                  {/each}
+                </div>
               {:else if error}
                 <p class="error-text">{error}</p>
               {/if}
@@ -1209,6 +1214,25 @@
 
   .channel-row.off > :global(:not(.switch)) {
     opacity: 0.45;
+  }
+
+  .skeleton-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+  }
+
+  .skeleton-name {
+    flex: 1;
+    max-width: 140px;
+    height: 12px;
+    margin-right: auto;
+  }
+
+  .skeleton-switch {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
   }
 
   .channel-title {

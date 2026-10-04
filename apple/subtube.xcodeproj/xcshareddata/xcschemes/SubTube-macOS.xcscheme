@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
+               BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
                BuildableName = "SubTube.app"
-               BlueprintName = "subtube-iOS"
+               BlueprintName = "SubTube-macOS"
                ReferencedContainer = "container:subtube.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -30,9 +30,9 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
+            BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
             BuildableName = "SubTube.app"
-            BlueprintName = "subtube-iOS"
+            BlueprintName = "SubTube-macOS"
             ReferencedContainer = "container:subtube.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
@@ -64,9 +64,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
+            BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
             BuildableName = "SubTube.app"
-            BlueprintName = "subtube-iOS"
+            BlueprintName = "SubTube-macOS"
             ReferencedContainer = "container:subtube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -81,9 +81,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
+            BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
             BuildableName = "SubTube.app"
-            BlueprintName = "subtube-iOS"
+            BlueprintName = "SubTube-macOS"
             ReferencedContainer = "container:subtube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

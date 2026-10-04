@@ -259,11 +259,6 @@ export class SyncStore {
     return this.merged.watched[id]?.watched ?? false;
   }
 
-  /** The ids among these that are marked watched. */
-  watchedAmong(ids: string[]): Set<string> {
-    return new Set(ids.filter((id) => this.isWatched(id)));
-  }
-
   /** Save a channel's filter; identity fields are dropped, unknown ones kept. */
   setFilter(channelId: string, filter: ChannelFilter): void {
     this.own.channels[channelId] = editedEntry(this.own.channels[channelId], {
