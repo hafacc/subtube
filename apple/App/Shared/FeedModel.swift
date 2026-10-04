@@ -650,7 +650,11 @@ private struct ChannelKind: Hashable {
       feed.fetched = Set(
         feed.channels.map { ChannelKind(channelId: $0.channelId, mode: $0.contentMode) })
       feed.hasLoaded = true
+      if CommandLine.arguments.contains("-empty") {
+        feed.items = [:]
+      }
       feed.rebuild()
+      feed.loading = CommandLine.arguments.contains("-loading")
       return feed
     }
 

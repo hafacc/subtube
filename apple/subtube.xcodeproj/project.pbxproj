@@ -15,7 +15,7 @@
 		2A7C4E91B3D05F6817A9C0D2 /* Versions.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Versions.xcconfig; sourceTree = "<group>"; };
 		2A7C4E91B3D05F6817A9C0D3 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		4FCD57DCD566D8457E888803 /* SubTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SubTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		61566686FA74EA7DC7D51AF6 /* subtube-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "subtube-macOS.entitlements"; sourceTree = "<group>"; };
+		61566686FA74EA7DC7D51AF6 /* SubTube-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SubTube-macOS.entitlements"; sourceTree = "<group>"; };
 		93F0F738DBBB7335A5567108 /* SubTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SubTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBF5AA3ED958701957BDCCB3 /* SubtubeCore */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SubtubeCore; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -88,7 +88,7 @@
 			isa = PBXGroup;
 			children = (
 				2A7C4E91B3D05F6817A9C0D3 /* Signing.xcconfig */,
-				61566686FA74EA7DC7D51AF6 /* subtube-macOS.entitlements */,
+				61566686FA74EA7DC7D51AF6 /* SubTube-macOS.entitlements */,
 				2A7C4E91B3D05F6817A9C0D2 /* Versions.xcconfig */,
 			);
 			path = Config;
@@ -106,9 +106,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		3447C5AB745E9FAEBA3EF35D /* subtube-macOS */ = {
+		3447C5AB745E9FAEBA3EF35D /* SubTube-macOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "subtube-macOS" */;
+			buildConfigurationList = FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "SubTube-macOS" */;
 			buildPhases = (
 				89FCEB57788F9A11408A5FE2 /* Sources */,
 				3570E7E0E47463223CDF0D52 /* Resources */,
@@ -123,17 +123,17 @@
 				971911F74738B91653C310A1 /* App/Shared */,
 				CE6C09117B59DB0C9B2E8834 /* App/macOS */,
 			);
-			name = "subtube-macOS";
+			name = "SubTube-macOS";
 			packageProductDependencies = (
 				0BBD0DFD4C6BF1F6C4A50FA1 /* SubtubeCore */,
 			);
-			productName = "subtube-macOS";
+			productName = "SubTube-macOS";
 			productReference = 4FCD57DCD566D8457E888803 /* SubTube.app */;
 			productType = "com.apple.product-type.application";
 		};
-		F4A6046E3FAB949DA6B8BB72 /* subtube-iOS */ = {
+		F4A6046E3FAB949DA6B8BB72 /* SubTube-iOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B228D03744D14B327BF37A30 /* Build configuration list for PBXNativeTarget "subtube-iOS" */;
+			buildConfigurationList = B228D03744D14B327BF37A30 /* Build configuration list for PBXNativeTarget "SubTube-iOS" */;
 			buildPhases = (
 				AFDF3AAC025A29C759284687 /* Sources */,
 				122B085F37FEADC59599DB56 /* Resources */,
@@ -148,11 +148,11 @@
 				971911F74738B91653C310A1 /* App/Shared */,
 				C1BE60ACB5F49EE117E4EC65 /* App/iOS */,
 			);
-			name = "subtube-iOS";
+			name = "SubTube-iOS";
 			packageProductDependencies = (
 				BEBEA27BA48C007B84B866DD /* SubtubeCore */,
 			);
-			productName = "subtube-iOS";
+			productName = "SubTube-iOS";
 			productReference = 93F0F738DBBB7335A5567108 /* SubTube.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -190,8 +190,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				3447C5AB745E9FAEBA3EF35D /* subtube-macOS */,
-				F4A6046E3FAB949DA6B8BB72 /* subtube-iOS */,
+				3447C5AB745E9FAEBA3EF35D /* SubTube-macOS */,
+				F4A6046E3FAB949DA6B8BB72 /* SubTube-iOS */,
 			);
 		};
 /* End PBXProject section */
@@ -235,7 +235,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "Config/subtube-macOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Config/SubTube-macOS.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
@@ -270,7 +270,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "Config/subtube-macOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Config/SubTube-macOS.entitlements";
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
@@ -454,7 +454,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		B228D03744D14B327BF37A30 /* Build configuration list for PBXNativeTarget "subtube-iOS" */ = {
+		B228D03744D14B327BF37A30 /* Build configuration list for PBXNativeTarget "SubTube-iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9B454C0591BA565AC4F71310 /* Debug */,
@@ -463,7 +463,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "subtube-macOS" */ = {
+		FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "SubTube-macOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				314B7D16388757AC41D2D0F7 /* Debug */,

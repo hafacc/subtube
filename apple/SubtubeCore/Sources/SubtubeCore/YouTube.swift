@@ -344,17 +344,29 @@ public struct YouTubeClient: Sendable {
   /// The ids of a channel's newest Shorts, or nil when it has no Shorts list.
   /// Every Short among the newest `max` uploads is among the newest `max`
   /// Shorts, so one page judges an uploads page that size.
+  ///
+  /// For a channel without Shorts YouTube answers this list, and only this
+  /// one, with a 5xx as often as with "not found"; after one more try that
+  /// counts as no list too.
   public func shortIds(channelId: String, max: Int = 50) async throws -> Set<String>? {
-    do {
+    let playlistId = shortsPlaylistId(channelId)
+    func read() async throws -> Set<String> {
       let page: PlaylistItemsResponse = try await get(
         "playlistItems",
-        [
-          "part": "contentDetails", "playlistId": shortsPlaylistId(channelId),
-          "maxResults": String(max),
-        ]
+        ["part": "contentDetails", "playlistId": playlistId, "maxResults": String(max)]
       )
       return Set(page.items.map(\.contentDetails.videoId))
+    }
+    do {
+      do {
+        return try await read()
+      } catch GoogleAPIError.http(let status, _) where (500..<600).contains(status) {
+        return try await read()
+      }
     } catch GoogleAPIError.playlistNotFound {
+      return nil
+    } catch GoogleAPIError.http(let status, _) where (500..<600).contains(status) {
+      apiLog.error("Shorts list \(playlistId, privacy: .public) answered \(status); taken as missing")
       return nil
     }
   }

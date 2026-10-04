@@ -1,6 +1,5 @@
 import { getValidToken, silentRefresh, withToken } from "./auth";
 import { channelInfo } from "./channel-info";
-import { cacheWatched, loadCachedFeed, saveCachedFeed } from "./feed-cache";
 import { feedItemId } from "./feed-item";
 import { byNewest } from "./feed-order";
 import { compileFilter, videoPassesFilter } from "./filters";
@@ -137,8 +136,6 @@ export class FeedController {
   items: FeedItem[] = $state.raw([]);
   /** whether a load is running */
   loading = $state(false);
-  /** true until the cached feed has been read back */
-  hydrating = $state(true);
   /** why the last load failed */
   error: string | null = $state(null);
   /** a load that only partly worked */
@@ -166,8 +163,6 @@ export class FeedController {
   private fetchedModes = new Map<string, Set<ContentMode>>();
   private loadInFlight = false;
   private lastLoadedAt = 0;
-  // whether a load has landed, so a slow cache read can't overwrite it
-  private feedApplied = false;
   private readonly accountId: string;
   private readonly session: Session;
   private readonly store: SyncStore;
@@ -271,23 +266,8 @@ export class FeedController {
       .sort(byNewest);
   });
 
-  /** Paint the cached feed, load, and reload on returning after a while away. */
+  /** Upload as the tab is hidden, and reload on returning after a while away. */
   start(): () => void {
-    void loadCachedFeed(this.accountId).then((cached) => {
-      if (cached && !this.feedApplied) {
-        this.channels = cached.channels;
-        this.watched = cached.watched;
-        this.items = cached.items;
-        this.fetchedModes = new Map();
-        for (const item of cached.items) {
-          this.markFetched(
-            item.channelId,
-            item.kind === "playlist" ? "playlists" : "videos",
-          );
-        }
-      }
-      this.hydrating = false;
-    });
     const onVisible = () => {
       if (document.visibilityState === "hidden") {
         this.store.flush();
@@ -387,7 +367,6 @@ export class FeedController {
 
   /** Show a finished load: its channels and items replace the old ones at once. */
   private applyLoad(data: FeedData): void {
-    this.feedApplied = true;
     // read the filters again, so edits made during the load stay
     const channels = this.store.channels(data.subscribed, data.followedInfo);
     const fresh = Array.from(data.fetched.values()).flatMap(
@@ -446,19 +425,10 @@ export class FeedController {
         data = await this.fetchEverything(await silentRefresh(), prefetched);
       }
       this.applyLoad(data);
-      // a partial load must not overwrite a good cache
-      if (data.failed.size > 0) {
-        this.notice =
-          "Some channels couldn't be loaded; showing partial results.";
-      } else {
-        this.notice = null;
-        void saveCachedFeed(this.accountId, {
-          channels: this.channels,
-          watched: this.store.watchedAmong(this.items.map(feedItemId)),
-          items: this.items,
-          cachedAt: Date.now(),
-        });
-      }
+      this.notice =
+        data.failed.size > 0
+          ? "Some channels couldn't be loaded; showing partial results."
+          : null;
     } catch (caught) {
       this.handleError(caught);
     } finally {
@@ -623,7 +593,6 @@ export class FeedController {
 
   private recordWatched(id: string, isWatched: boolean): void {
     this.store.setWatched(id, isWatched);
-    void cacheWatched(this.accountId, id, isWatched);
   }
 
   /** Whether a video or playlist is marked watched. */
@@ -667,7 +636,6 @@ export class FeedController {
       } else {
         next.delete(id);
       }
-      void cacheWatched(this.accountId, id, watched);
     }
     this.watched = next;
     if (watched) {

@@ -10,6 +10,7 @@
   import Avatar from "./Avatar.svelte";
   import ChannelSidebar from "./ChannelSidebar.svelte";
   import FeedCard from "./FeedCard.svelte";
+  import FeedCardSkeleton from "./FeedCardSkeleton.svelte";
   import FilterEditor from "./FilterEditor.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
   import Player from "./Player.svelte";
@@ -64,11 +65,13 @@
 
   const account = $derived(session.account);
   const route = $derived(router.route);
-  const spinning = $derived(
-    feed.loading ||
-      session.checking ||
-      session.connecting ||
-      feed.channelLoading,
+  // enough skeleton cards to fill a large window
+  const SKELETONS = Array.from({ length: 24 }, (_, index) => index);
+
+  // loading with nothing to show yet, on the feed or on a channel's own load
+  const firstLoad = $derived(
+    feed.feed.length === 0 &&
+      (feed.loading || session.checking || feed.channelLoading),
   );
 
   const title = $derived(
@@ -80,11 +83,33 @@
   );
 
   /** Show the feed (null) or a channel's page. */
-  function select(channelId: string | null): void {
+  function open(channelId: string | null): void {
     showSidebar = false;
     if (router.route.channel !== channelId || router.route.item) {
       router.open({ channel: channelId, item: null });
     }
+  }
+
+  function refresh(): void {
+    if (session.ready) {
+      feed.refresh();
+    }
+  }
+
+  /** A sidebar row: go there, or refresh when it is where the app already is. */
+  function select(channelId: string | null): void {
+    if (router.route.channel === channelId && !router.route.item) {
+      showSidebar = false;
+      refresh();
+    } else {
+      open(channelId);
+    }
+  }
+
+  /** The logo: the feed, refreshed. */
+  function home(): void {
+    open(null);
+    refresh();
   }
 
   function toggleSidebar(): void {
@@ -139,6 +164,7 @@
         {feed}
         selected={route.channel}
         onselect={select}
+        onhome={home}
         collapsed={!narrow && collapsed}
         ontoggle={toggleSidebar}
       />
@@ -171,22 +197,11 @@
       {/if}
       <div class="titles">
         <h1>{title}</h1>
-        {#if !route.channel}
+        {#if !route.channel && !firstLoad}
           <span class="secondary subtitle">{videoCount(feed.feed.length)}</span>
         {/if}
       </div>
       <div class="tools">
-        <button
-          type="button"
-          class="icon-button"
-          aria-label="Refresh"
-          title="Refresh"
-          aria-busy={spinning}
-          disabled={!session.ready}
-          onclick={() => feed.refresh()}
-        >
-          <span class:spinning><Icon name="refresh" /></span>
-        </button>
         <button
           type="button"
           class="icon-button"
@@ -299,9 +314,16 @@
 
         <main
           class:stale={feed.loading}
-          inert={feed.loading}
-          aria-busy={feed.loading}
+          class:shimmer={feed.loading || firstLoad}
+          class:over-cards={!firstLoad}
+          inert={feed.loading || firstLoad}
+          aria-busy={feed.loading || firstLoad}
         >
+          {#if firstLoad}
+            {#each SKELETONS as index (index)}
+              <FeedCardSkeleton />
+            {/each}
+          {/if}
           {#each feed.feed as item (feedItemId(item))}
             <FeedCard
               {item}
@@ -314,20 +336,15 @@
                       ? { kind: "playlist", id: item.playlistId }
                       : { kind: "video", id: item.videoId },
                 })}
-              onopenchannel={() => select(item.channelId)}
+              onopenchannel={() => open(item.channelId)}
               ontogglewatched={() => feed.toggleWatched(item)}
             />
           {/each}
         </main>
 
         {#if feed.feed.length === 0}
-          {#if feed.hydrating ||
-            feed.loading ||
-            session.checking ||
-            feed.channelLoading}
-            <p class="empty secondary">
-              <span class="spinning"><Icon name="refresh" size={20} /></span>
-            </p>
+          {#if firstLoad}
+            <!-- the skeleton cards above stand in for the list -->
           {:else if feed.channelError}
             <p class="empty error-text">{feed.channelError}</p>
           {:else if session.ready}
@@ -466,10 +483,6 @@
     gap: 4px;
   }
 
-  .spinning {
-    display: flex;
-  }
-
   .account {
     flex-shrink: 0;
     display: grid;
@@ -560,7 +573,8 @@
     gap: 16px;
   }
 
-  main.stale {
+  /* the cards dim, not the grid, so the shimmer over them stays at full strength */
+  main.stale > :global(.card) {
     opacity: 0.4;
     transition: opacity 0.2s;
   }

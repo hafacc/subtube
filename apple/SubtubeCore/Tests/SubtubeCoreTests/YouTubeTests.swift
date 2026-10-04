@@ -50,3 +50,63 @@ import Testing
     #expect(decodeHTMLEntities("a & b &bogus; c") == "a & b &bogus; c")
   }
 }
+
+/// Answers every request with one status and counts them per playlist id.
+private final class StatusStub: URLProtocol, @unchecked Sendable {
+  nonisolated(unsafe) static var status = 500
+  nonisolated(unsafe) static var counts: [String: Int] = [:]
+  private static let lock = NSLock()
+
+  static func session(status: Int) -> URLSession {
+    lock.withLock {
+      Self.status = status
+      counts = [:]
+    }
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [StatusStub.self]
+    return URLSession(configuration: configuration)
+  }
+
+  static func count(_ playlistId: String) -> Int {
+    lock.withLock { counts[playlistId] ?? 0 }
+  }
+
+  override class func canInit(with request: URLRequest) -> Bool { true }
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+  override func startLoading() {
+    let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems
+    let playlistId = items?.first { $0.name == "playlistId" }?.value ?? ""
+    let status = Self.lock.withLock {
+      Self.counts[playlistId, default: 0] += 1
+      return Self.status
+    }
+    let response = HTTPURLResponse(
+      url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+    client?.urlProtocol(
+      self, didLoad: Data(#"{"error": {"status": "INTERNAL", "message": "Internal error encountered."}}"#.utf8))
+    client?.urlProtocolDidFinishLoading(self)
+  }
+
+  override func stopLoading() {}
+}
+
+@Suite(.serialized) struct ShortsListFailureTests {
+  private let channelId = "UC7-E5xhZBZdW-8d7V80mzfg"
+
+  @Test func aServerErrorOnTheShortsListMeansNoList() async throws {
+    let client = YouTubeClient(accessToken: "token", session: StatusStub.session(status: 500))
+    #expect(try await client.shortIds(channelId: channelId) == nil)
+    #expect(StatusStub.count(shortsPlaylistId(channelId)) == 2)
+  }
+
+  @Test func aServerErrorOnTheUploadsListIsStillAnError() async {
+    let client = YouTubeClient(accessToken: "token", session: StatusStub.session(status: 500))
+    await #expect(throws: GoogleAPIError.self) {
+      _ = try await client.uploads(
+        channelId: channelId, channelTitle: "Channel", maxResults: 50, probe: nil)
+    }
+    #expect(StatusStub.count(uploadsPlaylistId(channelId)) == 1)
+  }
+}

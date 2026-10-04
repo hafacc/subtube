@@ -24,6 +24,8 @@
   --scrim-strong: rgba(31, 26, 16, 0.6);
   --shadow: rgba(31, 26, 16, 0.18);
   --error: #a3261b;
+  --shimmer: rgba(255, 255, 255, 0.65);
+  --shimmer-over-cards: rgba(31, 26, 16, 0.14);
   --mark-on-surface: var(--gold);
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -49,6 +51,8 @@
     --scrim-strong: rgba(0, 0, 0, 0.7);
     --shadow: rgba(0, 0, 0, 0.5);
     --error: #ff8a7a;
+    --shimmer: rgba(255, 255, 255, 0.09);
+    --shimmer-over-cards: rgba(255, 255, 255, 0.14);
   }
 }
 
@@ -71,6 +75,8 @@
   --scrim-strong: rgba(0, 0, 0, 0.7);
   --shadow: rgba(0, 0, 0, 0.5);
   --error: #ff8a7a;
+  --shimmer: rgba(255, 255, 255, 0.09);
+  --shimmer-over-cards: rgba(255, 255, 255, 0.14);
 }
 
 *,
@@ -292,6 +298,58 @@ button:disabled {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* a grey block standing in for content that is loading */
+.skeleton-block {
+  border-radius: 4px;
+  background: var(--placeholder);
+}
+
+/*
+ * Loading: a lighter band sweeps across whatever is inside, skeletons or the
+ * greyed previous content. Still when the system asks for reduced motion.
+ */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    var(--shimmer) 50%,
+    transparent 65%
+  );
+  transform: translateX(-100%);
+  animation: shimmer 1.4s linear infinite;
+  pointer-events: none;
+}
+
+/* over real cards that are dimmed, where a lighter band wouldn't show on a light page */
+.shimmer.over-cards::after {
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    var(--shimmer-over-cards) 50%,
+    transparent 65%
+  );
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after {
+    display: none;
   }
 }
 

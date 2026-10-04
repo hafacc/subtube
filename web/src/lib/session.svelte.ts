@@ -6,7 +6,6 @@ import {
   silentRefresh,
 } from "./auth";
 import { clearChannelInfo } from "./channel-info";
-import { deleteCachedFeed } from "./feed-cache";
 import { SyncStore } from "./sync-store";
 import {
   type ChannelSummary,
@@ -18,6 +17,15 @@ import {
 const STORED_ACCOUNT = "subtube.account";
 /** localStorage key: set once first-run setup is finished on this browser. */
 const SETUP_DONE = "subtube.setupDone";
+
+/** Earlier versions kept the last feed in IndexedDB; nothing reads it now. */
+function dropOldFeedCache(): void {
+  try {
+    indexedDB.deleteDatabase("subtube");
+  } catch {
+    // nothing was kept
+  }
+}
 
 function readStored<Value>(key: string): Value | null {
   try {
@@ -66,6 +74,7 @@ export class Session {
   store: SyncStore | null = $state.raw(null);
 
   constructor() {
+    dropOldFeedCache();
     if (this.account) {
       this.store = this.openStore(this.account.channelId);
     }
@@ -77,11 +86,10 @@ export class Session {
     );
   }
 
-  /** Forget the caches and the setup-done mark; the store forgets its own part. */
-  private async forgetLocal(accountId: string): Promise<void> {
+  /** Forget the channel names and the setup-done mark; the store forgets its own part. */
+  private forgetLocal(): void {
     clearChannelInfo();
     writeStored(SETUP_DONE, null);
-    await deleteCachedFeed(accountId);
   }
 
   /** Another device deleted the profile: start setup again, still signed in. */
@@ -89,7 +97,7 @@ export class Session {
     if (this.account?.channelId !== accountId) {
       return;
     }
-    void this.forgetLocal(accountId);
+    this.forgetLocal();
     this.store = this.openStore(accountId);
     this.setupDone = false;
   }
@@ -170,7 +178,7 @@ export class Session {
       await silentRefresh();
       await this.store.deleteProfile();
     }
-    await this.forgetLocal(accountId);
+    this.forgetLocal();
     await signOut().catch(() => undefined);
     writeStored(STORED_ACCOUNT, null);
     this.store = null;

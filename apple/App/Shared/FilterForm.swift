@@ -232,7 +232,17 @@ struct FilterPreview: View {
       } else if feed.previewFailed.contains(channel.channelId) {
         Text(Strings.previewFailed).foregroundStyle(.secondary)
       } else {
-        ProgressView().frame(maxWidth: .infinity)
+        ForEach(0..<4, id: \.self) { _ in
+          HStack(spacing: 10) {
+            Thumbnail(url: "", cornerRadius: 4).frame(width: 56)
+            VStack(alignment: .leading, spacing: 5) {
+              SkeletonLine(width: 200)
+              SkeletonLine(width: 60, height: 9)
+            }
+            Spacer(minLength: 0)
+          }
+          .skeleton()
+        }
       }
     }
   }

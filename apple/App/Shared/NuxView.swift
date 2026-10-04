@@ -415,7 +415,18 @@ private struct NuxChannels: View {
         Text(error).font(.callout).foregroundStyle(.red)
       }
       if !feed.channelsLoaded && feed.channels.isEmpty {
-        ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+        VStack(spacing: 0) {
+          ForEach(0..<8, id: \.self) { _ in
+            HStack(spacing: 12) {
+              Circle().fill(Color.secondary.opacity(0.15)).frame(width: 28, height: 28)
+              SkeletonLine(width: 180)
+              Spacer()
+            }
+            .padding(.vertical, 10)
+            Divider()
+          }
+        }
+        .skeleton()
       } else if feed.channels.isEmpty {
         Text(Strings.noSubscriptions).foregroundStyle(.secondary)
       } else {

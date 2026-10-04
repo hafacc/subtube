@@ -33,6 +33,15 @@ export class InsufficientScopeError extends Error {
   }
 }
 
+/** Google answered a request with a status that has no meaning of its own here. */
+export class GoogleRequestError extends Error {
+  /** Carries the HTTP `status` Google answered with. */
+  constructor(readonly status: number) {
+    super(`Google request failed: ${status}`);
+    this.name = "GoogleRequestError";
+  }
+}
+
 async function apiGet<Response>(
   path: string,
   params: Record<string, string>,
@@ -61,7 +70,7 @@ async function apiGet<Response>(
       throw new PlaylistNotFoundError(params.playlistId ?? "");
     }
     console.error(`YouTube API ${path} failed: ${response.status} ${body}`);
-    throw new Error(`Google request failed: ${response.status}`);
+    throw new GoogleRequestError(response.status);
   }
   return response.json() as Promise<Response>;
 }
@@ -356,25 +365,42 @@ export async function fetchPlaylists(
  * The ids of a channel's newest Shorts, or null when it has no Shorts list.
  * Every Short among a channel's newest `max` uploads is among its newest `max`
  * Shorts, so this one page judges every video of an uploads page that size.
+ *
+ * A channel with no Shorts is usually answered 404 `playlistNotFound`, but for
+ * some YouTube answers 500 `backendError`: a 5xx here, after one retry, also
+ * reads as no list.
  */
 export async function fetchShortIds(
   channelId: string,
   token: string,
   max = 50,
 ): Promise<Set<string> | null> {
-  try {
+  const playlistId = shortsPlaylistId(channelId);
+  const request = async () => {
     const data = await apiGet<PlaylistItemsResponse>(
       "/playlistItems",
-      {
-        part: "contentDetails",
-        playlistId: shortsPlaylistId(channelId),
-        maxResults: String(max),
-      },
+      { part: "contentDetails", playlistId, maxResults: String(max) },
       token,
     );
     return new Set(data.items.map((item) => item.contentDetails.videoId));
+  };
+  const isServerError = (caught: unknown) =>
+    caught instanceof GoogleRequestError && caught.status >= 500;
+  try {
+    try {
+      return await request();
+    } catch (caught) {
+      if (!isServerError(caught)) {
+        throw caught;
+      }
+      console.error(`Shorts list ${playlistId} failed; trying once more`);
+      return await request();
+    }
   } catch (caught) {
     if (caught instanceof PlaylistNotFoundError) {
+      return null;
+    } else if (isServerError(caught)) {
+      console.error(`Shorts list ${playlistId} failed again; read as missing`);
       return null;
     } else {
       throw caught;
