@@ -8,7 +8,11 @@ import {
 import { clearChannelInfo } from "./channel-info";
 import { deleteCachedFeed } from "./feed-cache";
 import { SyncStore } from "./sync-store";
-import { type ChannelSummary, fetchMyChannel } from "./youtube";
+import {
+  type ChannelSummary,
+  fetchMyChannel,
+  TokenExpiredError,
+} from "./youtube";
 
 /** localStorage key: who was signed in, so a reload paints their cached feed at once. */
 const STORED_ACCOUNT = "subtube.account";
@@ -48,6 +52,8 @@ export class Session {
   );
   /** whether a token is at hand */
   ready = $state(false);
+  /** whether a token was at hand and Google stopped accepting it */
+  expired = $state(false);
   /** whether a silent renewal is running */
   checking = $state(false);
   /** whether an interactive sign-in is running */
@@ -122,6 +128,7 @@ export class Session {
       writeStored(STORED_ACCOUNT, mine);
       this.account = mine;
       this.ready = true;
+      this.expired = false;
       return true;
     } catch (caught) {
       this.error = (caught as Error).message;
@@ -134,6 +141,7 @@ export class Session {
   /** The token stopped working; the next load asks for a click. */
   tokenLost(): void {
     this.ready = false;
+    this.expired = true;
   }
 
   /** Mark first-run setup finished. */
@@ -152,7 +160,16 @@ export class Session {
     if (!accountId || !this.store) {
       return;
     }
-    await this.store.deleteProfile();
+    try {
+      await this.store.deleteProfile();
+    } catch (caught) {
+      if (!(caught instanceof TokenExpiredError)) {
+        throw caught;
+      }
+      // Google refused the token: renew it and try once more
+      await silentRefresh();
+      await this.store.deleteProfile();
+    }
     await this.forgetLocal(accountId);
     await signOut().catch(() => undefined);
     writeStored(STORED_ACCOUNT, null);

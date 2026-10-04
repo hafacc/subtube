@@ -10,6 +10,7 @@ import {
   defaultFilter,
   deletedElsewhere,
   deviceIdFromName,
+  editedEntry,
   followedIds,
   hasProfile,
   mergeDeviceFiles,
@@ -77,6 +78,28 @@ describe("hasProfile", () => {
     expect(hasProfile(["device-.json", "device-abc.json.bak", "x.json"])).toBe(
       false,
     );
+  });
+});
+
+describe("editedEntry", () => {
+  test("keeps unknown fields beside the edited ones", () => {
+    const prior: { at: number; watched: boolean; note?: string } = {
+      at: 1,
+      watched: false,
+      note: "from a newer client",
+    };
+    expect(editedEntry(prior, { at: 5, watched: true })).toEqual({
+      at: 5,
+      watched: true,
+      note: "from a newer client",
+    });
+  });
+
+  test("is just the edit when there was no entry", () => {
+    expect(editedEntry(undefined, { at: 5, watched: true })).toEqual({
+      at: 5,
+      watched: true,
+    });
   });
 });
 

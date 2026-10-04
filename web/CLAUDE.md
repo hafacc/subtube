@@ -58,7 +58,10 @@ opens the feed.
     `setFilter(channelId, filter)` strips identity keys and keeps unknown ones;
     every write goes through `sanitizeDeviceFile` + prune. Unsent edits live in
     localStorage and go up after the next load. `close()` stops uploads before
-    the token can become another account's. `deleteProfile()` (Settings →
+    the token can become another account's. An edit keeps unknown fields
+    beside `at` (`editedEntry`); unsent edits go up again after the next
+    load and when the tab is hidden; a Drive file of this device that this
+    version can't read is never overwritten. `deleteProfile()` (Settings →
     "Delete profile") deletes every file in the Drive folder, then the local
     copy; `Session.deleteProfile` also drops the feed and channel caches and
     the setup-done mark, signs out, and setup starts over. A store marks in
@@ -71,13 +74,16 @@ opens the feed.
   - `feed.svelte.ts` — `FeedController`: load (subscriptions + Drive in
     parallel → every enabled channel's items, applied in one go when the load
     finishes; meanwhile `Feed` greys out the previous feed), filtering, the
-    order (every passing item, newest first; cards marked watched stay until
-    the next load or view change; an unmarked one comes straight back),
-    watched marks, mid-load 401
-    silent retry, reload after `STALE_AFTER_MS` away. Filter edits only
-    re-filter; a single channel is fetched only when its items for the
-    current mode are missing (`addChannelItems` also takes what a
-    channel page fetched for a channel that is off).
+    order (every passing item, newest first; a card marked watched here
+    stays, dimmed, until the next full load, watched toggle or filter edit —
+    not when moving between the feed and a channel page, nor when one
+    channel's fetch lands), watched marks, mid-load 401 silent retry, reload
+    after `STALE_AFTER_MS` away. Filter edits only re-filter; a channel that
+    is on is fetched by itself only when its items for the current mode are
+    missing (never fetched, or failed in the last load), at most 6 at a
+    time, and after a running load ends. Refresh also refetches the open
+    page of a channel that is off. Any fetch whose token Google refuses
+    renews it once and retries (`withToken` in `auth.ts`).
   - `channel-order.ts` — the order of every channel list (the left sidebar,
     setup's "Example channel" menu; not setup's "Choose channels"): on with
     something passing by newest passing item, then on with nothing passing,

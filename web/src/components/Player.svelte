@@ -57,7 +57,7 @@
     if (opened.kind === "playlist") {
       return playlistId;
     } else {
-      return currentVideoId;
+      return opened.id;
     }
   });
 
@@ -163,13 +163,8 @@
                 }
                 return;
               }
-              const nextId = videoData?.video_id;
-              if (nextId && nextId !== currentVideoId) {
-                if (currentVideoId && started) {
-                  leave(currentVideoId);
-                }
-                currentVideoId = nextId;
-              }
+              // a video the player moved on to by itself is shown, never marked
+              currentVideoId = videoData?.video_id ?? currentVideoId;
             },
           },
         });
@@ -182,8 +177,8 @@
 
     return () => {
       cancelled = true;
-      if (started && kind === "video" && currentVideoId) {
-        leave(currentVideoId);
+      if (started && opened.kind === "video") {
+        leave(opened.id);
       }
       player?.destroy();
       window.removeEventListener("keydown", onKeyDown);

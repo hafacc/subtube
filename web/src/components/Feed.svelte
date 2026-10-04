@@ -28,6 +28,11 @@
     router: Router;
   } = $props();
 
+  const THEME_NAME: Record<Theme, string> = {
+    system: "System",
+    light: "Light",
+    dark: "Dark",
+  };
   const THEME_ICON: Record<Theme, IconName> = {
     system: "themeSystem",
     light: "themeLight",
@@ -185,8 +190,9 @@
         <button
           type="button"
           class="icon-button"
-          aria-label={feed.showWatched ? "Hide watched" : "Show watched"}
-          title={feed.showWatched ? "Hide watched" : "Show watched"}
+          aria-label="Hide watched"
+          title="Hide watched"
+          aria-pressed={!feed.showWatched}
           onclick={() => feed.toggleShowWatched()}
         >
           <Icon name={feed.showWatched ? "eye" : "eyeOff"} />
@@ -194,8 +200,8 @@
         <button
           type="button"
           class="icon-button"
-          aria-label={`Theme: ${theme}`}
-          title={`Theme: ${theme}`}
+          aria-label={`Theme: ${THEME_NAME[theme]}`}
+          title={`Theme: ${THEME_NAME[theme]}`}
           onclick={() => {
             theme = cycleTheme(theme);
           }}
@@ -256,7 +262,11 @@
       <div class="content">
         {#if !session.ready && !session.checking && !session.connecting}
           <div class="banner">
-            <span>Sign in again to load your feed.</span>
+            <span>
+              {session.expired
+                ? "Your Google session ended. Sign in again to refresh."
+                : "Sign in again to load your feed."}
+            </span>
             <button
               type="button"
               class="button-small"

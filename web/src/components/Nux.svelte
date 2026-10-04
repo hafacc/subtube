@@ -15,10 +15,10 @@
 </script>
 
 <script lang="ts">
-  import { getValidToken } from "../lib/auth";
+  import { getValidToken, withToken } from "../lib/auth";
   import { channelInfo } from "../lib/channel-info";
   import { orderChannels } from "../lib/channel-order";
-  import { SHORTS_OPTIONS } from "../lib/channel-summary";
+  import { mostCommonShorts, SHORTS_OPTIONS } from "../lib/channel-summary";
   import { chromeWebStoreUrl, privacyUrl } from "../lib/config";
   import { canBeExample, pickExampleChannel } from "../lib/example-channel";
   import {
@@ -91,10 +91,10 @@
   };
   const LABELS = [
     "What SubTube is",
-    "Add the extension",
-    "Sign in",
+    "Add the Chrome extension",
+    "Sign in with Google",
     "Choose channels",
-    "Filter a channel",
+    "Try a filter",
   ];
   const PREVIEW_COUNT = 12;
   const FETCH_CONCURRENCY = 6;
@@ -276,7 +276,9 @@
       enabled = Object.fromEntries(
         channels.map((channel) => [channel.channelId, channel.filter.enabled]),
       );
-      startingShorts = mostCommonShorts(channels);
+      startingShorts = mostCommonShorts(
+        channels.map((channel) => channel.filter),
+      );
       shortsDefault = startingShorts;
       channelsLoaded = true;
     } catch (caught) {
@@ -284,21 +286,6 @@
     } finally {
       loadingChannels = false;
     }
-  }
-
-  function mostCommonShorts(loaded: Channel[]): ShortsFilter {
-    const counts = new Map<ShortsFilter, number>();
-    for (const channel of loaded) {
-      const value = channel.filter.shortsFilter ?? "all";
-      counts.set(value, (counts.get(value) ?? 0) + 1);
-    }
-    let best: ShortsFilter = "all";
-    for (const [value, count] of counts) {
-      if (count > (counts.get(best) ?? 0)) {
-        best = value;
-      }
-    }
-    return best;
   }
 
   function saveChannels(): void {
@@ -329,7 +316,6 @@
     if (missing.length === 0) {
       return;
     }
-    const token = await getValidToken();
     const probe = (await platform())?.probeShort;
     const fetched = await mapWithConcurrency(
       missing,
@@ -337,7 +323,12 @@
       async (channel) => {
         try {
           return [
-            [channel.channelId, await fetchChannelItems(channel, token, probe)],
+            [
+              channel.channelId,
+              await withToken((token) =>
+                fetchChannelItems(channel, token, probe),
+              ),
+            ],
           ] as const;
         } catch (caught) {
           console.error(caught);
@@ -384,10 +375,8 @@
     try {
       exampleItems = new Map(exampleItems).set(
         channel.channelId,
-        await fetchChannelItems(
-          channel,
-          await getValidToken(),
-          (await platform())?.probeShort,
+        await withToken(async (token) =>
+          fetchChannelItems(channel, token, (await platform())?.probeShort),
         ),
       );
     } catch (caught) {
@@ -711,7 +700,7 @@
                     <span class="channel-title">{channel.title}</span>
                     <Switch
                       checked={on}
-                      label={`Show ${channel.title}`}
+                      label={`Show ${channel.title} in feed`}
                       onchange={(checked) => {
                         enabled[channel.channelId] = checked;
                       }}
