@@ -8,15 +8,15 @@
 
 /* Begin PBXBuildFile section */
 		39B5CF2EA357C08036BAC82E /* SubtubeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0BBD0DFD4C6BF1F6C4A50FA1 /* SubtubeCore */; };
-		DE279873B796E1CCDAC81319 /* SubtubeCore in Frameworks */ = {isa = PBXBuildFile; productRef = BEBEA27BA48C007B84B866DD /* SubtubeCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2A7C4E91B3D05F6817A9C0D0 /* Info-iOS.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-iOS.plist"; sourceTree = "<group>"; };
+		2A7C4E91B3D05F6817A9C0D1 /* Info-macOS.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-macOS.plist"; sourceTree = "<group>"; };
 		2A7C4E91B3D05F6817A9C0D2 /* Versions.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Versions.xcconfig; sourceTree = "<group>"; };
 		2A7C4E91B3D05F6817A9C0D3 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		4FCD57DCD566D8457E888803 /* SubTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SubTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		61566686FA74EA7DC7D51AF6 /* SubTube-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SubTube-macOS.entitlements"; sourceTree = "<group>"; };
-		93F0F738DBBB7335A5567108 /* SubTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SubTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBF5AA3ED958701957BDCCB3 /* SubtubeCore */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SubtubeCore; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -44,14 +44,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		26C2FB9994C874CE31CB25D1 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				DE279873B796E1CCDAC81319 /* SubtubeCore in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		3ED3275967099243CB01A4F0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -87,6 +79,8 @@
 		9B37F6B44D8894ADB01F5E45 /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				2A7C4E91B3D05F6817A9C0D0 /* Info-iOS.plist */,
+				2A7C4E91B3D05F6817A9C0D1 /* Info-macOS.plist */,
 				2A7C4E91B3D05F6817A9C0D3 /* Signing.xcconfig */,
 				61566686FA74EA7DC7D51AF6 /* SubTube-macOS.entitlements */,
 				2A7C4E91B3D05F6817A9C0D2 /* Versions.xcconfig */,
@@ -97,7 +91,6 @@
 		CFAC4D16D823DF989C0C24EE /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				93F0F738DBBB7335A5567108 /* SubTube.app */,
 				4FCD57DCD566D8457E888803 /* SubTube.app */,
 			);
 			name = Products;
@@ -106,9 +99,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		3447C5AB745E9FAEBA3EF35D /* SubTube-macOS */ = {
+		3447C5AB745E9FAEBA3EF35D /* SubTube */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "SubTube-macOS" */;
+			buildConfigurationList = FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "SubTube" */;
 			buildPhases = (
 				89FCEB57788F9A11408A5FE2 /* Sources */,
 				3570E7E0E47463223CDF0D52 /* Resources */,
@@ -119,41 +112,17 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				C1BE60ACB5F49EE117E4EC65 /* App/iOS */,
+				CE6C09117B59DB0C9B2E8834 /* App/macOS */,
 				5E9E0EFF8E24788E9800FB47 /* App/Resources */,
 				971911F74738B91653C310A1 /* App/Shared */,
-				CE6C09117B59DB0C9B2E8834 /* App/macOS */,
 			);
-			name = "SubTube-macOS";
+			name = SubTube;
 			packageProductDependencies = (
 				0BBD0DFD4C6BF1F6C4A50FA1 /* SubtubeCore */,
 			);
-			productName = "SubTube-macOS";
+			productName = SubTube;
 			productReference = 4FCD57DCD566D8457E888803 /* SubTube.app */;
-			productType = "com.apple.product-type.application";
-		};
-		F4A6046E3FAB949DA6B8BB72 /* SubTube-iOS */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = B228D03744D14B327BF37A30 /* Build configuration list for PBXNativeTarget "SubTube-iOS" */;
-			buildPhases = (
-				AFDF3AAC025A29C759284687 /* Sources */,
-				122B085F37FEADC59599DB56 /* Resources */,
-				26C2FB9994C874CE31CB25D1 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				5E9E0EFF8E24788E9800FB47 /* App/Resources */,
-				971911F74738B91653C310A1 /* App/Shared */,
-				C1BE60ACB5F49EE117E4EC65 /* App/iOS */,
-			);
-			name = "SubTube-iOS";
-			packageProductDependencies = (
-				BEBEA27BA48C007B84B866DD /* SubtubeCore */,
-			);
-			productName = "SubTube-iOS";
-			productReference = 93F0F738DBBB7335A5567108 /* SubTube.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -166,9 +135,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					3447C5AB745E9FAEBA3EF35D = {
-						ProvisioningStyle = Automatic;
-					};
-					F4A6046E3FAB949DA6B8BB72 = {
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -190,20 +156,12 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				3447C5AB745E9FAEBA3EF35D /* SubTube-macOS */,
-				F4A6046E3FAB949DA6B8BB72 /* SubTube-iOS */,
+				3447C5AB745E9FAEBA3EF35D /* SubTube */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		122B085F37FEADC59599DB56 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		3570E7E0E47463223CDF0D52 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -221,66 +179,76 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AFDF3AAC025A29C759284687 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		01CD0E04C05F3F49C855FAAB /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "Config/SubTube-macOS.entitlements";
-				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				SDKROOT = macosx;
-			};
-			name = Release;
-		};
-		1CBC51DC5E5B5940166F824F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				INFOPLIST_KEY_CFBundleDisplayName = SubTube;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 		314B7D16388757AC41D2D0F7 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "Config/SubTube-macOS.entitlements";
-				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				LD_RUNPATH_SEARCH_PATHS = (
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Config/SubTube-macOS.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=iphone*]" = "Apple Development";
+				"COMBINE_HIDPI_IMAGES[sdk=macosx*]" = YES;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				"EXCLUDED_SOURCE_FILE_NAMES[sdk=iphone*]" = (
+					"$(SRCROOT)/App/macOS/*",
+					"$(SRCROOT)/App/macOS/*/*",
+				);
+				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = (
+					"$(SRCROOT)/App/iOS/*",
+					"$(SRCROOT)/App/iOS/*/*",
+				);
+				"INFOPLIST_FILE[sdk=iphone*]" = "Config/Info-iOS.plist";
+				"INFOPLIST_FILE[sdk=macosx*]" = "Config/Info-macOS.plist";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=iphone*]" = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				SDKROOT = macosx;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		01CD0E04C05F3F49C855FAAB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "Config/SubTube-macOS.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=iphone*]" = "Apple Development";
+				"COMBINE_HIDPI_IMAGES[sdk=macosx*]" = YES;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				"EXCLUDED_SOURCE_FILE_NAMES[sdk=iphone*]" = (
+					"$(SRCROOT)/App/macOS/*",
+					"$(SRCROOT)/App/macOS/*/*",
+				);
+				"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = (
+					"$(SRCROOT)/App/iOS/*",
+					"$(SRCROOT)/App/iOS/*/*",
+				);
+				"INFOPLIST_FILE[sdk=iphone*]" = "Config/Info-iOS.plist";
+				"INFOPLIST_FILE[sdk=macosx*]" = "Config/Info-macOS.plist";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=iphone*]" = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
 		};
 		78760BB70D0CAA4461284737 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -349,25 +317,6 @@
 				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
-		};
-		9B454C0591BA565AC4F71310 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				INFOPLIST_KEY_CFBundleDisplayName = SubTube;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
 		};
 		FE8C6B9DCD7C3EADF1691B79 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -456,16 +405,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		B228D03744D14B327BF37A30 /* Build configuration list for PBXNativeTarget "SubTube-iOS" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				9B454C0591BA565AC4F71310 /* Debug */,
-				1CBC51DC5E5B5940166F824F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
-		FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "SubTube-macOS" */ = {
+		FDD7B3980A900576B78C7E1B /* Build configuration list for PBXNativeTarget "SubTube" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				314B7D16388757AC41D2D0F7 /* Debug */,
@@ -485,10 +425,6 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		0BBD0DFD4C6BF1F6C4A50FA1 /* SubtubeCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SubtubeCore;
-		};
-		BEBEA27BA48C007B84B866DD /* SubtubeCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SubtubeCore;
 		};

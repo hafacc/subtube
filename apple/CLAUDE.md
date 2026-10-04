@@ -1,16 +1,27 @@
 # apple/ — subtube for macOS and iOS
 
 One Xcode project, `SubTube.xcodeproj`, committed and opened directly (no
-generator). Targets `SubTube-macOS` (macOS 15+) and `SubTube-iOS` (iOS 18+),
+generator). One target and one shared scheme, both `SubTube`, build the Mac
+app (macOS 15+, native, not Catalyst) and the iPhone and iPad app (iOS 18+),
 bundle id `cc.hafa.subtube`, signing automatic with the team in
-`Config/Signing.xcconfig`. Both depend on the local Swift package `SubtubeCore`, whose
-tests run from either app scheme (⌘U) or `swift test`.
+`Config/Signing.xcconfig`. The target depends on the local Swift package
+`SubtubeCore`, whose tests run from the scheme (⌘U) or `swift test`.
 
 The project uses folder-synced groups: every file under `App/Shared`,
-`App/macOS`, `App/iOS` and `App/Resources` is in the target(s) of its folder
-automatically. Add files on disk; don't add groups or file references in
-Xcode. `Config/` holds what must stay out of the synced folders (the macOS
-entitlements, `Versions.xcconfig`, `Signing.xcconfig`) and `make-icons.sh`.
+`App/macOS`, `App/iOS` and `App/Resources` is in the target automatically.
+Add files on disk; don't add groups or file references in Xcode.
+`App/macOS` compiles only for macOS and `App/iOS` only for iOS: the target's
+`EXCLUDED_SOURCE_FILE_NAMES[sdk=…]` leaves the other folder out, its files
+and those one folder down (the patterns' `*` stops at a `/`, so a deeper
+folder needs one more pattern). Settings that differ by platform are
+`[sdk=macosx*]` / `[sdk=iphone*]` conditionals on the target.
+
+`Config/` holds what must stay out of the synced folders (the macOS
+entitlements, `Info-macOS.plist`, `Info-iOS.plist`, `Versions.xcconfig`,
+`Signing.xcconfig`) and `make-icons.sh`. The two Info plists carry only the
+keys one platform has (app category; launch screen and orientations) and are
+merged into the generated Info.plist; as conditional `INFOPLIST_KEY_`
+settings those keys would also land, empty, in the other platform's plist.
 `Versions.xcconfig` is the project's base configuration and includes
 `Signing.xcconfig`; neither `MARKETING_VERSION` nor `DEVELOPMENT_TEAM` is in
 the pbxproj.
@@ -53,7 +64,8 @@ the pbxproj.
   saved once when the last is left; the decisions are in `Setup.swift`),
   `SettingsViews`, `Brand` (also the one shimmer, `shimmering()`, and
   `skeleton()` for stand-ins: a first load shows skeleton cards, a reload
-  sweeps the greyed feed; still under reduced motion), `Strings`.
+  sweeps the greyed feed with a dark band on light and a light band on dark;
+  still under reduced motion), `Strings`.
 - `App/macOS/` — `NavigationSplitView` (sidebar: Feed + channels; every channel list but setup's uses
   `FeedModel.orderedChannels`; detail: grid; inspector: filters, opened
   only from the toolbar; no Refresh button: clicking the sidebar row already
@@ -87,8 +99,8 @@ platform (web, Android); only capitalization follows the platform.
 
 ## Run and look
 
-- `xcodebuild -project SubTube.xcodeproj -scheme SubTube-macOS build CODE_SIGN_IDENTITY=-`
-- `xcodebuild -project SubTube.xcodeproj -scheme SubTube-iOS -destination 'generic/platform=iOS Simulator' build CODE_SIGN_IDENTITY=-`
+- `xcodebuild -project SubTube.xcodeproj -scheme SubTube -destination 'platform=macOS' build CODE_SIGN_IDENTITY=-`
+- `xcodebuild -project SubTube.xcodeproj -scheme SubTube -destination 'generic/platform=iOS Simulator' build CODE_SIGN_IDENTITY=-`
 - `CODE_SIGN_IDENTITY=-` signs ad hoc, so a machine without the team's
   certificate can build; the macOS build fails without it, the simulator
   build doesn't need it.
@@ -106,7 +118,8 @@ platform (web, Android); only capitalization follows the platform.
   window.
 - macOS screenshots without screen-recording permission:
   `open -W -n …/SubTube.app --args -demo -snapshot:<name>` writes PNGs to
-  `~/Library/Containers/cc.hafa.subtube/Data/tmp/snapshots/<name>`. Sidebar
+  `~/Library/Containers/cc.hafa.subtube/Data/tmp/snapshots/<name>`, each
+  window twice half a second apart (`later-…`) to show what moves. Sidebar
   and inspector (AppKit-backed lists and forms) and the web view don't render
   in them.
 - iOS: `xcrun simctl io <device> screenshot`. Use an existing simulator; never
@@ -122,8 +135,8 @@ macOS and iOS are cut separately; each has its own version line in
    `macos v<version>` to main and pushes the tag `ios-v<version>` /
    `macos-v<version>`.
 2. Xcode Cloud has one workflow per platform, started by tags beginning
-   `ios-v` / `macos-v`. It archives that platform's scheme (Release) and
-   supplies the build number.
+   `ios-v` / `macos-v`. Each has an Archive action with platform iOS or
+   macOS and scheme `SubTube` (Release), and supplies the build number.
 3. The archive goes to TestFlight; App Store submission is done from App
    Store Connect.
 

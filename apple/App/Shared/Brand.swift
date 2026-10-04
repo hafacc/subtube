@@ -112,15 +112,29 @@ struct Thumbnail: View {
   }
 }
 
-/// A lighter band sweeping across a view, to say it is loading. Still when
-/// the system asks for reduced motion.
+/// A band sweeping across a view, to say it is loading: lighter and cut to
+/// the shapes of stand-ins, or over real cards a darker band on light and a
+/// lighter one on dark, across the whole view. Still when the system asks
+/// for reduced motion.
 private struct Shimmer: ViewModifier {
   let active: Bool
+  let overCards: Bool
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.colorScheme) private var colorScheme
   /// Seconds per sweep.
   private static let period = 1.4
   /// The band's width as a share of the view's.
   private static let band = 0.4
+
+  private var bandColor: Color {
+    if !overCards {
+      .white.opacity(0.4)
+    } else if colorScheme == .dark {
+      .white.opacity(0.22)
+    } else {
+      .black.opacity(0.16)
+    }
+  }
 
   func body(content: Content) -> some View {
     if active && !reduceMotion {
@@ -133,14 +147,20 @@ private struct Shimmer: ViewModifier {
               .truncatingRemainder(dividingBy: Self.period) / Self.period
             let width = proxy.size.width
             LinearGradient(
-              colors: [.clear, .white.opacity(0.4), .clear], startPoint: .leading,
+              colors: [.clear, bandColor, .clear], startPoint: .leading,
               endPoint: .trailing
             )
             .frame(width: width * Self.band)
             .offset(x: width * (phase * (1 + Self.band) - Self.band))
           }
         }
-        .mask(content)
+        .mask {
+          if overCards {
+            Rectangle()
+          } else {
+            content
+          }
+        }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
       }
@@ -151,9 +171,10 @@ private struct Shimmer: ViewModifier {
 }
 
 extension View {
-  /// Sweep a shimmer across the view while `active`.
-  func shimmering(_ active: Bool = true) -> some View {
-    modifier(Shimmer(active: active))
+  /// Sweep a shimmer across the view while `active`; `overCards` when the
+  /// view is real content greyed out rather than stand-ins.
+  func shimmering(_ active: Bool = true, overCards: Bool = false) -> some View {
+    modifier(Shimmer(active: active, overCards: overCards))
   }
 
   /// Stand in for content that is loading: hidden from accessibility but

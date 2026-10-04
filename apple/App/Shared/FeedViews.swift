@@ -80,7 +80,7 @@ extension View {
   /// while a load runs.
   func loadingDimmed(_ loading: Bool) -> some View {
     opacity(loading ? 0.45 : 1)
-      .shimmering(loading)
+      .shimmering(loading, overCards: true)
       .disabled(loading)
       .animation(.default, value: loading)
   }
