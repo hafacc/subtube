@@ -1,0 +1,1276 @@
+{
+  "description": "Filter patterns: whether each pattern is valid (the meta regex accepts it), and for valid ones whether it is found in a text. See shared/patterns/README.md.",
+  "cases": [
+    {
+      "name": "empty pattern",
+      "pattern": "",
+      "valid": true,
+      "matches": [
+        {
+          "text": "anything",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "plain literal, case-insensitive by default",
+      "pattern": "trailer",
+      "valid": true,
+      "matches": [
+        {
+          "text": "Official Trailer",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "Official Trailer",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "trail",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "literal space and punctuation",
+      "pattern": "C# - part, 2!",
+      "valid": true,
+      "matches": [
+        {
+          "text": "c# - Part, 2!",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "slash is literal, escaped or not",
+      "pattern": "AC/DC \\/ live",
+      "valid": true,
+      "matches": [
+        {
+          "text": "ac/dc / LIVE",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "escaped metacharacters",
+      "pattern": "\\(live\\) \\[4K\\] \\{x\\} \\. \\* \\+ \\? \\| \\^ \\$ \\\\",
+      "valid": true,
+      "matches": [
+        {
+          "text": "(LIVE) [4k] {X} . * + ? | ^ $ \\ ",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "escaped plus as a literal",
+      "pattern": "C\\+\\+",
+      "valid": true,
+      "matches": [
+        {
+          "text": "c++ tutorial",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "cpp",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "dot matches any character",
+      "pattern": "a.c",
+      "valid": true,
+      "matches": [
+        {
+          "text": "abc",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "ac",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "dot matches a line break",
+      "pattern": "a.c",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a\nc",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a\r\nc",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "a\rc",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a\u2028c",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "dot matches one whole emoji",
+      "pattern": "^.$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "\ud83d\ude00",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "\u00e9",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "two dots do not match one emoji",
+      "pattern": "^..$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "\ud83d\ude00",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "emoji literal with a quantifier",
+      "pattern": "\ud83d\ude00+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "yay\ud83d\ude00\ud83d\ude00",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "yay\ud83d\ude00\ud83d\ude02",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "emoji in a class",
+      "pattern": "[\ud83d\ude00\ud83d\ude02]",
+      "valid": true,
+      "matches": [
+        {
+          "text": "lol\ud83d\ude02",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "lol",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "negated class matches one emoji",
+      "pattern": "^[^a]$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "\ud83d\ude00",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "class ranges",
+      "pattern": "[0-9]+ ?min",
+      "valid": true,
+      "matches": [
+        {
+          "text": "10 MIN read",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "ten min",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "class letter ranges are case-insensitive by default",
+      "pattern": "^[a-c]+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "ABC",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "ABC",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "abd",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "negated class, case-insensitive",
+      "pattern": "^[^a-z]+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "ABC",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "ABC",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "123",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "single letter in a class follows case",
+      "pattern": "[x]",
+      "valid": true,
+      "matches": [
+        {
+          "text": "X",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "X",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "escaped characters in a class",
+      "pattern": "^[\\]\\[\\-\\\\\\^]+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "]-[\\^",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "ampersand and colon in a class",
+      "pattern": "^[a&:]+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a&:",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "b",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "shorthands inside a class",
+      "pattern": "^[\\d\\w\\s]+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a_1 \t",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a-1",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "top-level alternation",
+      "pattern": "cat|dog",
+      "valid": true,
+      "matches": [
+        {
+          "text": "Hot Dogs",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "bird",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "empty alternative matches everything",
+      "pattern": "a|",
+      "valid": true,
+      "matches": [
+        {
+          "text": "xyz",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "empty group",
+      "pattern": "x()y",
+      "valid": true,
+      "matches": [
+        {
+          "text": "xy",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "group with alternation and quantifier",
+      "pattern": "(ep|episode) ?[0-9]+",
+      "valid": true,
+      "matches": [
+        {
+          "text": "Episode 12",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "Ep12",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "Epic",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "non-capturing group",
+      "pattern": "(?:part|pt)\\.? ?[0-9]",
+      "valid": true,
+      "matches": [
+        {
+          "text": "Pt. 2",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "Part 3",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "two groups side by side",
+      "pattern": "(a|b)(c|d)",
+      "valid": true,
+      "matches": [
+        {
+          "text": "xbd",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "xbe",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "exact count",
+      "pattern": "^[0-9]{4}$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "2026",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "20266",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "at least",
+      "pattern": "^a{2,}$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "aaa",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "between",
+      "pattern": "^a{1,3}$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "aaa",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "aaaa",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "zero count",
+      "pattern": "^ab{0}c$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "ac",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "abc",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "lazy quantifiers",
+      "pattern": "^a+?b*?c??d{1,2}?$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "aadd",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "start anchor",
+      "pattern": "^shorts",
+      "valid": true,
+      "matches": [
+        {
+          "text": "Shorts: hi",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "My Shorts",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "end anchor is the very end, not before a final line break",
+      "pattern": "end$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "the end",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "the end\n",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "the end\r\n",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "start anchor is the very start, not after a line break",
+      "pattern": "^b",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a\nb",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "anchors inside a group",
+      "pattern": "(^a|b$)",
+      "valid": true,
+      "matches": [
+        {
+          "text": "ab",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "ba",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "digit is ASCII only",
+      "pattern": "\\d",
+      "valid": true,
+      "matches": [
+        {
+          "text": "5",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "\u0663",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "\uff15",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "non-digit",
+      "pattern": "^\\D+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "abc",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a1",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "word is ASCII only",
+      "pattern": "^\\w+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "Abc_09",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "caf\u00e9",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "non-word",
+      "pattern": "\\W",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a b",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "ab",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "space includes no-break space",
+      "pattern": "a\\sb",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a\u00a0b",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a\tb",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a\u3000b",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "space excludes zero-width characters",
+      "pattern": "a\\sb",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a\u200bb",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "a\ufeffb",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "non-space",
+      "pattern": "^\\S+$",
+      "valid": true,
+      "matches": [
+        {
+          "text": "ab",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "a b",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "a\u00a0b",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "tab and line break escapes",
+      "pattern": "a\\tb\\nc\\rd",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a\tb\nc\rd",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "word boundary",
+      "pattern": "\\bcat\\b",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a cat!",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "concat",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "cat_",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "Cat",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "word boundary is ASCII: no boundary between \u00e9 and a space",
+      "pattern": "\\bcaf\u00e9\\b",
+      "valid": true,
+      "matches": [
+        {
+          "text": "caf\u00e9 au lait",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "caf\u00e9",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "not a word boundary",
+      "pattern": "\\Bcat",
+      "valid": true,
+      "matches": [
+        {
+          "text": "concat",
+          "caseSensitive": true,
+          "matches": true
+        },
+        {
+          "text": "cat",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "case-insensitivity covers ASCII letters only",
+      "pattern": "\u00e9",
+      "valid": true,
+      "matches": [
+        {
+          "text": "\u00c9",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "\u00e9",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "no multi-letter case folding",
+      "pattern": "stra\u00dfe",
+      "valid": true,
+      "matches": [
+        {
+          "text": "STRASSE",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "strasse",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "Kelvin sign is not k",
+      "pattern": "k",
+      "valid": true,
+      "matches": [
+        {
+          "text": "\u212a",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "K",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "dotted and dotless i are not i",
+      "pattern": "i",
+      "valid": true,
+      "matches": [
+        {
+          "text": "\u0130",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "\u0131",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "I",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "long s is not s",
+      "pattern": "s",
+      "valid": true,
+      "matches": [
+        {
+          "text": "\u017f",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "literal line break in the pattern",
+      "pattern": "a\nb",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a\nb",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "lone hyphen, comma and colon outside a class",
+      "pattern": "a-b,c:d",
+      "valid": true,
+      "matches": [
+        {
+          "text": "a-b,c:d",
+          "caseSensitive": true,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "nested group",
+      "pattern": "((a))",
+      "valid": false
+    },
+    {
+      "name": "nested group after text",
+      "pattern": "(a(b))",
+      "valid": false
+    },
+    {
+      "name": "nested non-capturing group",
+      "pattern": "(?:(a))",
+      "valid": false
+    },
+    {
+      "name": "second branch nests",
+      "pattern": "(a)|((b))",
+      "valid": false
+    },
+    {
+      "name": "unclosed group",
+      "pattern": "(a",
+      "valid": false
+    },
+    {
+      "name": "unopened group",
+      "pattern": "a)",
+      "valid": false
+    },
+    {
+      "name": "unclosed class",
+      "pattern": "[a",
+      "valid": false
+    },
+    {
+      "name": "lone closing bracket",
+      "pattern": "a]",
+      "valid": false
+    },
+    {
+      "name": "lone opening brace",
+      "pattern": "a{",
+      "valid": false
+    },
+    {
+      "name": "lone closing brace",
+      "pattern": "a}",
+      "valid": false
+    },
+    {
+      "name": "brace without a count",
+      "pattern": "a{}",
+      "valid": false
+    },
+    {
+      "name": "bounds out of order",
+      "pattern": "a{2,1}",
+      "valid": false
+    },
+    {
+      "name": "two-digit count",
+      "pattern": "a{10}",
+      "valid": false
+    },
+    {
+      "name": "missing lower bound",
+      "pattern": "a{,3}",
+      "valid": false
+    },
+    {
+      "name": "space in bounds",
+      "pattern": "a{1, 2}",
+      "valid": false
+    },
+    {
+      "name": "lookahead",
+      "pattern": "(?=a)",
+      "valid": false
+    },
+    {
+      "name": "negative lookahead",
+      "pattern": "(?!a)b",
+      "valid": false
+    },
+    {
+      "name": "lookbehind",
+      "pattern": "(?<=a)b",
+      "valid": false
+    },
+    {
+      "name": "negative lookbehind",
+      "pattern": "(?<!a)b",
+      "valid": false
+    },
+    {
+      "name": "named group",
+      "pattern": "(?<name>a)",
+      "valid": false
+    },
+    {
+      "name": "inline flag",
+      "pattern": "(?i)a",
+      "valid": false
+    },
+    {
+      "name": "atomic group",
+      "pattern": "(?>a)",
+      "valid": false
+    },
+    {
+      "name": "backreference",
+      "pattern": "(a)\\1",
+      "valid": false
+    },
+    {
+      "name": "named backreference",
+      "pattern": "(?<x>a)\\k<x>",
+      "valid": false
+    },
+    {
+      "name": "unicode escape",
+      "pattern": "\\u00E9",
+      "valid": false
+    },
+    {
+      "name": "unicode code point escape",
+      "pattern": "\\u{1F600}",
+      "valid": false
+    },
+    {
+      "name": "hex escape",
+      "pattern": "\\x41",
+      "valid": false
+    },
+    {
+      "name": "unicode property",
+      "pattern": "\\p{L}",
+      "valid": false
+    },
+    {
+      "name": "negated unicode property",
+      "pattern": "\\P{L}",
+      "valid": false
+    },
+    {
+      "name": "null escape",
+      "pattern": "\\0",
+      "valid": false
+    },
+    {
+      "name": "control escape",
+      "pattern": "\\cA",
+      "valid": false
+    },
+    {
+      "name": "vertical tab escape",
+      "pattern": "\\v",
+      "valid": false
+    },
+    {
+      "name": "form feed escape",
+      "pattern": "\\f",
+      "valid": false
+    },
+    {
+      "name": "Java/ICU-only escapes",
+      "pattern": "\\h\\R",
+      "valid": false
+    },
+    {
+      "name": "quoting",
+      "pattern": "\\Q.\\E",
+      "valid": false
+    },
+    {
+      "name": "input anchors",
+      "pattern": "\\Aa\\z",
+      "valid": false
+    },
+    {
+      "name": "escaped letter",
+      "pattern": "\\a",
+      "valid": false
+    },
+    {
+      "name": "escaped hyphen outside a class",
+      "pattern": "a\\-b",
+      "valid": false
+    },
+    {
+      "name": "escaped colon",
+      "pattern": "\\:",
+      "valid": false
+    },
+    {
+      "name": "escaped space",
+      "pattern": "a\\ b",
+      "valid": false
+    },
+    {
+      "name": "trailing backslash",
+      "pattern": "a\\",
+      "valid": false
+    },
+    {
+      "name": "possessive star",
+      "pattern": "a*+",
+      "valid": false
+    },
+    {
+      "name": "possessive plus",
+      "pattern": "a++",
+      "valid": false
+    },
+    {
+      "name": "possessive count",
+      "pattern": "a{2}+",
+      "valid": false
+    },
+    {
+      "name": "double quantifier",
+      "pattern": "a**",
+      "valid": false
+    },
+    {
+      "name": "lazy twice",
+      "pattern": "a*??",
+      "valid": false
+    },
+    {
+      "name": "count after count",
+      "pattern": "a{1,2}{3}",
+      "valid": false
+    },
+    {
+      "name": "leading quantifier",
+      "pattern": "*a",
+      "valid": false
+    },
+    {
+      "name": "quantifier alone",
+      "pattern": "?",
+      "valid": false
+    },
+    {
+      "name": "quantifier after bar",
+      "pattern": "a|*",
+      "valid": false
+    },
+    {
+      "name": "quantified start anchor",
+      "pattern": "^*a",
+      "valid": false
+    },
+    {
+      "name": "quantified end anchor",
+      "pattern": "a$+",
+      "valid": false
+    },
+    {
+      "name": "quantified word boundary",
+      "pattern": "\\b?a",
+      "valid": false
+    },
+    {
+      "name": "empty class",
+      "pattern": "[]",
+      "valid": false
+    },
+    {
+      "name": "empty negated class",
+      "pattern": "[^]",
+      "valid": false
+    },
+    {
+      "name": "range out of order",
+      "pattern": "[z-a]",
+      "valid": false
+    },
+    {
+      "name": "range across case",
+      "pattern": "[a-Z]",
+      "valid": false
+    },
+    {
+      "name": "range across kinds",
+      "pattern": "[0-z]",
+      "valid": false
+    },
+    {
+      "name": "range of punctuation",
+      "pattern": "[!-/]",
+      "valid": false
+    },
+    {
+      "name": "range beyond ASCII",
+      "pattern": "[\u00e0-\u00ff]",
+      "valid": false
+    },
+    {
+      "name": "trailing hyphen in a class",
+      "pattern": "[a-]",
+      "valid": false
+    },
+    {
+      "name": "leading hyphen in a class",
+      "pattern": "[-a]",
+      "valid": false
+    },
+    {
+      "name": "range to an escaped hyphen",
+      "pattern": "[a-\\-]",
+      "valid": false
+    },
+    {
+      "name": "hyphen after a range",
+      "pattern": "[a-c-e]",
+      "valid": false
+    },
+    {
+      "name": "nested class",
+      "pattern": "[[a]]",
+      "valid": false
+    },
+    {
+      "name": "opening bracket in a class",
+      "pattern": "[a[b]",
+      "valid": false
+    },
+    {
+      "name": "class intersection",
+      "pattern": "[a&&b]",
+      "valid": false
+    },
+    {
+      "name": "POSIX class",
+      "pattern": "[:alpha:]",
+      "valid": false
+    },
+    {
+      "name": "class starting with a colon",
+      "pattern": "[:a]",
+      "valid": false
+    },
+    {
+      "name": "negated class starting with a colon",
+      "pattern": "[^:a]",
+      "valid": false
+    },
+    {
+      "name": "caret inside a class",
+      "pattern": "[^^]",
+      "valid": false
+    },
+    {
+      "name": "negated shorthand in a class",
+      "pattern": "[\\D]",
+      "valid": false
+    },
+    {
+      "name": "word boundary in a class",
+      "pattern": "[\\b]",
+      "valid": false
+    },
+    {
+      "name": "unicode escape in a class",
+      "pattern": "[\\u0041]",
+      "valid": false
+    }
+  ]
+}

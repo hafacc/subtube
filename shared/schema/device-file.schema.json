@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://subtube.hafa.cc/schema/device-file.schema.json",
+  "title": "subtube device file, version 1",
+  "description": "One device's channel filters and watched marks, kept as device-<deviceId>.json in the user's Google Drive app folder (<deviceId> matches ^[A-Za-z0-9_-]+$). Each device writes only its own file and reads every device's file. This schema says what a writer must write. Readers are more forgiving (shared/fixtures/merge.json) and must keep fields they don't know: an object read from a file and written back, or a filter edited and saved, keeps every unknown field unchanged, so a newer client's additions survive an older client's saves. Adding an optional field keeps version 1; any change an older reader would misread bumps `version`, and a reader skips files whose version it doesn't know.",
+  "type": "object",
+  "required": [
+    "version",
+    "channels",
+    "watched"
+  ],
+  "properties": {
+    "version": {
+      "description": "Format version. Readers skip a file whose version they don't know.",
+      "const": 1
+    },
+    "channels": {
+      "description": "The last filter this device saved for each channel, keyed by YouTube channel id (UC…).",
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/channelEntry"
+      }
+    },
+    "watched": {
+      "description": "The last watched mark this device made for each video or playlist, keyed by its YouTube id. Marks older than a year are dropped when the device writes (shared/fixtures/prune.json).",
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/watchedEntry"
+      }
+    }
+  },
+  "$defs": {
+    "channelEntry": {
+      "type": "object",
+      "required": [
+        "at",
+        "filter"
+      ],
+      "properties": {
+        "at": {
+          "description": "When the entry was saved, in milliseconds since the Unix epoch (UTC).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "filter": {
+          "$ref": "#/$defs/filter"
+        }
+      }
+    },
+    "watchedEntry": {
+      "type": "object",
+      "required": [
+        "at",
+        "watched"
+      ],
+      "properties": {
+        "at": {
+          "description": "When the entry was saved, in milliseconds since the Unix epoch (UTC).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "watched": {
+          "description": "Whether the item is marked watched; false is an explicit unmark.",
+          "type": "boolean"
+        }
+      }
+    },
+    "filter": {
+      "description": "A channel's filter (shared/fixtures/filters.json). The channel's identity (id, title, thumbnail) belongs to YouTube and is never stored here. A reader treats a missing field, or one holding a value it doesn't recognize, as the field's default.",
+      "type": "object",
+      "required": [
+        "enabled",
+        "regex",
+        "mode"
+      ],
+      "properties": {
+        "enabled": {
+          "description": "Whether the main feed loads this channel. Default true.",
+          "type": "boolean"
+        },
+        "regex": {
+          "description": "Filter pattern in the shared pattern language (shared/patterns/README.md); \"\" means no pattern. Default \"\". The pattern below is shared/patterns/meta-regex.txt.",
+          "type": "string",
+          "pattern": "^(?:(?:\\^|\\$|\\\\[bB]|(?:[^\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}]|\\\\[\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}\\/tnrdDwWsS]|\\.|\\[\\^?(?!:)(?:0-[0-9]|1-[1-9]|2-[2-9]|3-[3-9]|4-[4-9]|5-[5-9]|6-[6-9]|7-[7-9]|8-[8-9]|9-[9-9]|a-[a-z]|b-[b-z]|c-[c-z]|d-[d-z]|e-[e-z]|f-[f-z]|g-[g-z]|h-[h-z]|i-[i-z]|j-[j-z]|k-[k-z]|l-[l-z]|m-[m-z]|n-[n-z]|o-[o-z]|p-[p-z]|q-[q-z]|r-[r-z]|s-[s-z]|t-[t-z]|u-[u-z]|v-[v-z]|w-[w-z]|x-[x-z]|y-[y-z]|z-[z-z]|A-[A-Z]|B-[B-Z]|C-[C-Z]|D-[D-Z]|E-[E-Z]|F-[F-Z]|G-[G-Z]|H-[H-Z]|I-[I-Z]|J-[J-Z]|K-[K-Z]|L-[L-Z]|M-[M-Z]|N-[N-Z]|O-[O-Z]|P-[P-Z]|Q-[Q-Z]|R-[R-Z]|S-[S-Z]|T-[T-Z]|U-[U-Z]|V-[V-Z]|W-[W-Z]|X-[X-Z]|Y-[Y-Z]|Z-[Z-Z]|[^\\\\\\]\\[\\^\\-&]|&(?!&)|\\\\[\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}\\/\\-tnrdws])+\\])(?:(?:[\\*\\+\\?]|\\{[0-9]\\}|\\{[0-9],\\}|\\{(?:0,[0-9]|1,[1-9]|2,[2-9]|3,[3-9]|4,[4-9]|5,[5-9]|6,[6-9]|7,[7-9]|8,[8-9]|9,[9-9])\\})\\??)?)|\\((?:\\?:)?(?:(?:\\^|\\$|\\\\[bB]|(?:[^\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}]|\\\\[\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}\\/tnrdDwWsS]|\\.|\\[\\^?(?!:)(?:0-[0-9]|1-[1-9]|2-[2-9]|3-[3-9]|4-[4-9]|5-[5-9]|6-[6-9]|7-[7-9]|8-[8-9]|9-[9-9]|a-[a-z]|b-[b-z]|c-[c-z]|d-[d-z]|e-[e-z]|f-[f-z]|g-[g-z]|h-[h-z]|i-[i-z]|j-[j-z]|k-[k-z]|l-[l-z]|m-[m-z]|n-[n-z]|o-[o-z]|p-[p-z]|q-[q-z]|r-[r-z]|s-[s-z]|t-[t-z]|u-[u-z]|v-[v-z]|w-[w-z]|x-[x-z]|y-[y-z]|z-[z-z]|A-[A-Z]|B-[B-Z]|C-[C-Z]|D-[D-Z]|E-[E-Z]|F-[F-Z]|G-[G-Z]|H-[H-Z]|I-[I-Z]|J-[J-Z]|K-[K-Z]|L-[L-Z]|M-[M-Z]|N-[N-Z]|O-[O-Z]|P-[P-Z]|Q-[Q-Z]|R-[R-Z]|S-[S-Z]|T-[T-Z]|U-[U-Z]|V-[V-Z]|W-[W-Z]|X-[X-Z]|Y-[Y-Z]|Z-[Z-Z]|[^\\\\\\]\\[\\^\\-&]|&(?!&)|\\\\[\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}\\/\\-tnrdws])+\\])(?:(?:[\\*\\+\\?]|\\{[0-9]\\}|\\{[0-9],\\}|\\{(?:0,[0-9]|1,[1-9]|2,[2-9]|3,[3-9]|4,[4-9]|5,[5-9]|6,[6-9]|7,[7-9]|8,[8-9]|9,[9-9])\\})\\??)?)|\\|)*\\)(?:(?:[\\*\\+\\?]|\\{[0-9]\\}|\\{[0-9],\\}|\\{(?:0,[0-9]|1,[1-9]|2,[2-9]|3,[3-9]|4,[4-9]|5,[5-9]|6,[6-9]|7,[7-9]|8,[8-9]|9,[9-9])\\})\\??)?|\\|)*$"
+        },
+        "mode": {
+          "description": "include keeps items the pattern finds; exclude drops them. Default include.",
+          "enum": [
+            "include",
+            "exclude"
+          ]
+        },
+        "caseSensitive": {
+          "description": "Whether the pattern matches ASCII letters case-sensitively. Default false.",
+          "type": "boolean"
+        },
+        "searchScope": {
+          "description": "What the pattern is searched in; both searches title and description separately. Default title.",
+          "enum": [
+            "title",
+            "both",
+            "description"
+          ]
+        },
+        "minDurationSeconds": {
+          "description": "Drop videos shorter than this many seconds; 0 keeps every length. Default 0.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "liveFilter": {
+          "description": "Which broadcast kinds to keep: all (everything but upcoming), vod (live streams and their replays), normal (plain uploads). Default all.",
+          "enum": [
+            "all",
+            "vod",
+            "normal"
+          ]
+        },
+        "shortsFilter": {
+          "description": "Which videos to keep: all, normal (no Shorts) or shorts (only Shorts). Default all.",
+          "enum": [
+            "all",
+            "normal",
+            "shorts"
+          ]
+        },
+        "contentMode": {
+          "description": "Whether the channel contributes its uploads or its playlists. Default videos.",
+          "enum": [
+            "videos",
+            "playlists"
+          ]
+        },
+        "followed": {
+          "description": "Added in subtube rather than subscribed to on YouTube; listed while true. Default false.",
+          "type": "boolean"
+        },
+        "channelId": false,
+        "title": false,
+        "thumbnail": false
+      }
+    }
+  }
+}

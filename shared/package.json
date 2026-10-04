@@ -1,0 +1,16 @@
+{
+  "private": true,
+  "name": "subtube-shared",
+  "description": "Checks for the data every subtube client shares.",
+  "type": "module",
+  "scripts": {
+    "check": "bun tools/check.ts",
+    "engines": "bun tools/cross-engine.ts",
+    "lint": "biome check",
+    "fmt": "biome check --write"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "ajv": "^8.20.0"
+  }
+}

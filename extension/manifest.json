@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "SubTube",
+  "version": "0.1.0",
+  "description": "Keeps the SubTube web app signed in to Google and checks which YouTube videos are Shorts.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["identity", "storage"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "externally_connectable": {
+    "matches": ["https://subtube.hafa.cc/*", "http://localhost/*"]
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqjDMMMsqB1c+JNfbNuU+A5gv6kp+jFsCaFtwtDDPcbPW+AKgFUNe9xpFo2ZbjdHvQ8m6whj9QLeYGyKqvCazRjIblYomjNE9jM92UHZkTbMFOf1ZbKt/LFcsUXeSMhRyt1PuqO4o59vOr7SscUxXNu8ViSsQLB4GZerdHi7B+wsuIYN/Cx4sQCRAubztbxL2zjIkUoFctzr5nKF8xVUa3bMRflhmPKdcK31ZYO2mNzT94Q71koX8kA3McAPIRyam+cz3jJwcBiecTKhWP4ib5StJbLsqUZIG0u1MidiZP0yhJEjwmspdUSxylhCZdyZakkf3Uw5Ui+Mo5GaVouLGlQIDAQAB"
+}

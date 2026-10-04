@@ -6,11 +6,11 @@ updates:
       interval: monthly
 
   - package-ecosystem: bun
-    directory: /
+    directories: [/web, /extension, /shared]
     schedule:
       interval: monthly
 
-  - package-ecosystem: npm
-    directory: /functions
+  - package-ecosystem: gradle
+    directory: /android
     schedule:
       interval: monthly

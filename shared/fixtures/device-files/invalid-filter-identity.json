@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "channels": {
+    "UC1": {
+      "at": 1759500000000,
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "channelId": "UC1",
+        "title": "Chan",
+        "thumbnail": "https://yt3.ggpht.com/x"
+      }
+    }
+  },
+  "watched": {}
+}

@@ -1,0 +1,944 @@
+{
+  "description": "Merging every device's file into one view. `files` are the device files as downloaded (`content` is the raw JSON, `deviceId` the <id> of device-<id>.json); `expected` is the merged view. Per key the entry with the greatest `at` wins; on equal `at` the greater deviceId (ASCII order) wins; the winning entry is kept whole, unknown fields included. A file that is not an object or whose `version` is not the number 1 is skipped; `channels`/`watched` that are missing or not objects read as empty; an entry that is not an object, whose `at` is not a whole number from 0 to 2^53-1, whose `filter` is not an object, or whose `watched` is not a boolean, is dropped. Filter field values are not checked here.",
+  "cases": [
+    {
+      "name": "no files",
+      "files": [],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {}
+      }
+    },
+    {
+      "name": "one file reads as itself",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "x",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "newest at wins per key",
+      "files": [
+        {
+          "deviceId": "laptop",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000005,
+                "filter": {
+                  "enabled": true,
+                  "regex": "laptop",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000001,
+                "watched": true
+              },
+              "v2": {
+                "at": 1759500000009,
+                "watched": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "phone",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000007,
+                "filter": {
+                  "enabled": true,
+                  "regex": "phone",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000003,
+                "watched": false
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000007,
+            "filter": {
+              "enabled": true,
+              "regex": "phone",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1759500000003,
+            "watched": false
+          },
+          "v2": {
+            "at": 1759500000009,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "file order does not matter",
+      "files": [
+        {
+          "deviceId": "phone",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000007,
+                "filter": {
+                  "enabled": true,
+                  "regex": "phone",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "laptop",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000005,
+                "filter": {
+                  "enabled": true,
+                  "regex": "laptop",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000007,
+            "filter": {
+              "enabled": true,
+              "regex": "phone",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {}
+      }
+    },
+    {
+      "name": "equal at: greater deviceId wins",
+      "files": [
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "b",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": false
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "a",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "B",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "B",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "b",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": false
+          }
+        }
+      }
+    },
+    {
+      "name": "deviceId order is ASCII, so digits sort before letters and hyphen before digits",
+      "files": [
+        {
+          "deviceId": "9f",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "a0",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": false
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "-z",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": false
+          }
+        }
+      }
+    },
+    {
+      "name": "a newer older entry does not merge field by field",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "old",
+                  "mode": "include",
+                  "minDurationSeconds": 60
+                }
+              }
+            },
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000001,
+                "filter": {
+                  "enabled": true,
+                  "regex": "new",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000001,
+            "filter": {
+              "enabled": true,
+              "regex": "new",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {}
+      }
+    },
+    {
+      "name": "unknown fields in the winning entry and filter are kept",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000001,
+                "filter": {
+                  "enabled": true,
+                  "regex": "x",
+                  "mode": "include",
+                  "sortOrder": "newest",
+                  "liveFilter": "premieres"
+                },
+                "editedOn": "tv"
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true,
+                "progressSeconds": 42
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "y",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000001,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include",
+              "sortOrder": "newest",
+              "liveFilter": "premieres"
+            },
+            "editedOn": "tv"
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": true,
+            "progressSeconds": 42
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown top-level fields do not reach the merged view",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            },
+            "playlists": {
+              "PL1": {
+                "at": 1759500000000
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "a newer version is skipped",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 2,
+            "channels": {
+              "UC1": {
+                "at": 1759500000009,
+                "filter": {
+                  "enabled": true,
+                  "regex": "v2",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "v1",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "v1",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {}
+      }
+    },
+    {
+      "name": "missing, string and zero versions are skipped",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000001,
+                "watched": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": "1",
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000002,
+                "watched": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "c",
+          "content": {
+            "version": 0,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000003,
+                "watched": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "d",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": false
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": false
+          }
+        }
+      }
+    },
+    {
+      "name": "a file that is not an object is skipped",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": null
+        },
+        {
+          "deviceId": "b",
+          "content": []
+        },
+        {
+          "deviceId": "c",
+          "content": "device"
+        },
+        {
+          "deviceId": "d",
+          "content": 1
+        },
+        {
+          "deviceId": "e",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "missing sections read as empty",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "sections that are not objects read as empty",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": "garbage",
+            "watched": [
+              {
+                "at": 1759500000000,
+                "watched": true
+              }
+            ]
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": null,
+            "watched": 7
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {}
+      }
+    },
+    {
+      "name": "malformed entries are dropped, so they never win",
+      "files": [
+        {
+          "deviceId": "bad",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000009,
+                "filter": "x"
+              },
+              "UC2": {
+                "at": 1759500000009
+              },
+              "UC3": {
+                "filter": {
+                  "enabled": true,
+                  "regex": "no time",
+                  "mode": "include"
+                }
+              },
+              "UC4": {
+                "at": "1759500000009",
+                "filter": {
+                  "enabled": true,
+                  "regex": "string time",
+                  "mode": "include"
+                }
+              },
+              "UC5": null
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000009,
+                "watched": "yes"
+              },
+              "v2": {
+                "at": -1,
+                "watched": true
+              },
+              "v3": {
+                "at": 1759500000000.5,
+                "watched": true
+              },
+              "v4": {
+                "at": 9007199254740992,
+                "watched": true
+              },
+              "v5": true,
+              "v6": {
+                "at": 1759500000009
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "good",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "1",
+                  "mode": "include"
+                }
+              },
+              "UC2": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "2",
+                  "mode": "include"
+                }
+              }
+            },
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": false
+              },
+              "v2": {
+                "at": 0,
+                "watched": false
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "1",
+              "mode": "include"
+            }
+          },
+          "UC2": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "2",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": false
+          },
+          "v2": {
+            "at": 0,
+            "watched": false
+          }
+        }
+      }
+    },
+    {
+      "name": "the largest allowed at is kept",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 9007199254740991,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 9007199254740991,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "a filter with unrecognized values is still merged as is",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "mode": "highlight",
+                  "regex": "((x))"
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000000,
+            "filter": {
+              "mode": "highlight",
+              "regex": "((x))"
+            }
+          }
+        },
+        "watched": {}
+      }
+    },
+    {
+      "name": "a watched mark of false wins when newer",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000001,
+                "watched": false
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000001,
+            "watched": false
+          }
+        }
+      }
+    }
+  ]
+}

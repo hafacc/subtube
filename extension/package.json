@@ -1,0 +1,28 @@
+{
+  "private": true,
+  "name": "subtube-extension",
+  "version": "0.1.0",
+  "description": "Chrome extension that signs the subtube web app in to Google and checks which videos are Shorts.",
+  "license": "MIT",
+  "author": "Erik Brinkman",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hafacc/subtube.git",
+    "directory": "extension"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "bun build.ts",
+    "package": "bun scripts/package.ts",
+    "lint": "tsc && biome check",
+    "fmt": "biome check --write",
+    "icons": "bun scripts/icons.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@types/bun": "^1.4.2",
+    "@types/chrome": "^0.3.4",
+    "typescript": "~7.0.2"
+  }
+}

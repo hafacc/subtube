@@ -1,0 +1,214 @@
+{
+  "description": "Dropping watched marks a device no longer needs before it writes its own file. A mark is kept while now - at < 365 days (31536000000 ms); channels, unknown fields and the rest of the file are written back unchanged. `file` is the device's own parsed file, `expected` what it writes.",
+  "cases": [
+    {
+      "name": "keeps a recent mark",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "keeps a mark one millisecond short of a year",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1758464000001,
+            "watched": true
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1758464000001,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "drops a mark exactly a year old",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1758464000000,
+            "watched": true
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {}
+      }
+    },
+    {
+      "name": "drops an older mark, watched or not",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1758463999999,
+            "watched": true
+          },
+          "v2": {
+            "at": 0,
+            "watched": false
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {}
+      }
+    },
+    {
+      "name": "keeps a mark from the future (clock skew)",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1790000060000,
+            "watched": true
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1790000060000,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "never drops channel filters",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 0,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {}
+      },
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 0,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {}
+      }
+    },
+    {
+      "name": "keeps unknown fields at every level",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 0,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include",
+              "sortOrder": "newest"
+            },
+            "editedOn": "tv"
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1790000000000,
+            "watched": true,
+            "progressSeconds": 42
+          },
+          "v2": {
+            "at": 0,
+            "watched": true,
+            "progressSeconds": 1
+          }
+        },
+        "playlists": {
+          "PL1": {
+            "at": 1790000000000
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 0,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include",
+              "sortOrder": "newest"
+            },
+            "editedOn": "tv"
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1790000000000,
+            "watched": true,
+            "progressSeconds": 42
+          }
+        },
+        "playlists": {
+          "PL1": {
+            "at": 1790000000000
+          }
+        }
+      }
+    }
+  ]
+}

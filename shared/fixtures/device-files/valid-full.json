@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "channels": {
+    "UCuAXFkgsw1L7xaCfnd5JJOw": {
+      "at": 1759500000000,
+      "filter": {
+        "enabled": true,
+        "regex": "(ep|episode) ?\\d+",
+        "mode": "include",
+        "caseSensitive": false,
+        "searchScope": "both",
+        "minDurationSeconds": 120,
+        "liveFilter": "normal",
+        "shortsFilter": "normal",
+        "contentMode": "videos",
+        "followed": false
+      }
+    },
+    "UCBR8-60-B28hp2BmDPdntcQ": {
+      "at": 1759500000001,
+      "filter": {
+        "enabled": false,
+        "regex": "",
+        "mode": "exclude",
+        "contentMode": "playlists",
+        "followed": true
+      }
+    }
+  },
+  "watched": {
+    "dQw4w9WgXcQ": {
+      "at": 1759500000000,
+      "watched": true
+    },
+    "PLbpi6ZahtOH6Blw3RGYpWkSByi_T7Rygb": {
+      "at": 1759500000002,
+      "watched": false
+    }
+  }
+}
