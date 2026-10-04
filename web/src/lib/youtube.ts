@@ -26,7 +26,9 @@ export class PlaylistNotFoundError extends Error {
  */
 export class InsufficientScopeError extends Error {
   constructor() {
-    super("Google access was granted without a permission SubTube needs");
+    super(
+      "SubTube needs both permissions Google asks for. Sign in again and allow them.",
+    );
     this.name = "InsufficientScopeError";
   }
 }
@@ -58,7 +60,8 @@ async function apiGet<Response>(
     if (response.status === 404 && body.includes("playlistNotFound")) {
       throw new PlaylistNotFoundError(params.playlistId ?? "");
     }
-    throw new Error(`YouTube API ${path} failed: ${response.status} ${body}`);
+    console.error(`YouTube API ${path} failed: ${response.status} ${body}`);
+    throw new Error(`Google request failed: ${response.status}`);
   }
   return response.json() as Promise<Response>;
 }

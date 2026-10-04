@@ -50,6 +50,17 @@ export function deletedElsewhere(
   return uploadedBefore && !fileNames.includes(ownName);
 }
 
+/**
+ * An entry of a device's own file after an edit: the new time and values, with
+ * whatever else a newer client wrote beside them kept.
+ */
+export function editedEntry<Entry extends { at: number }>(
+  prior: Entry | undefined,
+  edit: Entry,
+): Entry {
+  return { ...prior, ...edit };
+}
+
 /** An empty file of the current version. */
 export function emptyDeviceFile(): DeviceFile {
   return { version: 1, channels: {}, watched: {} };

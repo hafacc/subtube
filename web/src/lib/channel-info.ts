@@ -1,5 +1,9 @@
 import type { ChannelInfo } from "./types";
-import { fetchChannelsById } from "./youtube";
+import {
+  fetchChannelsById,
+  InsufficientScopeError,
+  TokenExpiredError,
+} from "./youtube";
 
 /*
  * Names and pictures of channels followed in subtube. The Drive file never holds
@@ -58,7 +62,8 @@ export function clearChannelInfo(): void {
 
 /**
  * The identity of each of these channels: kept entries as they are, missing or
- * old ones looked up with channels.list (50 ids per quota unit).
+ * old ones looked up with channels.list (50 ids per quota unit). A lookup that
+ * fails leaves what was kept.
  */
 export async function channelInfo(
   channelIds: string[],
@@ -72,15 +77,26 @@ export async function channelInfo(
       now - stored[channelId].fetchedAt > REFRESH_AFTER_MS,
   );
   if (stale.length > 0) {
-    for (const summary of await fetchChannelsById(stale, token)) {
-      stored[summary.channelId] = {
-        channelId: summary.channelId,
-        title: summary.title,
-        thumbnail: summary.thumbnail,
-        fetchedAt: now,
-      };
+    try {
+      for (const summary of await fetchChannelsById(stale, token)) {
+        stored[summary.channelId] = {
+          channelId: summary.channelId,
+          title: summary.title,
+          thumbnail: summary.thumbnail,
+          fetchedAt: now,
+        };
+      }
+      writeStored(stored);
+    } catch (caught) {
+      if (
+        caught instanceof TokenExpiredError ||
+        caught instanceof InsufficientScopeError
+      ) {
+        throw caught;
+      }
+      // the channels are listed by what is kept, or their ids, until a lookup works
+      console.error(caught);
     }
-    writeStored(stored);
   }
   return cachedChannelInfo(channelIds);
 }

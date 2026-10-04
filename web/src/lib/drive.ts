@@ -32,7 +32,8 @@ async function driveFetch(
     if (response.status === 403 && body.includes("insufficient")) {
       throw new InsufficientScopeError();
     }
-    throw new Error(`Google Drive request failed: ${response.status} ${body}`);
+    console.error(`Google Drive request failed: ${response.status} ${body}`);
+    throw new Error(`Google request failed: ${response.status}`);
   }
   return response;
 }
@@ -85,7 +86,7 @@ export async function deleteFile(fileId: string, token: string): Promise<void> {
   if (response.status === 401) {
     throw new TokenExpiredError();
   } else if (!response.ok && response.status !== 404) {
-    throw new Error(`Google Drive request failed: ${response.status}`);
+    throw new Error(`Google request failed: ${response.status}`);
   }
 }
 
