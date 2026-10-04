@@ -1,6 +1,6 @@
 # apple/ — subtube for macOS and iOS
 
-One Xcode project, `subtube.xcodeproj`, committed and opened directly (no
+One Xcode project, `SubTube.xcodeproj`, committed and opened directly (no
 generator). Targets `SubTube-macOS` (macOS 15+) and `SubTube-iOS` (iOS 18+),
 bundle id `cc.hafa.subtube`, signing automatic with the team in
 `Config/Signing.xcconfig`. Both depend on the local Swift package `SubtubeCore`, whose
@@ -87,8 +87,8 @@ platform (web, Android); only capitalization follows the platform.
 
 ## Run and look
 
-- `xcodebuild -project subtube.xcodeproj -scheme SubTube-macOS build CODE_SIGN_IDENTITY=-`
-- `xcodebuild -project subtube.xcodeproj -scheme SubTube-iOS -destination 'generic/platform=iOS Simulator' build CODE_SIGN_IDENTITY=-`
+- `xcodebuild -project SubTube.xcodeproj -scheme SubTube-macOS build CODE_SIGN_IDENTITY=-`
+- `xcodebuild -project SubTube.xcodeproj -scheme SubTube-iOS -destination 'generic/platform=iOS Simulator' build CODE_SIGN_IDENTITY=-`
 - `CODE_SIGN_IDENTITY=-` signs ad hoc, so a machine without the team's
   certificate can build; the macOS build fails without it, the simulator
   build doesn't need it.

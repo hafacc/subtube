@@ -14,10 +14,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
+               BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
                BuildableName = "SubTube.app"
-               BlueprintName = "SubTube-macOS"
-               ReferencedContainer = "container:subtube.xcodeproj">
+               BlueprintName = "SubTube-iOS"
+               ReferencedContainer = "container:SubTube.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -30,10 +30,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
+            BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
             BuildableName = "SubTube.app"
-            BlueprintName = "SubTube-macOS"
-            ReferencedContainer = "container:subtube.xcodeproj">
+            BlueprintName = "SubTube-iOS"
+            ReferencedContainer = "container:SubTube.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -64,10 +64,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
+            BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
             BuildableName = "SubTube.app"
-            BlueprintName = "SubTube-macOS"
-            ReferencedContainer = "container:subtube.xcodeproj">
+            BlueprintName = "SubTube-iOS"
+            ReferencedContainer = "container:SubTube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -81,10 +81,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3447C5AB745E9FAEBA3EF35D"
+            BlueprintIdentifier = "F4A6046E3FAB949DA6B8BB72"
             BuildableName = "SubTube.app"
-            BlueprintName = "SubTube-macOS"
-            ReferencedContainer = "container:subtube.xcodeproj">
+            BlueprintName = "SubTube-iOS"
+            ReferencedContainer = "container:SubTube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
