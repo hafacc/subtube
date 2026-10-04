@@ -10,39 +10,46 @@ on:
         default: false
 
 jobs:
-  build:
+  web:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun lint
+      - run: bun run lint
       - run: bun test
+      - run: bun run build
       - if: inputs.upload-pages
         uses: actions/configure-pages@v6
-        with:
-          static_site_generator: next
-      - uses: actions/cache@v6
-        with:
-          path: |
-            .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('bun.lock') }}-
-      - run: bun export
       - if: inputs.upload-pages
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ./out
+          path: web/dist
 
-  functions:
+  extension:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: functions/package-lock.json
-      - run: npm --prefix functions ci
-      - run: npm --prefix functions run build
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun test
+      - run: bun run build
+
+  shared:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shared
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun tools/check.ts
+      - run: bun run lint

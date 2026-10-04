@@ -1,0 +1,79 @@
+{
+  "description": "The feed's order: newest first by `publishedAt` (RFC 3339 UTC strings from YouTube, compared as plain ASCII strings), equal times by item id (video or playlist id, ASCII order, ascending). `sort` orders a whole list. The feed is shown in this order once a load has finished; while a load runs the previous feed stays, greyed out.",
+  "cases": [
+    {
+      "name": "sort: newest first",
+      "op": "sort",
+      "items": [
+        {
+          "id": "c",
+          "publishedAt": "2026-01-09T00:00:00Z"
+        },
+        {
+          "id": "a",
+          "publishedAt": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "z",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "c",
+        "a",
+        "z"
+      ]
+    },
+    {
+      "name": "sort: hours count",
+      "op": "sort",
+      "items": [
+        {
+          "id": "late",
+          "publishedAt": "2026-01-01T23:00:00Z"
+        },
+        {
+          "id": "early",
+          "publishedAt": "2026-01-01T01:00:00Z"
+        }
+      ],
+      "expected": [
+        "late",
+        "early"
+      ]
+    },
+    {
+      "name": "sort: equal times go by id",
+      "op": "sort",
+      "items": [
+        {
+          "id": "b",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "a",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "B",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "_",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "-",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "-",
+        "B",
+        "_",
+        "a",
+        "b"
+      ]
+    }
+  ]
+}

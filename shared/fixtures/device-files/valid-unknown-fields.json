@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "theme": "dark",
+  "channels": {
+    "UC1": {
+      "at": 1759500000000,
+      "editedOn": "tv",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "sortOrder": "newest"
+      }
+    }
+  },
+  "watched": {
+    "v1": {
+      "at": 1759500000000,
+      "watched": true,
+      "progressSeconds": 42
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "channels": {
+    "UC1": {
+      "at": 1759500000000,
+      "filter": {
+        "enabled": true,
+        "regex": ""
+      }
+    }
+  },
+  "watched": {}
+}

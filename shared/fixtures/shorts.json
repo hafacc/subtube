@@ -1,0 +1,188 @@
+{
+  "description": "Classifying one channel's uploads as Shorts. A candidate is a video with a known duration (> 0) of at most 180 s; anything else is not a Short. With no candidates the Shorts list is not read. Otherwise a candidate is a Short iff it is in the list's newest page (`shortsList`, null when YouTube answers that the list doesn't exist). Only when the list is null and the platform can probe (`probe` present: videoId -> true, false, or null for an inconclusive answer or an error; an id missing from `probe` is an error) are the candidates probed instead, an inconclusive probe leaving the verdict unknown. `expected` maps each video to true, false, or null (unknown); `readsShortsList` and `probes` (in any order) say which requests are made.",
+  "cases": [
+    {
+      "name": "nothing short enough: the list is not read",
+      "videos": [
+        {
+          "videoId": "long",
+          "durationSeconds": 600
+        }
+      ],
+      "shortsList": [],
+      "expected": {
+        "long": false
+      },
+      "readsShortsList": false,
+      "probes": []
+    },
+    {
+      "name": "unknown and zero durations are not candidates",
+      "videos": [
+        {
+          "videoId": "live"
+        },
+        {
+          "videoId": "upcoming",
+          "durationSeconds": 0
+        }
+      ],
+      "shortsList": [
+        "live",
+        "upcoming"
+      ],
+      "expected": {
+        "live": false,
+        "upcoming": false
+      },
+      "readsShortsList": false,
+      "probes": []
+    },
+    {
+      "name": "candidates are judged by the list",
+      "videos": [
+        {
+          "videoId": "short",
+          "durationSeconds": 30
+        },
+        {
+          "videoId": "clip",
+          "durationSeconds": 90
+        },
+        {
+          "videoId": "long",
+          "durationSeconds": 600
+        }
+      ],
+      "shortsList": [
+        "short",
+        "long"
+      ],
+      "expected": {
+        "short": true,
+        "clip": false,
+        "long": false
+      },
+      "readsShortsList": true,
+      "probes": []
+    },
+    {
+      "name": "180 s is a candidate, 181 s is not",
+      "videos": [
+        {
+          "videoId": "edge",
+          "durationSeconds": 180
+        },
+        {
+          "videoId": "over",
+          "durationSeconds": 181
+        }
+      ],
+      "shortsList": [
+        "edge",
+        "over"
+      ],
+      "expected": {
+        "edge": true,
+        "over": false
+      },
+      "readsShortsList": true,
+      "probes": []
+    },
+    {
+      "name": "an empty list means no Shorts",
+      "videos": [
+        {
+          "videoId": "clip",
+          "durationSeconds": 90
+        }
+      ],
+      "shortsList": [],
+      "expected": {
+        "clip": false
+      },
+      "readsShortsList": true,
+      "probes": []
+    },
+    {
+      "name": "no list and no probe: no Shorts",
+      "videos": [
+        {
+          "videoId": "clip",
+          "durationSeconds": 90
+        }
+      ],
+      "shortsList": null,
+      "expected": {
+        "clip": false
+      },
+      "readsShortsList": true,
+      "probes": []
+    },
+    {
+      "name": "a list wins over a probe",
+      "videos": [
+        {
+          "videoId": "clip",
+          "durationSeconds": 90
+        }
+      ],
+      "shortsList": [
+        "other"
+      ],
+      "probe": {
+        "clip": true
+      },
+      "expected": {
+        "clip": false
+      },
+      "readsShortsList": true,
+      "probes": []
+    },
+    {
+      "name": "no list: candidates are probed instead",
+      "videos": [
+        {
+          "videoId": "short",
+          "durationSeconds": 30
+        },
+        {
+          "videoId": "clip",
+          "durationSeconds": 40
+        },
+        {
+          "videoId": "unsure",
+          "durationSeconds": 50
+        },
+        {
+          "videoId": "failed",
+          "durationSeconds": 60
+        },
+        {
+          "videoId": "long",
+          "durationSeconds": 600
+        }
+      ],
+      "shortsList": null,
+      "probe": {
+        "short": true,
+        "clip": false,
+        "unsure": null
+      },
+      "expected": {
+        "short": true,
+        "clip": false,
+        "unsure": null,
+        "failed": null,
+        "long": false
+      },
+      "readsShortsList": true,
+      "probes": [
+        "short",
+        "clip",
+        "unsure",
+        "failed"
+      ]
+    }
+  ]
+}
