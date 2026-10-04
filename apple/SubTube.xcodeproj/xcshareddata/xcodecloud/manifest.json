@@ -4,6 +4,10 @@
     {
       "id" : "e5275e30-5b23-40fc-b4b5-32908c1fc93f",
       "name" : "SubTube-iOS"
+    },
+    {
+      "id" : "617016d9-fea0-47f3-a180-240c0ae163a6",
+      "name" : "SubtubeCore"
     }
   ]
 }
