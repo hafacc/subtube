@@ -1,0 +1,345 @@
+import Foundation
+
+/// Whether a channel's regex keeps or drops what it matches.
+public enum FilterMode: String, Codable, Sendable, CaseIterable {
+  /// Keep items that match.
+  case include
+  /// Keep items that do not match.
+  case exclude
+}
+
+/// What a channel's regex matches against.
+public enum FilterScope: String, Codable, Sendable, CaseIterable {
+  case title
+  case both
+  case description
+}
+
+/// Whether a channel contributes its uploads or its playlists to the feed.
+public enum ContentMode: String, Codable, Sendable, CaseIterable {
+  case videos
+  case playlists
+}
+
+/// A video's broadcast kind.
+public enum LiveStatus: String, Codable, Sendable, CaseIterable {
+  case upcoming
+  case live
+  /// A finished live stream or premiere.
+  case vod
+  /// A plain upload that was never broadcast.
+  case normal
+}
+
+/// Per-channel broadcast filter.
+public enum LiveFilter: String, Codable, Sendable, CaseIterable {
+  /// Everything but upcoming.
+  case all
+  /// Only live streams and their replays.
+  case vod
+  /// Only plain uploads.
+  case normal
+}
+
+/// Per-channel Shorts filter.
+public enum ShortsFilter: String, Codable, Sendable, CaseIterable {
+  /// Everything.
+  case all
+  /// Hide Shorts.
+  case normal
+  /// Only Shorts.
+  case shorts
+}
+
+/// A YouTube subscription.
+public struct Subscription: Codable, Sendable, Hashable {
+  /// The channel's `UC…` id.
+  public var channelId: String
+  /// The channel's name.
+  public var title: String
+  /// The channel's avatar URL, or empty.
+  public var thumbnail: String
+
+  public init(channelId: String, title: String, thumbnail: String) {
+    self.channelId = channelId
+    self.title = title
+    self.thumbnail = thumbnail
+  }
+}
+
+/// A channel with its filter. The identity (id, title, thumbnail) belongs to
+/// YouTube and is never stored; the filter fields are what a device file
+/// keeps, and `stored` is the filter object as read, so fields this version
+/// doesn't know (or values it doesn't recognize) are written back unchanged.
+public struct ChannelFilter: Sendable, Hashable {
+  /// The channel's `UC…` id.
+  public var channelId: String
+  /// The channel's name.
+  public var title: String
+  /// The channel's avatar URL, or empty.
+  public var thumbnail: String
+  /// Whether the main feed loads the channel.
+  public var enabled = true
+  /// A pattern in the shared pattern language; empty is no pattern.
+  public var regex = ""
+  /// Whether the pattern keeps or drops what it finds.
+  public var mode = FilterMode.include
+  /// Whether ASCII letters match case-sensitively.
+  public var caseSensitive = false
+  /// What the pattern searches.
+  public var searchScope = FilterScope.title
+  /// Drop videos shorter than this many seconds; 0 keeps every length.
+  public var minDurationSeconds = 0
+  /// Which broadcast kinds to keep.
+  public var liveFilter = LiveFilter.all
+  /// Which of Shorts and other videos to keep.
+  public var shortsFilter = ShortsFilter.all
+  /// Uploads or playlists.
+  public var contentMode = ContentMode.videos
+  /// Added in subtube rather than subscribed to on YouTube; listed while true.
+  public var followed = false
+  /// The filter object as read from Drive.
+  public var stored: JSONObject = [:]
+
+  /// A channel with the default filter.
+  public init(channelId: String, title: String, thumbnail: String) {
+    self.channelId = channelId
+    self.title = title
+    self.thumbnail = thumbnail
+  }
+
+  /// A channel with a filter read from a device file. A missing field, or one
+  /// holding a value this version doesn't recognize, reads as its default.
+  public init(channelId: String, title: String, thumbnail: String, stored: JSONObject) {
+    self.init(channelId: channelId, title: title, thumbnail: thumbnail)
+    self.stored = stored
+    let parsed = Self.parse(stored)
+    enabled = parsed.enabled
+    regex = parsed.regex
+    mode = parsed.mode
+    caseSensitive = parsed.caseSensitive
+    searchScope = parsed.searchScope
+    minDurationSeconds = parsed.minDurationSeconds
+    liveFilter = parsed.liveFilter
+    shortsFilter = parsed.shortsFilter
+    contentMode = parsed.contentMode
+    followed = parsed.followed
+  }
+
+  private struct Fields: Equatable {
+    var enabled = true
+    var regex = ""
+    var mode = FilterMode.include
+    var caseSensitive = false
+    var searchScope = FilterScope.title
+    var minDurationSeconds = 0
+    var liveFilter = LiveFilter.all
+    var shortsFilter = ShortsFilter.all
+    var contentMode = ContentMode.videos
+    var followed = false
+  }
+
+  private static func parse(_ object: JSONObject) -> Fields {
+    func choice<Value: RawRepresentable>(_ key: String, _ fallback: Value) -> Value
+    where Value.RawValue == String {
+      object[key]?.stringValue.flatMap(Value.init(rawValue:)) ?? fallback
+    }
+    var fields = Fields()
+    fields.enabled = object["enabled"]?.boolValue ?? true
+    fields.regex = object["regex"]?.stringValue ?? ""
+    fields.mode = choice("mode", FilterMode.include)
+    fields.caseSensitive = object["caseSensitive"]?.boolValue ?? false
+    fields.searchScope = choice("searchScope", FilterScope.title)
+    fields.minDurationSeconds = object["minDurationSeconds"]?.integerValue
+      .flatMap { Int(exactly: $0) }.map { max(0, $0) } ?? 0
+    fields.liveFilter = choice("liveFilter", LiveFilter.all)
+    fields.shortsFilter = choice("shortsFilter", ShortsFilter.all)
+    fields.contentMode = choice("contentMode", ContentMode.videos)
+    fields.followed = object["followed"]?.boolValue ?? false
+    return fields
+  }
+
+  /// The filter object to save: `stored` with every field the user changed
+  /// written over it. Required fields are always present; an optional field
+  /// set back to its default is left out.
+  public var storedFilter: JSONObject {
+    var object = stored
+    let read = Self.parse(stored)
+    for identity in ["channelId", "title", "thumbnail"] {
+      object[identity] = nil
+    }
+    func required(_ key: String, _ value: JSONValue, changed: Bool) {
+      if changed || object[key] == nil {
+        object[key] = value
+      }
+    }
+    func optional(_ key: String, _ value: JSONValue, isDefault: Bool, changed: Bool) {
+      if changed {
+        object[key] = isDefault ? nil : value
+      }
+    }
+    required("enabled", .bool(enabled), changed: enabled != read.enabled)
+    required("regex", .string(regex), changed: regex != read.regex)
+    required("mode", .string(mode.rawValue), changed: mode != read.mode)
+    optional(
+      "caseSensitive", .bool(caseSensitive), isDefault: !caseSensitive,
+      changed: caseSensitive != read.caseSensitive)
+    optional(
+      "searchScope", .string(searchScope.rawValue), isDefault: searchScope == .title,
+      changed: searchScope != read.searchScope)
+    optional(
+      "minDurationSeconds", .integer(Int64(minDurationSeconds)), isDefault: minDurationSeconds == 0,
+      changed: minDurationSeconds != read.minDurationSeconds)
+    optional(
+      "liveFilter", .string(liveFilter.rawValue), isDefault: liveFilter == .all,
+      changed: liveFilter != read.liveFilter)
+    optional(
+      "shortsFilter", .string(shortsFilter.rawValue), isDefault: shortsFilter == .all,
+      changed: shortsFilter != read.shortsFilter)
+    optional(
+      "contentMode", .string(contentMode.rawValue), isDefault: contentMode == .videos,
+      changed: contentMode != read.contentMode)
+    optional(
+      "followed", .bool(followed), isDefault: !followed, changed: followed != read.followed)
+    return object
+  }
+}
+
+/// A single upload.
+public struct Video: Codable, Sendable, Hashable {
+  public var videoId: String
+  public var channelId: String
+  public var channelTitle: String
+  public var title: String
+  public var description: String
+  /// ISO 8601, compared as a string for ordering, as the web app does.
+  public var publishedAt: String
+  /// Thumbnail URL, or empty.
+  public var thumbnail: String
+  /// Length in seconds; nil or 0 for live or upcoming.
+  public var durationSeconds: Int?
+  /// Broadcast kind; nil is treated as `normal`.
+  public var liveStatus: LiveStatus?
+  /// Whether this is a Short; nil means not yet classified.
+  public var isShort: Bool?
+
+  public init(
+    videoId: String,
+    channelId: String,
+    channelTitle: String,
+    title: String,
+    description: String,
+    publishedAt: String,
+    thumbnail: String,
+    durationSeconds: Int? = nil,
+    liveStatus: LiveStatus? = nil,
+    isShort: Bool? = nil
+  ) {
+    self.videoId = videoId
+    self.channelId = channelId
+    self.channelTitle = channelTitle
+    self.title = title
+    self.description = description
+    self.publishedAt = publishedAt
+    self.thumbnail = thumbnail
+    self.durationSeconds = durationSeconds
+    self.liveStatus = liveStatus
+    self.isShort = isShort
+  }
+}
+
+/// A channel's playlist, shown as one feed entry.
+public struct Playlist: Codable, Sendable, Hashable {
+  public var playlistId: String
+  public var channelId: String
+  public var channelTitle: String
+  public var title: String
+  public var description: String
+  /// Creation time, ISO 8601; used for feed ordering.
+  public var publishedAt: String
+  /// Thumbnail URL, or empty.
+  public var thumbnail: String
+  public var itemCount: Int
+
+  public init(
+    playlistId: String,
+    channelId: String,
+    channelTitle: String,
+    title: String,
+    description: String,
+    publishedAt: String,
+    thumbnail: String,
+    itemCount: Int
+  ) {
+    self.playlistId = playlistId
+    self.channelId = channelId
+    self.channelTitle = channelTitle
+    self.title = title
+    self.description = description
+    self.publishedAt = publishedAt
+    self.thumbnail = thumbnail
+    self.itemCount = itemCount
+  }
+}
+
+/// A feed entry: a single video or a whole playlist, depending on the channel's
+/// content mode.
+public enum FeedItem: Sendable, Hashable, Identifiable {
+  case video(Video)
+  case playlist(Playlist)
+
+  /// The video id or playlist id: the key for watched state and de-duplication.
+  public var id: String {
+    switch self {
+    case .video(let video): video.videoId
+    case .playlist(let playlist): playlist.playlistId
+    }
+  }
+
+  public var channelId: String {
+    switch self {
+    case .video(let video): video.channelId
+    case .playlist(let playlist): playlist.channelId
+    }
+  }
+
+  public var channelTitle: String {
+    switch self {
+    case .video(let video): video.channelTitle
+    case .playlist(let playlist): playlist.channelTitle
+    }
+  }
+
+  public var title: String {
+    switch self {
+    case .video(let video): video.title
+    case .playlist(let playlist): playlist.title
+    }
+  }
+
+  public var description: String {
+    switch self {
+    case .video(let video): video.description
+    case .playlist(let playlist): playlist.description
+    }
+  }
+
+  public var publishedAt: String {
+    switch self {
+    case .video(let video): video.publishedAt
+    case .playlist(let playlist): playlist.publishedAt
+    }
+  }
+
+  public var thumbnail: String {
+    switch self {
+    case .video(let video): video.thumbnail
+    case .playlist(let playlist): playlist.thumbnail
+    }
+  }
+
+  /// `publishedAt` parsed, or nil when YouTube sent something unexpected.
+  public var publishedDate: Date? {
+    try? Date(publishedAt, strategy: .iso8601)
+  }
+}
