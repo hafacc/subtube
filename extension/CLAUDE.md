@@ -18,6 +18,10 @@ lets in `https://subtube.hafa.cc/*` and `http://localhost/*` (any port).
   (tsc + biome), `bun test`, `bun run package` (→ `subtube-extension.zip` for the Web Store,
   without the manifest `key`), `bun run icons` (regenerates `icons/` from
   `../design/icons/sub-play.svg`; needs rsvg-convert; output committed).
+- Releases: run the `ext-cut` workflow by hand with a patch/minor/major bump.
+  It bumps `manifest.json`'s version (the source of truth), tags
+  `extension-v<version>` and starts `ext-release`, which attaches
+  `subtube-extension.zip` to a GitHub release for uploading to the Web Store.
 
 Gotchas: the manifest's `key` is the Web Store listing's public key, so an
 unpacked build has the store id (see README); the id's `https://<id>.chromiumapp.org/` redirect must

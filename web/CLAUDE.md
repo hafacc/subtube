@@ -3,8 +3,9 @@
 Svelte 5 single-page app (Vite, no SvelteKit), TypeScript, plain CSS with brand
 tokens in `src/app.css`, bun, biome (double quotes, 2-space; `.svelte` files via
 biome's HTML support). Static: `bun run build` → `dist/`, published to GitHub
-Pages at https://subtube.hafa.cc by `.github/workflows/deploy.yml` (custom
-domain set in the repo's Pages settings; no CNAME file).
+Pages at https://subtube.hafa.cc by `.github/workflows/web-deploy.yml`, started
+by hand, which publishes `main` (custom domain set in the repo's Pages
+settings; no CNAME file).
 
 - `bun install`, `bun run dev` (port 3000), `bun run build`, `bun test`,
   `bun run lint` (`svelte-check` + `biome check`), `bun run fmt`.
