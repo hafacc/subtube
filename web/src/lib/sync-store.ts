@@ -11,6 +11,7 @@ import {
   type DeviceFile,
   deletedElsewhere,
   deviceIdFromName,
+  editedEntry,
   emptyDeviceFile,
   followedIds,
   hasProfile,
@@ -84,6 +85,11 @@ export class SyncStore {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private saving: Promise<void> | null = null;
   private closed = false;
+  // edits made here, counted, and how many of them Drive has: behind means unsent
+  private edits = 0;
+  private sentEdits = 0;
+  // this device's Drive file exists but this version can't read it, so it is never overwritten
+  private ownUnreadable = false;
   /** When Drive last answered a load or a save, in epoch milliseconds. */
   lastSynced: number | null = null;
   /** Whether Drive held any device's file at the last load; null before one. */
@@ -189,6 +195,7 @@ export class SyncStore {
         if (fileDeviceId === this.ownId) {
           this.ownFileId = entry.id;
           const remote = parseDeviceFile(await downloadJson(entry.id, token));
+          this.ownUnreadable = remote === null;
           if (remote) {
             // another tab of this device may have saved since this one loaded
             this.own = {
@@ -225,6 +232,10 @@ export class SyncStore {
     this.profileFound = hasProfile(names);
     this.lastSynced = Date.now();
     this.remerge();
+    if (unsent && this.sentEdits === this.edits) {
+      // found behind by this load, e.g. edits kept from before a reload
+      this.edits += 1;
+    }
     if (unsent && !this.saveTimer && !this.saving) {
       this.scheduleSave();
     }
@@ -255,16 +266,19 @@ export class SyncStore {
 
   /** Save a channel's filter; identity fields are dropped, unknown ones kept. */
   setFilter(channelId: string, filter: ChannelFilter): void {
-    this.own.channels[channelId] = {
+    this.own.channels[channelId] = editedEntry(this.own.channels[channelId], {
       at: Date.now(),
       filter: savedFilter(filter),
-    };
+    });
     this.changed();
   }
 
   /** Mark or unmark a video or playlist as watched. */
   setWatched(id: string, watched: boolean): void {
-    this.own.watched[id] = { at: Date.now(), watched };
+    this.own.watched[id] = editedEntry(this.own.watched[id], {
+      at: Date.now(),
+      watched,
+    });
     this.changed();
   }
 
@@ -272,12 +286,13 @@ export class SyncStore {
   setWatchedAll(ids: readonly string[], watched: boolean): void {
     const at = Date.now();
     for (const id of ids) {
-      this.own.watched[id] = { at, watched };
+      this.own.watched[id] = editedEntry(this.own.watched[id], { at, watched });
     }
     this.changed();
   }
 
   private changed(): void {
+    this.edits += 1;
     this.remerge();
     this.writeLocal();
     this.scheduleSave();
@@ -308,11 +323,16 @@ export class SyncStore {
     }
   }
 
-  /** Upload now when an upload is waiting, e.g. as the page is hidden. */
+  /**
+   * Upload now when anything is unsent, e.g. as the page is hidden; this is
+   * also what retries an upload that failed.
+   */
   flush(): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
+    }
+    if (this.sentEdits !== this.edits && !this.closed) {
       void this.save().catch(() => undefined);
     }
   }
@@ -329,13 +349,18 @@ export class SyncStore {
       if (!this.listed) {
         await this.load();
       }
+      if (this.ownUnreadable) {
+        return;
+      }
       const token = await this.getToken();
+      const sending = this.edits;
       this.own = sanitizeDeviceFile(pruneDeviceFile(this.own, Date.now()));
       if (this.ownFileId) {
         await updateJson(this.ownFileId, this.own, token);
       } else {
         this.ownFileId = (await createJson(this.ownName, this.own, token)).id;
       }
+      this.sentEdits = sending;
       this.markUploaded();
       this.lastSynced = Date.now();
       this.writeLocal();

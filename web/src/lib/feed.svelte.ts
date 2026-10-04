@@ -1,5 +1,4 @@
-import { untrack } from "svelte";
-import { getValidToken, silentRefresh } from "./auth";
+import { getValidToken, silentRefresh, withToken } from "./auth";
 import { channelInfo } from "./channel-info";
 import { cacheWatched, loadCachedFeed, saveCachedFeed } from "./feed-cache";
 import { feedItemId } from "./feed-item";
@@ -157,9 +156,12 @@ export class FeedController {
   /** why a channel page failed to load */
   channelError: string | null = $state(null);
 
-  private hiddenEpoch = $state(0);
-  // the watched ids kept off screen, fixed when the view or the items last changed
-  private hidden: { view: string; ids: Set<string> } | null = null;
+  // marked watched here since the last full load, watched toggle or filter edit:
+  // these cards stay on screen, dimmed, while watched cards are hidden
+  private justWatched: Set<string> = $state.raw(new Set());
+  // channels waiting for a fetch of their own, and how many are being fetched
+  private channelQueue = new Map<string, Channel>();
+  private channelFetches = 0;
   // the content modes each channel's items have been fetched in
   private fetchedModes = new Map<string, Set<ContentMode>>();
   private loadInFlight = false;
@@ -260,16 +262,12 @@ export class FeedController {
 
   /** The items on screen, newest first. */
   feed: FeedItem[] = $derived.by(() => {
-    void this.hiddenEpoch;
-    const view = `${this.channelView ?? ""}|${this.showWatched}`;
-    let snapshot = this.hidden;
-    if (snapshot?.view !== view) {
-      snapshot = { view, ids: new Set(untrack(() => this.watched)) };
-      this.hidden = snapshot;
-    }
-    const hidden = this.showWatched ? new Set<string>() : snapshot.ids;
+    const { showWatched, watched, justWatched } = this;
     return Array.from(this.passing.values())
-      .filter((item) => !hidden.has(feedItemId(item)))
+      .filter((item) => {
+        const id = feedItemId(item);
+        return showWatched || !watched.has(id) || justWatched.has(id);
+      })
       .sort(byNewest);
   });
 
@@ -287,7 +285,6 @@ export class FeedController {
             item.kind === "playlist" ? "playlists" : "videos",
           );
         }
-        this.resetHidden();
       }
       this.hydrating = false;
     });
@@ -305,19 +302,10 @@ export class FeedController {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }
 
-  private resetHidden(): void {
-    this.hidden = null;
-    this.hiddenEpoch += 1;
-  }
-
-  /** Let items that are no longer watched back on screen, in their sorted places. */
-  private unhide(ids: readonly string[]): void {
-    const hidden = this.hidden;
-    if (hidden && ids.some((id) => hidden.ids.has(id))) {
-      for (const id of ids) {
-        hidden.ids.delete(id);
-      }
-      this.hiddenEpoch += 1;
+  /** Let the cards marked watched since the last time drop out, where watched cards are hidden. */
+  private dropJustWatched(): void {
+    if (this.justWatched.size > 0) {
+      this.justWatched = new Set();
     }
   }
 
@@ -423,7 +411,11 @@ export class FeedController {
     }
     this.channels = channels;
     this.applyWatchedBatch(fresh);
-    this.resetHidden();
+    for (const channelId of data.failed) {
+      // so an edit to it fetches it again
+      this.fetchedModes.delete(channelId);
+    }
+    this.dropJustWatched();
   }
 
   /** Load subscriptions, sync files and every enabled channel's items. */
@@ -473,6 +465,7 @@ export class FeedController {
       this.loading = false;
       this.loadInFlight = false;
       this.lastLoadedAt = Date.now();
+      this.pumpChannels();
     }
   }
 
@@ -483,21 +476,25 @@ export class FeedController {
       this.session.tokenLost();
     } else if (caught instanceof InsufficientScopeError) {
       this.session.tokenLost();
-      this.error =
-        "SubTube needs both permissions Google asks for. Sign in again and allow them.";
+      this.error = caught.message;
     } else {
       this.error = (caught as Error).message;
     }
   }
 
-  /** The Refresh click: load everything again. */
+  /** The Refresh click: load everything again, and the open page of a channel that is off. */
   refresh(): void {
     void this.load();
+    if (this.onDemandChannel) {
+      this.channelItems = null;
+      void this.ensureChannelItems();
+    }
   }
 
   /** Show or hide watched cards. */
   toggleShowWatched(): void {
     this.showWatched = !this.showWatched;
+    this.dropJustWatched();
   }
 
   /** Fetch a channel page's items when the feed doesn't load that channel. */
@@ -522,11 +519,9 @@ export class FeedController {
     this.channelLoading = true;
     this.channelError = null;
     try {
-      const token = await getValidToken();
-      const fetched = await fetchChannelItems(
-        channel,
-        token,
-        (await platform())?.probeShort,
+      const probe = (await platform())?.probeShort;
+      const fetched = await withToken((token) =>
+        fetchChannelItems(channel, token, probe),
       );
       if (this.channelView === channelId) {
         this.channelItems = { id: channelId, mode, items: fetched };
@@ -559,8 +554,36 @@ export class FeedController {
       });
     }
     this.store.setFilter(channelId, filter);
+    this.dropJustWatched();
     if (channel && filter.enabled && this.isMissing(channelId, filter)) {
-      void this.loadChannel({ ...channel, filter });
+      this.channelQueue.set(channelId, { ...channel, filter });
+      this.pumpChannels();
+    }
+  }
+
+  /*
+   * Fetch the waiting channels, FETCH_CONCURRENCY at a time. While a full load
+   * runs they wait for it to end: it may fetch them itself.
+   */
+  private pumpChannels(): void {
+    while (
+      !this.loadInFlight &&
+      this.channelFetches < FETCH_CONCURRENCY &&
+      this.channelQueue.size > 0
+    ) {
+      const [channelId] = this.channelQueue.keys();
+      this.channelQueue.delete(channelId);
+      const channel = this.channels.get(channelId);
+      if (
+        channel?.filter.enabled &&
+        this.isMissing(channelId, channel.filter)
+      ) {
+        this.channelFetches += 1;
+        void this.loadChannel(channel).finally(() => {
+          this.channelFetches -= 1;
+          this.pumpChannels();
+        });
+      }
     }
   }
 
@@ -584,11 +607,9 @@ export class FeedController {
   /** Fetch one channel's items into the feed, e.g. after it was switched on. */
   private async loadChannel(channel: Channel): Promise<void> {
     try {
-      const token = await getValidToken();
-      const fetched = await fetchChannelItems(
-        channel,
-        token,
-        (await platform())?.probeShort,
+      const probe = (await platform())?.probeShort;
+      const fetched = await withToken((token) =>
+        fetchChannelItems(channel, token, probe),
       );
       this.addChannelItems(
         channel.channelId,
@@ -619,8 +640,8 @@ export class FeedController {
       next.delete(id);
     }
     this.watched = next;
-    if (!isWatched) {
-      this.unhide([id]);
+    if (isWatched) {
+      this.justWatched = new Set(this.justWatched).add(id);
     }
     this.recordWatched(id, isWatched);
   }
@@ -649,8 +670,8 @@ export class FeedController {
       void cacheWatched(this.accountId, id, watched);
     }
     this.watched = next;
-    if (!watched) {
-      this.unhide(ids);
+    if (watched) {
+      this.justWatched = new Set([...this.justWatched, ...ids]);
     }
     this.store.setWatchedAll(ids, watched);
   }

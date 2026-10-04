@@ -33,6 +33,7 @@ function channel(channelId: string): Channel {
 function loaded(
   watched: string[],
   page: string | null,
+  watchedElsewhere: string[] = [],
 ): {
   feed: FeedController;
   saves: { ids: string[]; watched: boolean }[];
@@ -43,7 +44,8 @@ function loaded(
       saves.push({ ids: [id], watched: isWatched }),
     setWatchedAll: (ids: readonly string[], isWatched: boolean) =>
       saves.push({ ids: [...ids], watched: isWatched }),
-    isWatched: () => false,
+    setFilter: () => undefined,
+    isWatched: (id: string) => watchedElsewhere.includes(id),
   } as unknown as SyncStore;
   const session = { account: { channelId: "UCme" } } as unknown as Session;
   const router = { route: { channel: page, item: null } } as unknown as Router;
@@ -107,6 +109,41 @@ describe("FeedController mark all", () => {
     const { feed } = loaded(["a3"], null);
     expect(shown(feed)).toEqual(["a7", "b5", "a1"]);
     feed.setWatched("a3", false);
+    expect(shown(feed)).toEqual(["a7", "b5", "a3", "a1"]);
+  });
+});
+
+describe("FeedController just-watched cards", () => {
+  test("a card marked watched stays until the watched toggle is used", () => {
+    const { feed } = loaded([], null);
+    feed.setWatched("a3", true);
+    expect(shown(feed)).toEqual(["a7", "b5", "a3", "a1"]);
+    feed.toggleShowWatched();
+    feed.toggleShowWatched();
+    expect(shown(feed)).toEqual(["a7", "b5", "a1"]);
+  });
+
+  test("a filter edit drops it", () => {
+    const { feed } = loaded([], null);
+    feed.setWatched("a3", true);
+    const channelB = feed.channels.get("UCb") as Channel;
+    feed.updateFilter("UCb", { ...channelB.filter, minDurationSeconds: 0 });
+    expect(shown(feed)).toEqual(["a7", "b5", "a1"]);
+  });
+
+  test("a single channel's fetch arriving doesn't drop it", () => {
+    const { feed } = loaded([], null);
+    feed.setWatched("a3", true);
+    feed.addChannelItems("UCb", "videos", [video("b5", 5, "UCb")]);
+    expect(shown(feed)).toEqual(["a7", "b5", "a3", "a1"]);
+  });
+
+  test("items already watched elsewhere stay hidden when they arrive", () => {
+    const { feed } = loaded([], null, ["b9"]);
+    feed.addChannelItems("UCb", "videos", [
+      video("b5", 5, "UCb"),
+      video("b9", 9, "UCb"),
+    ]);
     expect(shown(feed)).toEqual(["a7", "b5", "a3", "a1"]);
   });
 });

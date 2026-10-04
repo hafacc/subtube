@@ -1,4 +1,5 @@
 import { type Platform, platform, type Token } from "./platform";
+import { TokenExpiredError } from "./youtube";
 
 // Renew a little before expiry so in-flight calls never 401.
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -85,4 +86,22 @@ export async function signOut(): Promise<void> {
   accessToken = null;
   expiresAt = 0;
   await (await required()).signOut();
+}
+
+/**
+ * Run a Google request with a token; when Google refuses the token, renew it
+ * silently and run the request once more.
+ */
+export async function withToken<Result>(
+  request: (token: string) => Promise<Result>,
+): Promise<Result> {
+  try {
+    return await request(await getValidToken());
+  } catch (caught) {
+    if (caught instanceof TokenExpiredError) {
+      return request(await silentRefresh());
+    } else {
+      throw caught;
+    }
+  }
 }
