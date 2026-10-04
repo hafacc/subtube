@@ -1,0 +1,55 @@
+# Cut a release of the macOS app: bump its version and tag it. Xcode Cloud builds from the tag.
+name: macos-cut
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: semver bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions: {}
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the bump + tag
+    defaults:
+      run:
+        working-directory: apple
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main # the branch tip, not the dispatch SHA
+      - name: bump version
+        id: bump
+        env:
+          bump: ${{ inputs.bump }}
+        # Config/Versions.xcconfig is the version source of truth, one line per platform
+        run: |
+          key='MARKETING_VERSION[sdk=macosx*]'
+          current=$(grep -F "$key = " Config/Versions.xcconfig | sed 's/.* = //')
+          IFS=. read -r major minor patch <<< "$current"
+          case "$bump" in
+            major) version="$((major + 1)).0.0" ;;
+            minor) version="$major.$((minor + 1)).0" ;;
+            *) version="$major.$minor.$((patch + 1))" ;;
+          esac
+          sed -i "s/^MARKETING_VERSION\[sdk=macosx\*\] = .*/$key = $version/" Config/Versions.xcconfig
+          grep -Fx "$key = $version" Config/Versions.xcconfig
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: commit and tag
+        env:
+          version: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "macos v$version"
+          # branch first, tag second (never --follow-tags): a moved main is rejected before the tag exists
+          git push origin HEAD:main
+          git tag -a "macos-v$version" -m "macos v$version"
+          # Xcode Cloud watches the repository itself, so a token-pushed tag starts its build
+          git push origin "macos-v$version"

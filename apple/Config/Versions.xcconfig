@@ -1,0 +1,6 @@
+// The versions the stores show, one per platform so each is cut on its own.
+// The ios-cut and macos-cut workflows rewrite their line; keep one per line.
+#include "Signing.xcconfig"
+
+MARKETING_VERSION[sdk=macosx*] = 0.1.0
+MARKETING_VERSION[sdk=iphone*] = 0.1.0
