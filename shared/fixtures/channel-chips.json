@@ -1,0 +1,797 @@
+{
+  "description": "The chip row of the channel list: which topic chips it offers and which channels its time and topic chips keep. The row holds, in this order: the sort chip, which moves through the `channelSort` setting (shared/fixtures/channel-order.json); the time chip, which shows the `channelTimeChip` setting's label and moves through the same choices as the feed's time chip (All time (none), Past day (day), Past week (week), Past month (month)); then the topic chips, each a toggle, any number selected, kept in the `channelTopicChips` setting, with the same \"Clear topics\" chip after the divider as the feed's row (shared/fixtures/feed-chips.json), which here sets `channelTopicChips` to []. There is no auto-play chip and no watched chip. These are the channel list's own settings: the feed's `timeChip` and `topicChips` neither change them nor are changed by them. Topics, their ids and labels, the time spans and how `publishedAt` and `now` are read are exactly as in shared/fixtures/feed-chips.json. In every case `items` is every fetched item, watched or not, that passes its channel's filter, of the channels that are on (a channel that is off has no items here whatever was fetched for it); each has its `channelId`, and its `categoryId` (absent means none; a playlist has none). `op` says what a case checks. `chips`: the topic chips offered, as ids in order: a chip for every id in the table that at least one item has, and for every id in the table that is in `selected` (the `channelTopicChips` setting) even when no item has it; by the number of items having the id, most first, ties by label ignoring case, as the feed's topic chips are ordered. The time chip does not change which topic chips are offered. `channels`: the channels the list shows. `channels` is every channel's id in the list's sorted order; `expected` is the ids shown, in that order. With `timeChip` none and no id of the table in `topicChips`, every channel is shown, the ones with no items too. Otherwise a channel is shown only when at least one of its items is inside the time chip's span (any item, when it is none) and, when an id of the table is in `topicChips`, has one of those as its `categoryId`: one item must meet both. So a channel that is off, or has nothing fetched, or nothing passing its filter, is not shown while a span or a topic is chosen. The chips change neither the order nor a channel's unwatched count. A list on screen holds its rows as it holds their order: a channel that stops being kept (switched off, say) stays in its place until the list is next put in order, which a change of any of these chips does at once.",
+  "cases": [
+    {
+      "name": "topic chips: most common first, over watched and unwatched alike",
+      "op": "chips",
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "categoryId": "27"
+        },
+        {
+          "id": "c2",
+          "channelId": "UCc",
+          "categoryId": "27"
+        }
+      ],
+      "selected": [],
+      "expected": [
+        "27",
+        "20",
+        "10"
+      ]
+    },
+    {
+      "name": "topic chips: ties go by label",
+      "op": "chips",
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "categoryId": "28"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "categoryId": "10"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "categoryId": "27"
+        }
+      ],
+      "selected": [],
+      "expected": [
+        "27",
+        "10",
+        "28"
+      ]
+    },
+    {
+      "name": "topic chips: a selected topic no item has is still offered, last",
+      "op": "chips",
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "categoryId": "10"
+        }
+      ],
+      "selected": [
+        "17"
+      ],
+      "expected": [
+        "10",
+        "17"
+      ]
+    },
+    {
+      "name": "topic chips: ids outside the table and items with no category get no chip",
+      "op": "chips",
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "categoryId": "99"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "categoryId": "20"
+        }
+      ],
+      "selected": [
+        "Music",
+        "42"
+      ],
+      "expected": [
+        "20"
+      ]
+    },
+    {
+      "name": "topic chips: none with no items and nothing selected",
+      "op": "chips",
+      "items": [],
+      "selected": [],
+      "expected": []
+    },
+    {
+      "name": "all time and no topic: every channel, with or without items",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ]
+    },
+    {
+      "name": "past day: channels with an item in the last 24 hours",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "day",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa"
+      ]
+    },
+    {
+      "name": "past week",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "week",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb"
+      ]
+    },
+    {
+      "name": "past month: a channel with no items is not shown",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "month",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb",
+        "UCc"
+      ]
+    },
+    {
+      "name": "an item exactly a day old is inside the day",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T00:00:00Z"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-30T23:59:59Z"
+        }
+      ],
+      "timeChip": "day",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa"
+      ]
+    },
+    {
+      "name": "one topic: channels with an item of that topic, however old",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "27"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCb",
+        "UCc"
+      ]
+    },
+    {
+      "name": "several topics: an item of any of them",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "10",
+        "27"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb",
+        "UCc"
+      ]
+    },
+    {
+      "name": "a span and a topic: one item must meet both",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "week",
+      "topicChips": [
+        "20"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCb"
+      ]
+    },
+    {
+      "name": "a span and a topic that no single item meets leave nothing",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "day",
+      "topicChips": [
+        "27"
+      ],
+      "now": 1769904000000,
+      "expected": []
+    },
+    {
+      "name": "the order given is kept",
+      "op": "channels",
+      "channels": [
+        "UCc",
+        "UCoff",
+        "UCb",
+        "UCa"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "month",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCc",
+        "UCb",
+        "UCa"
+      ]
+    },
+    {
+      "name": "ids outside the table select nothing: every channel is shown",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "99",
+        "Music"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ]
+    },
+    {
+      "name": "an id outside the table beside a real one is ignored",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCoff"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "99",
+        "10"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCa"
+      ]
+    },
+    {
+      "name": "a playlist counts for a span and never for a topic",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb"
+      ],
+      "items": [
+        {
+          "id": "PLa",
+          "kind": "playlist",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T23:00:00Z"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-31T23:00:00Z"
+        }
+      ],
+      "timeChip": "day",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb"
+      ]
+    },
+    {
+      "name": "a playlist or a video with no category is in no topic",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc"
+      ],
+      "items": [
+        {
+          "id": "PLa",
+          "kind": "playlist",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T23:00:00Z"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-31T23:00:00Z"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-31T23:00:00Z",
+          "categoryId": "10"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "10"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCc"
+      ]
+    },
+    {
+      "name": "fractional seconds are read as an instant",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T00:00:00.000Z"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-30T23:59:59.999Z"
+        }
+      ],
+      "timeChip": "day",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa"
+      ]
+    }
+  ]
+}

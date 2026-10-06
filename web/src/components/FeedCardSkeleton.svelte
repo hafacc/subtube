@@ -7,7 +7,10 @@
   <div class="text">
     <div class="skeleton-block line"></div>
     <div class="skeleton-block line short"></div>
-    <div class="skeleton-block line channel"></div>
+    <div class="byline">
+      <div class="skeleton-block line channel"></div>
+      <div class="skeleton-block line date"></div>
+    </div>
   </div>
 </div>
 
@@ -29,7 +32,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 14px 12px 40px;
+    padding: 14px 12px 20px;
   }
 
   .line {
@@ -40,8 +43,18 @@
     width: 60%;
   }
 
+  .byline {
+    display: flex;
+    justify-content: space-between;
+  }
+
   .channel {
     width: 40%;
+    height: 10px;
+  }
+
+  .date {
+    width: 15%;
     height: 10px;
   }
 </style>

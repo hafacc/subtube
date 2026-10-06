@@ -43,6 +43,12 @@ private func verdicts(_ videos: [Video]) -> [String: Bool?] {
     #expect(verdicts(result) == expected)
   }
 
+  @Test func withoutTheShortsListACandidateStaysUnjudged() {
+    let result = withoutShortsList([video("clip", 90), video("long", 600), video("live", 0)])
+    let expected: [String: Bool?] = ["clip": Bool?.none, "long": false, "live": false]
+    #expect(verdicts(result) == expected)
+  }
+
   @Test func probeVerdictFromStatus() {
     #expect(ShortsProbe.verdict(status: 200) == true)
     #expect(ShortsProbe.verdict(status: 303) == false)

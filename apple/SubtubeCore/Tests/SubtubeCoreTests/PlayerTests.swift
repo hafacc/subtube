@@ -2,19 +2,6 @@ import Testing
 
 @testable import SubtubeCore
 
-@Suite struct MarkAllTests {
-  @Test func marksShownUnwatchedOrUnmarksWhenAllShownAreWatched() {
-    let shown: [FeedItem] = [
-      .video(makeVideo("seen")), .video(makeVideo("new")), .playlist(makePlaylist("PL1")),
-    ]
-    #expect(markAll(shown: shown, watched: ["seen", "elsewhere"]) == .watched(["new", "PL1"]))
-    #expect(
-      markAll(shown: shown, watched: ["seen", "new", "PL1", "elsewhere"])
-        == .unwatched(["seen", "new", "PL1"]))
-    #expect(markAll(shown: [], watched: ["elsewhere"]) == .watched([]))
-  }
-}
-
 @Suite struct FormatDurationTests {
   @Test func formats() {
     #expect(formatDuration(0) == "0:00")
@@ -26,33 +13,77 @@ import Testing
   }
 }
 
-@Suite struct PlayerTrackerTests {
-  @Test func marksAVideoOnlyOnceItHasPlayed() {
-    let tracker = PlayerTracker(content: .video("a"))
-    #expect(tracker.closed() == nil)
-    var playing = tracker
-    _ = playing.stateChanged(
-      state: YouTubePlayerState.playing, videoId: "a", playlistIndex: 0, playlistLength: 1)
-    #expect(playing.closed() == "a")
+@Suite struct PlaybackTests {
+  private func progress(_ position: Double, ended: Bool = false, _ upload: ProgressUpload)
+    -> PlaybackAction
+  {
+    .saveProgress(position: position, duration: 600, ended: ended, upload: upload)
   }
 
-  @Test func marksAPlaylistOnlyWhenItsLastVideoEnds() {
-    var tracker = PlayerTracker(content: .playlist("PL1"))
-    #expect(
-      tracker.stateChanged(
-        state: YouTubePlayerState.ended, videoId: "x", playlistIndex: 0, playlistLength: 2) == [])
-    #expect(
-      tracker.stateChanged(
-        state: YouTubePlayerState.ended, videoId: "y", playlistIndex: 1, playlistLength: 2)
-        == ["PL1"])
-    #expect(tracker.closed() == nil)
+  @Test func nothingIsSavedBeforePlaybackStarts() {
+    var playback = Playback(content: .video("a"))
+    #expect(playback.timeReported(position: 0, duration: 600, clock: 0) == [])
+    #expect(playback.save(upload: .soon) == [])
+    #expect(playback.stateChanged(state: YouTubePlayerState.paused, position: 0, duration: 600) == [])
   }
-}
 
-@Suite struct YouTubePageTests {
-  @Test func opensTheWatchPageOrThePlaylistPage() {
-    #expect(youTubePage(for: .video("abc"))?.absoluteString == "https://www.youtube.com/watch?v=abc")
+  @Test func whilePlayingThePositionIsSavedOnTheDeviceEveryFiveSeconds() {
+    var playback = Playback(content: .video("a"))
+    #expect(playback.stateChanged(state: YouTubePlayerState.playing, position: 0, duration: 600) == [])
+    #expect(playback.timeReported(position: 1, duration: 600, clock: 100) == [])
+    #expect(playback.timeReported(position: 5, duration: 600, clock: 104) == [])
+    #expect(playback.timeReported(position: 6, duration: 600, clock: 105) == [progress(6, .later)])
+    #expect(playback.timeReported(position: 9, duration: 600, clock: 108) == [])
+    #expect(playback.timeReported(position: 11, duration: 600, clock: 110) == [progress(11, .later)])
+  }
+
+  @Test func pausingAndLeavingSaveForDriveWithTheLastReportedPosition() {
+    var playback = Playback(content: .video("a"))
+    _ = playback.stateChanged(state: YouTubePlayerState.playing, position: 0, duration: 600)
     #expect(
-      youTubePage(for: .playlist("PL1"))?.absoluteString == "https://www.youtube.com/playlist?list=PL1")
+      playback.stateChanged(state: YouTubePlayerState.paused, position: 30, duration: 600)
+        == [progress(30, .soon)])
+    #expect(playback.timeReported(position: 31, duration: 600, clock: 0) == [])
+    #expect(playback.stateChanged(state: YouTubePlayerState.paused, position: 31, duration: 600) == [])
+    #expect(playback.save(upload: .soon) == [progress(31, .soon)])
+    #expect(playback.save(upload: .now) == [progress(31, .now)])
+  }
+
+  @Test func theEndMarksTheVideoAndNothingMoreIsSavedUntilItPlaysAgain() {
+    var playback = Playback(content: .video("a"))
+    _ = playback.stateChanged(state: YouTubePlayerState.playing, position: 0, duration: 600)
+    #expect(
+      playback.stateChanged(state: YouTubePlayerState.ended, position: 600, duration: 600)
+        == [progress(600, ended: true, .soon), .ended])
+    #expect(playback.save(upload: .soon) == [])
+    _ = playback.stateChanged(state: YouTubePlayerState.playing, position: 20, duration: 600)
+    #expect(playback.save(upload: .soon) == [progress(20, .soon)])
+  }
+
+  @Test func nothingIsSavedForALiveBroadcastWhichIsMarkedWhenItEnds() {
+    var playback = Playback(content: .video("a"), isLive: true)
+    _ = playback.stateChanged(state: YouTubePlayerState.playing, position: 0, duration: 0)
+    #expect(playback.timeReported(position: 50, duration: 0, clock: 0) == [])
+    #expect(playback.save(upload: .now) == [])
+    #expect(
+      playback.stateChanged(state: YouTubePlayerState.ended, position: 50, duration: 0)
+        == [.markWatched, .ended])
+  }
+
+  @Test func aPlaylistIsMarkedOnlyWhenItsLastVideoEnds() {
+    var playback = Playback(content: .playlist("PL1"))
+    _ = playback.stateChanged(
+      state: YouTubePlayerState.playing, position: 0, duration: 60, playlistIndex: 0,
+      playlistLength: 2)
+    #expect(playback.timeReported(position: 9, duration: 60, clock: 0) == [])
+    #expect(
+      playback.stateChanged(
+        state: YouTubePlayerState.ended, position: 60, duration: 60, playlistIndex: 0,
+        playlistLength: 2) == [])
+    #expect(playback.save(upload: .soon) == [])
+    #expect(
+      playback.stateChanged(
+        state: YouTubePlayerState.ended, position: 60, duration: 60, playlistIndex: 1,
+        playlistLength: 2) == [.markWatched, .ended])
   }
 }

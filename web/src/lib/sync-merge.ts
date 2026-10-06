@@ -1,3 +1,4 @@
+import { phrasePatternOnly } from "./phrases";
 import type { Channel, ChannelFilter, ChannelInfo } from "./types";
 
 /**
@@ -10,8 +11,34 @@ export interface DeviceFile {
   /** The last filter saved for each channel, with when it was saved. */
   channels: Record<string, { at: number; filter: ChannelFilter }>;
   /** The last watched mark for each video or playlist, with when it was made. */
-  watched: Record<string, { at: number; watched: boolean }>;
+  watched: Record<string, WatchedEntry>;
+  /** The last value saved for each synced setting, with when it was saved. */
+  settings?: Record<string, SettingEntry>;
   /** Fields from a newer client, kept as they were. */
+  [unknown: string]: unknown;
+}
+
+/** One video's or playlist's watched mark as a device last saved it; `progress.ts` reads it. */
+export interface WatchedEntry {
+  /** when it was saved, in epoch milliseconds */
+  at: number;
+  /** true for a mark, or a video whose player reported the end */
+  watched: boolean;
+  /** how far a video has been played, in seconds; kept whatever it holds */
+  position?: unknown;
+  /** when this device last had it among a full load's items, in epoch milliseconds; kept whatever it holds */
+  seen?: unknown;
+  /** fields from a newer client, kept as they were */
+  [unknown: string]: unknown;
+}
+
+/** One synced setting as a device last saved it; what a value means is read in `settings.ts`. */
+export interface SettingEntry {
+  /** when it was saved, in epoch milliseconds */
+  at: number;
+  /** the saved value, kept whatever it is */
+  value: unknown;
+  /** fields from a newer client, kept as they were */
   [unknown: string]: unknown;
 }
 
@@ -23,8 +50,11 @@ export interface DeviceSource {
   file: DeviceFile;
 }
 
-/** A watched mark older than this is dropped when its device next saves. */
-export const WATCHED_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
+/** A watched entry neither saved nor loaded for this long is dropped when its device next saves. */
+export const WATCHED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** How old an entry's `seen` gets before a load writes a new one. */
+export const SEEN_REFRESH_MS = 24 * 60 * 60 * 1000;
 
 const DEVICE_FILE_NAME = /^device-([A-Za-z0-9_-]+)\.json$/;
 
@@ -59,6 +89,32 @@ export function editedEntry<Entry extends { at: number }>(
   edit: Entry,
 ): Entry {
   return { ...prior, ...edit };
+}
+
+/**
+ * A watched entry after a mark: marking watched keeps its position, unmarking
+ * drops it, or a position near the end would read as watched again.
+ */
+export function markedEntry(
+  prior: WatchedEntry | undefined,
+  at: number,
+  watched: boolean,
+): WatchedEntry {
+  const { position, ...rest } = editedEntry(prior, { at, watched });
+  return watched && position !== undefined ? { ...rest, position } : rest;
+}
+
+/**
+ * A watched entry after its video played to `position` seconds; `ended` when
+ * the player reported the end, which alone marks it watched here.
+ */
+export function playedEntry(
+  prior: WatchedEntry | undefined,
+  at: number,
+  position: number,
+  ended: boolean,
+): WatchedEntry {
+  return editedEntry(prior, { at, watched: ended, position });
 }
 
 /** An empty file of the current version. */
@@ -97,7 +153,7 @@ function entries<Entry>(
 /**
  * Read a downloaded file. A file that isn't version 1 (older, newer or not a
  * device file at all) reads as null; malformed entries are dropped and unknown
- * fields kept.
+ * fields kept. `settings` is read only when the file has one.
  */
 export function parseDeviceFile(raw: unknown): DeviceFile | null {
   if (!isObject(raw) || raw.version !== 1) {
@@ -111,6 +167,9 @@ export function parseDeviceFile(raw: unknown): DeviceFile | null {
         raw.watched,
         (entry) => typeof entry.watched === "boolean",
       ),
+      ...(raw.settings === undefined
+        ? {}
+        : { settings: entries(raw.settings, (entry) => "value" in entry) }),
     };
   }
 }
@@ -146,21 +205,65 @@ export function mergeDeviceFiles(sources: DeviceSource[]): DeviceFile {
   const watched = newest(
     sources.map(({ deviceId, file }) => ({ deviceId, record: file.watched })),
   );
+  const settings = newest(
+    sources.map(({ deviceId, file }) => ({
+      deviceId,
+      record: file.settings ?? {},
+    })),
+  );
   return {
     version: 1,
     channels: Object.fromEntries(channels),
     watched: Object.fromEntries(watched),
+    settings: Object.fromEntries(settings),
   };
 }
 
-/** A device's file with the watched marks past {@link WATCHED_RETENTION_MS} dropped. */
-export function pruneDeviceFile(file: DeviceFile, now: number): DeviceFile {
-  const watched = Object.fromEntries(
-    Object.entries(file.watched).filter(
-      ([, entry]) => now - entry.at < WATCHED_RETENTION_MS,
-    ),
+/** When an entry was last saved or last among a load's items, whichever is later. */
+function lastUsed(entry: WatchedEntry): number {
+  return isTime(entry.seen) ? Math.max(entry.at, entry.seen) : entry.at;
+}
+
+/**
+ * A device's own file after a full load whose items were `loadedIds`: each of
+ * its entries among them gets `seen` set to `now`, unless its `seen` is
+ * younger than {@link SEEN_REFRESH_MS}. Returns `file` itself when nothing
+ * changes.
+ */
+export function refreshSeen(
+  file: DeviceFile,
+  loadedIds: ReadonlySet<string>,
+  now: number,
+): DeviceFile {
+  const refreshed = Object.entries(file.watched).filter(
+    ([id, { seen }]) =>
+      loadedIds.has(id) && !(isTime(seen) && now - seen < SEEN_REFRESH_MS),
   );
-  return { ...file, watched };
+  if (refreshed.length === 0) {
+    return file;
+  } else {
+    const watched = { ...file.watched };
+    for (const [id, entry] of refreshed) {
+      watched[id] = { ...entry, seen: now };
+    }
+    return { ...file, watched };
+  }
+}
+
+/**
+ * A device's file without the watched entries neither saved nor seen in a
+ * load within {@link WATCHED_RETENTION_MS}. Returns `file` itself when
+ * nothing is dropped.
+ */
+export function pruneDeviceFile(file: DeviceFile, now: number): DeviceFile {
+  const kept = Object.entries(file.watched).filter(
+    ([, entry]) => now - lastUsed(entry) < WATCHED_RETENTION_MS,
+  );
+  if (kept.length === Object.keys(file.watched).length) {
+    return file;
+  } else {
+    return { ...file, watched: Object.fromEntries(kept) };
+  }
 }
 
 /** The filter a newly seen channel starts with. */
@@ -178,6 +281,11 @@ export function savedFilter(filter: ChannelFilter): ChannelFilter {
     delete saved[key];
   }
   return saved;
+}
+
+/** A filter as an edit saves it: a pattern that is not built from phrases is dropped. */
+export function editedFilter(filter: ChannelFilter): ChannelFilter {
+  return { ...savedFilter(filter), regex: phrasePatternOnly(filter.regex) };
 }
 
 /** A device's own file fit to write: every filter without identity fields. */

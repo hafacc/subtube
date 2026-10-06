@@ -15,41 +15,25 @@
 </script>
 
 <script lang="ts">
-  import { getValidToken, withToken } from "../lib/auth";
+  import { getValidToken } from "../lib/auth";
   import { channelInfo } from "../lib/channel-info";
-  import { orderChannels } from "../lib/channel-order";
   import { mostCommonShorts, SHORTS_OPTIONS } from "../lib/channel-summary";
-  import { chromeWebStoreUrl, privacyUrl } from "../lib/config";
-  import { canBeExample, pickExampleChannel } from "../lib/example-channel";
   import {
-    fetchChannelItems,
-    handOffPrefetched,
-    mapWithConcurrency,
-  } from "../lib/feed.svelte";
-  import { feedItemId } from "../lib/feed-item";
-  import {
-    compileFilter,
-    isValidPattern,
-    videoPassesFilter,
-  } from "../lib/filters";
-  import { platform, recheckPlatform } from "../lib/platform";
+    keepPendingStart,
+    START_OPTIONS,
+    type StartFrom,
+  } from "../lib/chips";
+  import { chromeWebStoreUrl, privacyUrl, termsUrl } from "../lib/config";
+  import { handOffPrefetched, Prefetch } from "../lib/feed.svelte";
+  import { recheckPlatform } from "../lib/platform";
   import type { Session } from "../lib/session.svelte";
   import { ProfileDeletedError } from "../lib/sync-store";
-  import type {
-    Channel,
-    ChannelFilter,
-    FeedItem,
-    FilterMode,
-    FilterScope,
-    ShortsFilter,
-  } from "../lib/types";
+  import type { Channel, ShortsFilter } from "../lib/types";
   import { fetchSubscriptions } from "../lib/youtube";
   import Avatar from "./Avatar.svelte";
   import ChoiceRow from "./ChoiceRow.svelte";
-  import FeedCard from "./FeedCard.svelte";
   import Icon from "./Icon.svelte";
   import Logo from "./Logo.svelte";
-  import PatternFields from "./PatternFields.svelte";
   import Switch from "./Switch.svelte";
 
   type Step =
@@ -57,9 +41,8 @@
     | "extension"
     | "signin"
     | "channels"
-    | "try"
     | "shorts"
-    | "titles"
+    | "start"
     | "done";
 
   let {
@@ -78,27 +61,25 @@
     onextension: () => void;
   } = $props();
 
-  // the step list's entry for each step; the three filter steps share one
+  // the step list's entry for each step
   const STEP_POSITION: Record<Step, number> = {
     intro: 0,
     extension: 1,
     signin: 2,
     channels: 3,
-    try: 4,
     shorts: 4,
-    titles: 4,
-    done: 5,
+    start: 5,
+    done: 6,
   };
   const LABELS = [
     "What SubTube is",
     "Add the Chrome extension",
     "Sign in with Google",
     "Choose channels",
-    "Try a filter",
+    "Shorts",
+    "Where to start",
   ];
-  const PREVIEW_COUNT = 12;
   const SKELETON_ROWS = Array.from({ length: 16 }, (_, index) => index);
-  const FETCH_CONCURRENCY = 6;
 
   /** How often the extension step looks for the extension while it is missing. */
   const EXTENSION_POLL_MS = 1500;
@@ -114,19 +95,14 @@
   // the channels' most common Shorts setting when loaded; applied to all only if changed
   let startingShorts: ShortsFilter = $state("all");
   let shortsDefault: ShortsFilter = $state("all");
+  let startFrom: StartFrom = $state("all");
   let query = $state("");
   let loadingChannels = $state(false);
   let channelsLoaded = $state(false);
   let error: string | null = $state(null);
 
-  let trial: Channel | null = $state.raw(null);
-  // the fetched uploads of each channel that can be the example
-  let exampleItems: Map<string, FeedItem[]> = $state.raw(new Map());
-  let loadingExamples = $state(false);
-  let trialShorts: ShortsFilter = $state("all");
-  let pattern = $state("");
-  let trialMode: FilterMode = $state("exclude");
-  let trialScope: FilterScope = $state("title");
+  // the items of the channels left on, fetched from "Choose channels"' Next
+  const prefetch = new Prefetch();
 
   const onCount = $derived(
     channels.filter((channel) => enabled[channel.channelId]).length,
@@ -136,47 +112,6 @@
       channel.title.toLowerCase().includes(query.trim().toLowerCase()),
     ),
   );
-  const patternValid = $derived(isValidPattern(pattern));
-  const exampleChoices = $derived(
-    orderChannels(
-      channels.filter(canBeExample),
-      Array.from(exampleItems.values()).flat(),
-    ),
-  );
-  const trialItems: FeedItem[] = $derived.by(() =>
-    trial ? (exampleItems.get(trial.channelId) ?? []) : [],
-  );
-
-  const trialFilter: ChannelFilter | null = $derived.by(() => {
-    if (!trial) {
-      return null;
-    }
-    const saved = trial.filter;
-    const filter: ChannelFilter = { ...saved };
-    if (trialShorts !== (saved.shortsFilter ?? "all")) {
-      filter.shortsFilter = trialShorts;
-    }
-    if (pattern.trim() !== "" && patternValid) {
-      filter.regex = pattern;
-      filter.mode = trialMode;
-      filter.searchScope = trialScope;
-    } else if (saved.mode === "exclude") {
-      filter.regex = "";
-    }
-    return filter;
-  });
-
-  const preview = $derived.by(() => {
-    if (!trialFilter) {
-      return [];
-    }
-    const compiled = compileFilter(trialFilter);
-    return trialItems.slice(0, PREVIEW_COUNT).map((item) => ({
-      item,
-      hidden: !videoPassesFilter(item, compiled),
-    }));
-  });
-
   /*
    * A page only gets to message an extension that was there when it loaded, so
    * one added since is seen after a reload; setup reopens on this step.
@@ -230,8 +165,6 @@
     step = target;
     if (target === "channels" && !channelsLoaded) {
       void loadChannels();
-    } else if (target === "try") {
-      void loadExamples();
     }
   }
 
@@ -289,140 +222,46 @@
     }
   }
 
-  function saveChannels(): void {
+  function saveFilters(
+    change: (channel: Channel) => Partial<Channel["filter"]>,
+  ): void {
     const store = session.store;
-    const shortsChanged = shortsDefault !== startingShorts;
     channels = channels.map((channel) => {
-      const on = enabled[channel.channelId] ?? true;
-      const shortsFilter = shortsChanged
-        ? shortsDefault
-        : channel.filter.shortsFilter;
-      if (
-        on === channel.filter.enabled &&
-        shortsFilter === channel.filter.shortsFilter
-      ) {
+      const changes = Object.entries(change(channel));
+      if (changes.every(([key, value]) => channel.filter[key] === value)) {
         return channel;
-      }
-      const filter = { ...channel.filter, enabled: on, shortsFilter };
-      store?.setFilter(channel.channelId, filter);
-      return { ...channel, filter };
-    });
-    go(channels.some(canBeExample) ? "try" : "done");
-  }
-
-  async function fetchExamples(choices: Channel[]): Promise<void> {
-    const missing = choices.filter(
-      (channel) => !exampleItems.has(channel.channelId),
-    );
-    if (missing.length === 0) {
-      return;
-    }
-    const probe = (await platform())?.probeShort;
-    const fetched = await mapWithConcurrency(
-      missing,
-      FETCH_CONCURRENCY,
-      async (channel) => {
-        try {
-          return [
-            [
-              channel.channelId,
-              await withToken((token) =>
-                fetchChannelItems(channel, token, probe),
-              ),
-            ],
-          ] as const;
-        } catch (caught) {
-          console.error(caught);
-          return [];
-        }
-      },
-    );
-    exampleItems = new Map([...exampleItems, ...fetched.flat()]);
-  }
-
-  async function loadExamples(): Promise<void> {
-    const choices = exampleChoices;
-    loadingExamples = true;
-    try {
-      await fetchExamples(choices);
-      const kept = choices.find(
-        (channel) => channel.channelId === trial?.channelId,
-      );
-      if (kept) {
-        trial = kept;
       } else {
-        selectTrial(pickExampleChannel(choices, exampleItems));
+        const filter = { ...channel.filter, ...Object.fromEntries(changes) };
+        store?.setFilter(channel.channelId, filter);
+        return { ...channel, filter };
       }
-    } catch (caught) {
-      error = (caught as Error).message;
-    } finally {
-      loadingExamples = false;
-    }
+    });
   }
 
-  async function chooseExample(channelId: string): Promise<void> {
-    const channel = exampleChoices.find(
-      (choice) => choice.channelId === channelId,
-    );
-    if (!channel) {
-      return;
-    }
-    selectTrial(channel);
-    error = null;
-    if (exampleItems.has(channelId)) {
-      return;
-    }
-    loadingExamples = true;
-    try {
-      exampleItems = new Map(exampleItems).set(
-        channel.channelId,
-        await withToken(async (token) =>
-          fetchChannelItems(channel, token, (await platform())?.probeShort),
-        ),
-      );
-    } catch (caught) {
-      console.error(caught);
-      error = "Couldn't load this channel's videos.";
-    } finally {
-      loadingExamples = false;
-    }
+  function prefetchOn(): void {
+    prefetch.fetchOnly(channels.filter((channel) => channel.filter.enabled));
   }
 
-  function selectTrial(channel: Channel | null): void {
-    trial = channel;
-    trialShorts = channel?.filter.shortsFilter ?? "all";
-    pattern = channel?.filter.mode === "exclude" ? channel.filter.regex : "";
-    // an example channel never has an "only matches" pattern, so it starts on Hide
-    trialMode = "exclude";
-    trialScope = channel?.filter.searchScope ?? "title";
+  function saveChannels(): void {
+    saveFilters((channel) => ({ enabled: enabled[channel.channelId] ?? true }));
+    prefetchOn();
+    go("shorts");
   }
 
-  function saveTrial(): void {
-    if (trial && trialFilter) {
-      const before = JSON.stringify(trial.filter);
-      if (JSON.stringify(trialFilter) !== before) {
-        session.store?.setFilter(trial.channelId, trialFilter);
-        const saved = { ...trial, filter: trialFilter };
-        trial = saved;
-        channels = channels.map((channel) =>
-          channel.channelId === saved.channelId ? saved : channel,
-        );
-      }
+  function saveShorts(): void {
+    if (shortsDefault !== startingShorts) {
+      saveFilters(() => ({ shortsFilter: shortsDefault }));
+      startingShorts = shortsDefault;
     }
-    go("done");
+    // a Shorts choice that filters needs the Shorts lists the prefetch left out
+    prefetchOn();
+    go("start");
   }
 
   function finish(): void {
     if (session.account) {
-      handOffPrefetched(
-        session.account.channelId,
-        new Map(
-          Array.from(exampleItems, ([channelId, items]) => [
-            channelId,
-            { mode: "videos", items },
-          ]),
-        ),
-      );
+      keepPendingStart(session.account.channelId, startFrom);
+      handOffPrefetched(session.account.channelId, prefetch);
     }
     session.finishSetup();
   }
@@ -433,36 +272,21 @@
   }
 </script>
 
-{#snippet trialPreview()}
-  <div class="trial-preview">
-    <span class="secondary preview-count"
-      >Preview: {preview.filter((row) => !row.hidden).length} of
-      {preview.length}
-      shown</span
-    >
-    <div class="preview-grid" inert>
-      {#each preview as row (feedItemId(row.item))}
-        <div class="preview-card">
-          <div style:opacity={row.hidden ? 0.4 : 1}>
-            <FeedCard
-              item={row.item}
-              watched={false}
-              onopen={() => undefined}
-              onopenchannel={() => undefined}
-              ontogglewatched={() => undefined}
-            />
-          </div>
-          {#if row.hidden}
-            <span class="hidden-tag">Hidden</span>
-          {/if}
-        </div>
-      {/each}
-    </div>
+{#snippet shortsChoice()}
+  <div class="filter-group controls">
+    <ChoiceRow
+      label="Shorts"
+      options={SHORTS_OPTIONS}
+      value={shortsDefault}
+      onchange={(value) => {
+        shortsDefault = value;
+      }}
+    />
   </div>
 {/snippet}
 
 <div class="page">
-  <header class="brand"><Logo size={22} /> SubTube</header>
+  <header class="brand"><Logo /> SubTube</header>
   <main>
     <div class="frame">
       <nav aria-label="Setup steps">
@@ -487,12 +311,12 @@
       <section>
         {#if step === "intro"}
           <div class="content">
-            <div class="wordmark"><Logo size={40} /> SubTube</div>
+            <div class="wordmark"><Logo hull={36} /> SubTube</div>
             <h1>Your subscriptions, your filters, no algorithm.</h1>
             <ul class="points">
               <li>
                 <Icon name="tv" size={22} color="var(--gold)" />
-                New videos from the channels you subscribe to, newest first.
+                New videos from the channels you subscribe to, latest first.
               </li>
               <li>
                 <Icon name="filter" size={22} color="var(--gold)" />
@@ -630,6 +454,16 @@
               Sign in with Google
             </button>
           </div>
+          <p class="agree secondary small">
+            By signing in, you agree to SubTube's
+            <a href={termsUrl} target="_blank" rel="noopener noreferrer"
+              >Terms</a
+            >
+            and
+            <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
+              >Privacy Policy</a
+            >.
+          </p>
         {:else if step === "channels"}
           <div class="content tight">
             {#if !channelsLoaded}
@@ -652,16 +486,6 @@
                 Your subscriptions start on. Turn off any you don't want in your
                 feed.
               </p>
-              <div class="filter-group controls">
-                <ChoiceRow
-                  label="Shorts"
-                  options={SHORTS_OPTIONS}
-                  value={shortsDefault}
-                  onchange={(value) => {
-                    shortsDefault = value;
-                  }}
-                />
-              </div>
               <div class="search-row">
                 <label for="nux-search" class="visually-hidden"
                   >Search channels</label
@@ -738,35 +562,14 @@
               Next
             </button>
           </div>
-        {:else if step === "try"}
-          <div class="content tight">
-            <h1>Try a filter</h1>
+        {:else if step === "shorts"}
+          <div class="content">
+            <h1>Shorts</h1>
             <p class="lead">
-              Each channel can have its own filter. Let's set one up on an
-              example channel. You can change it any time under Channels.
+              This applies to every channel. You can change it for a single
+              channel under Channels.
             </p>
-            <div class="filter-group controls example">
-              <label for="nux-example">Example channel</label>
-              <select
-                id="nux-example"
-                class="text-input"
-                value={trial?.channelId ?? ""}
-                onchange={(event) =>
-                  void chooseExample(event.currentTarget.value)}
-              >
-                {#each exampleChoices as channel (channel.channelId)}
-                  <option value={channel.channelId}>{channel.title}</option>
-                {/each}
-              </select>
-            </div>
-            {#if loadingExamples}
-              <p class="secondary loading">
-                <span class="spinning"><Icon name="refresh" size={20} /></span>
-              </p>
-            {/if}
-            {#if error}
-              <p class="error-text">{error}</p>
-            {/if}
+            {@render shortsChoice()}
           </div>
           <div class="actions">
             <button
@@ -779,71 +582,25 @@
             <button
               type="button"
               class="button-primary push"
-              disabled={loadingExamples || !trial}
-              onclick={() => go("shorts")}
+              onclick={saveShorts}
             >
               Next
             </button>
           </div>
-        {:else if step === "shorts"}
-          <div class="content tight">
-            <h1>Hide Shorts</h1>
-            <p class="lead">
-              Choose whether this channel shows Shorts. The preview shows what
-              you'd see.
-            </p>
+        {:else if step === "start"}
+          <div class="content">
+            <h1>Where to start</h1>
+            <p class="lead">Older videos are marked as watched.</p>
             <div class="filter-group controls">
               <ChoiceRow
-                label="Shorts"
-                options={SHORTS_OPTIONS}
-                value={trialShorts}
+                label="Where to start"
+                options={START_OPTIONS}
+                value={startFrom}
                 onchange={(value) => {
-                  trialShorts = value;
+                  startFrom = value;
                 }}
               />
             </div>
-            {@render trialPreview()}
-          </div>
-          <div class="actions">
-            <button
-              type="button"
-              class="button-quiet"
-              onclick={() => go("try")}
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              class="button-primary push"
-              onclick={() => go("titles")}
-            >
-              Next
-            </button>
-          </div>
-        {:else if step === "titles"}
-          <div class="content tight">
-            <h1>Hide titles</h1>
-            <p class="lead">
-              Type a word, and videos with it in the title are hidden, like
-              “live” or “trailer”.
-            </p>
-            <div class="filter-group controls">
-              <PatternFields
-                {pattern}
-                mode={trialMode}
-                matchIn={trialScope}
-                onpattern={(value) => {
-                  pattern = value;
-                }}
-                onmode={(value) => {
-                  trialMode = value;
-                }}
-                onscope={(value) => {
-                  trialScope = value;
-                }}
-              />
-            </div>
-            {@render trialPreview()}
           </div>
           <div class="actions">
             <button
@@ -856,8 +613,7 @@
             <button
               type="button"
               class="button-primary push"
-              disabled={!patternValid}
-              onclick={saveTrial}
+              onclick={() => go("done")}
             >
               Next
             </button>
@@ -869,8 +625,8 @@
             >
             <h1>You're set</h1>
             <p class="lead narrow">
-              Your feed starts with the newest video you haven't watched. Click
-              one to play it. When you close it, it's marked watched.
+              Your feed starts with the latest video you haven't watched. Click
+              one to play it.
             </p>
           </div>
           <div class="actions end">
@@ -886,6 +642,7 @@
     <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
       >Privacy policy</a
     >
+    <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
   </footer>
 </div>
 
@@ -909,9 +666,15 @@
   }
 
   footer {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
     padding: 0 16px 20px;
-    text-align: center;
     font-size: 12px;
+  }
+
+  .agree {
+    text-align: right;
   }
 
   .frame {
@@ -927,7 +690,7 @@
   }
 
   nav {
-    flex: 1 1 240px;
+    flex: 1 1 288px;
     padding: 32px;
     background: var(--surface-raised);
     border-right: 1px solid var(--border);
@@ -956,6 +719,7 @@
   }
 
   .step-done {
+    flex-shrink: 0;
     display: grid;
     place-items: center;
     width: 24px;
@@ -966,6 +730,7 @@
   }
 
   .step-number {
+    flex-shrink: 0;
     display: grid;
     place-items: center;
     width: 24px;
@@ -1019,6 +784,7 @@
     align-items: center;
     gap: 10px;
     font-size: 30px;
+    line-height: 36px;
     font-weight: 700;
   }
 
@@ -1186,17 +952,6 @@
     text-decoration: underline;
   }
 
-  .loading {
-    display: flex;
-    justify-content: center;
-    margin: 0;
-    padding: 16px;
-  }
-
-  .spinning {
-    display: flex;
-  }
-
   .channel-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
@@ -1249,53 +1004,6 @@
 
   .controls {
     max-width: 360px;
-  }
-
-  .example {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 14px;
-  }
-
-  .example label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-
-  .trial-preview {
-    display: flex;
-    flex-direction: column;
-    border-top: 1px solid var(--border);
-    padding-top: 8px;
-  }
-
-  .preview-count {
-    font-size: 13px;
-    font-weight: 500;
-    padding-bottom: 8px;
-  }
-
-  .preview-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
-    gap: 16px;
-  }
-
-  .preview-card {
-    position: relative;
-  }
-
-  .hidden-tag {
-    position: absolute;
-    top: 6px;
-    left: 6px;
-    border-radius: 4px;
-    background: var(--text-secondary);
-    padding: 2px 6px;
-    color: var(--page);
-    font-size: 12px;
   }
 
   .done-icon {

@@ -13,12 +13,17 @@ imported at runtime; each client's tests load the fixtures and must pass them.
 | `patterns/README.md` | the filter pattern language and how to compile it |
 | `patterns/meta-regex.txt` | the regex that accepts exactly the valid patterns |
 | `fixtures/patterns.json` | valid/invalid patterns, and what valid ones match |
-| `fixtures/filters.json` | saved filter + feed item → kept or not |
-| `fixtures/merge.json` | every device's raw file → the merged view (incl. tie rule, malformed input, unknown fields) |
-| `fixtures/prune.json` | dropping watched marks older than a year before a write |
+| `fixtures/filters.json` | saved filter + feed item → kept or not (incl. the `topics` gate, and patterns that are not phrases) |
+| `fixtures/phrases.json` | typed phrases → filter pattern, and a pattern back to phrases or "not phrases" |
+| `fixtures/watch-progress.json` | a watched entry's `position` + the video's length → watched or not, where it resumes, how full its progress bar is; and what a client writes while playing |
+| `fixtures/merge.json` | every device's raw file → the merged view of filters, watched marks and settings (incl. tie rule, malformed input, unknown fields, and `seen` travelling with its entry without ordering it) |
+| `fixtures/settings.json` | the merged `settings` map → the synced settings a client acts on, with their defaults |
+| `fixtures/prune.json` | a device's own watched entries: `seen` set after a full load, and entries neither saved nor loaded for 30 days dropped before a write |
 | `fixtures/shorts.json` | classifying uploads as Shorts from the `UUSH` list or a probe |
-| `fixtures/feed-order.json` | newest-first order |
-| `fixtures/channel-order.json` | the order of channel lists |
+| `fixtures/feed-order.json` | the feed's orders: latest (the `newest` value), shortest, title (the case-insensitive compare every list uses), and the seeded random one |
+| `fixtures/feed-chips.json` | the fifteen topics (YouTube category ids) and their labels, the chip row and what its chips cycle through, the topic chips' order, what the time and topic chips keep, the filter editor's topic order, and what setup's starting point marks watched |
+| `fixtures/channel-order.json` | the orders of channel lists: latest (newest video first), name, unwatched (most unwatched first) |
+| `fixtures/channel-chips.json` | the channel list's chip row: the topic chips it offers and their order, and which channels its time and topic chips keep |
 | `fixtures/device-files/` | example files; `valid-*` pass the schema, `invalid-*` fail it |
 | `tools/` | checks for this folder (Bun, plus `swift` and a JDK for the engines) |
 
@@ -32,6 +37,27 @@ Any change to the Drive file format or to what a filter means **starts here**:
 change the schema and fixtures (and the pattern spec), run the checks below,
 then change every client until its tests pass again. A client never changes
 shared behaviour on its own.
+
+## How long watched entries are kept
+
+YouTube's API policies allow keeping what came from the API for 30 days
+without refreshing it, so a watched entry lives only while its video keeps
+coming back in loads. Each entry has `at` (when it was saved) and an optional
+`seen` (when its device last had the video or playlist among the items of a
+full load). `fixtures/prune.json` is the rule and its edges; in short, for a
+device's **own** file only:
+
+1. After a full load that succeeded, every own entry whose id is among the
+   load's items gets `seen` = now, unless its `seen` is less than a day old
+   (now - seen < 86400000 ms) or in the future. `at` is not touched.
+2. Then, and before every write, an own entry is dropped unless
+   now - max(`at`, `seen`) < 30 days (2592000000 ms); a missing or malformed
+   `seen` counts as `at`. Exactly 30 days is dropped.
+
+`seen` is not part of merging: `at` alone orders entries, then the device id,
+and the winner's `seen` comes with it (`fixtures/merge.json`). A device never
+changes another device's file, so a device that is no longer used keeps its
+last file in Drive until the profile is deleted.
 
 ## Versioning
 
@@ -62,4 +88,5 @@ bun shared/tools/cross-engine.ts                 # JS, ICU and Java agree on eve
 
 `check.ts` uses `ajv` (the one dependency, in `shared/package.json`) to
 validate the example device files. `cross-engine.ts` needs `swift` and a JDK
-(`JAVA_HOME`, else Android Studio's bundled one).
+(`JAVA_HOME`, else Android Studio's bundled one); it also runs every pattern
+`fixtures/phrases.json` builds.

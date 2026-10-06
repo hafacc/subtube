@@ -12,14 +12,19 @@ import {
   deletedElsewhere,
   deviceIdFromName,
   editedEntry,
+  editedFilter,
   emptyDeviceFile,
   followedIds,
   hasProfile,
+  markedEntry,
   mergeDeviceFiles,
   parseDeviceFile,
+  playedEntry,
   pruneDeviceFile,
+  refreshSeen,
+  type SettingEntry,
   sanitizeDeviceFile,
-  savedFilter,
+  type WatchedEntry,
 } from "./sync-merge";
 import type { Channel, ChannelFilter, ChannelInfo } from "./types";
 
@@ -49,8 +54,8 @@ export class ProfileDeletedError extends Error {
 }
 
 function sameEntries(
-  left: Record<string, { at: number }>,
-  right: Record<string, { at: number }>,
+  left: Record<string, { at: number }> = {},
+  right: Record<string, { at: number }> = {},
 ): boolean {
   const keys = Object.keys(left);
   return (
@@ -60,7 +65,7 @@ function sameEntries(
 }
 
 /*
- * The channel filters and watched marks, synced through the Drive app folder.
+ * The channel filters, watched marks and settings, synced through the Drive app folder.
  * Each device writes only its own file and reads everyone's, so two devices
  * never write the same file. Edits apply in memory at once, are kept in local
  * storage until uploaded (so a reload or a closed tab loses nothing), and go up
@@ -185,7 +190,8 @@ export class SyncStore {
     // edits kept locally that Drive doesn't have yet, e.g. from before a reload
     let unsent =
       Object.keys(this.own.channels).length > 0 ||
-      Object.keys(this.own.watched).length > 0;
+      Object.keys(this.own.watched).length > 0 ||
+      Object.keys(this.own.settings ?? {}).length > 0;
     await Promise.all(
       listed.map(async (entry: DriveFile) => {
         const fileDeviceId = deviceIdFromName(entry.name);
@@ -208,7 +214,8 @@ export class SyncStore {
             };
             unsent =
               !sameEntries(this.own.channels, remote.channels) ||
-              !sameEntries(this.own.watched, remote.watched);
+              !sameEntries(this.own.watched, remote.watched) ||
+              !sameEntries(this.own.settings, remote.settings);
           }
           return;
         }
@@ -254,26 +261,30 @@ export class SyncStore {
     return followedIds(this.merged);
   }
 
-  /** Whether a video or playlist is marked watched. */
-  isWatched(id: string): boolean {
-    return this.merged.watched[id]?.watched ?? false;
+  /** A video's or playlist's watched entry as last saved on any device. */
+  watchedEntry(id: string): WatchedEntry | undefined {
+    return this.merged.watched[id];
   }
 
-  /** Save a channel's filter; identity fields are dropped, unknown ones kept. */
+  /**
+   * Save a channel's filter; identity fields and a pattern that is not built
+   * from phrases are dropped, unknown fields kept.
+   */
   setFilter(channelId: string, filter: ChannelFilter): void {
     this.own.channels[channelId] = editedEntry(this.own.channels[channelId], {
       at: Date.now(),
-      filter: savedFilter(filter),
+      filter: editedFilter(filter),
     });
     this.changed();
   }
 
-  /** Mark or unmark a video or playlist as watched. */
+  /** Mark a video or playlist watched, or unmark it, which also forgets its position. */
   setWatched(id: string, watched: boolean): void {
-    this.own.watched[id] = editedEntry(this.own.watched[id], {
-      at: Date.now(),
+    this.own.watched[id] = markedEntry(
+      this.own.watched[id],
+      Date.now(),
       watched,
-    });
+    );
     this.changed();
   }
 
@@ -281,8 +292,60 @@ export class SyncStore {
   setWatchedAll(ids: readonly string[], watched: boolean): void {
     const at = Date.now();
     for (const id of ids) {
-      this.own.watched[id] = editedEntry(this.own.watched[id], { at, watched });
+      this.own.watched[id] = markedEntry(this.own.watched[id], at, watched);
     }
+    this.changed();
+  }
+
+  /**
+   * Save how far a video has been played; `ended` when its player reported
+   * the end. It is kept on this device at once and goes to Drive with the next
+   * upload, which this starts only when `upload` is set.
+   */
+  setProgress(
+    id: string,
+    position: number,
+    ended: boolean,
+    upload: boolean,
+  ): void {
+    this.own.watched[id] = playedEntry(
+      this.own.watched[id],
+      Date.now(),
+      position,
+      ended,
+    );
+    this.edits += 1;
+    this.remerge();
+    this.writeLocal();
+    if (upload) {
+      this.scheduleSave();
+    }
+  }
+
+  /**
+   * Note the videos and playlists a full load just returned: this device's
+   * entries for them are kept another 30 days, and its entries past that are
+   * dropped, here and in Drive.
+   */
+  noteLoaded(ids: Iterable<string>): void {
+    const now = Date.now();
+    const kept = pruneDeviceFile(refreshSeen(this.own, new Set(ids), now), now);
+    if (kept !== this.own) {
+      this.own = kept;
+      this.changed();
+    }
+  }
+
+  /** Every synced setting as last saved on any device; `readSettings` gives them meaning. */
+  settings(): Readonly<Record<string, SettingEntry>> {
+    return this.merged.settings ?? {};
+  }
+
+  /** Save a synced setting. */
+  setSetting(name: string, value: unknown): void {
+    const settings = this.own.settings ?? {};
+    settings[name] = editedEntry(settings[name], { at: Date.now(), value });
+    this.own.settings = settings;
     this.changed();
   }
 

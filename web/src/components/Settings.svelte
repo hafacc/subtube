@@ -8,7 +8,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getValidToken } from "../lib/auth";
-  import { privacyUrl } from "../lib/config";
+  import { privacyUrl, termsUrl } from "../lib/config";
   import { fetchDriveUser } from "../lib/drive";
   import type { ChannelSummary } from "../lib/youtube";
   import Avatar from "./Avatar.svelte";
@@ -182,14 +182,12 @@
     </p>
   </div>
 
-  <a
-    class="privacy"
-    href={privacyUrl}
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    Privacy policy
-  </a>
+  <div class="legal">
+    <a href={privacyUrl} target="_blank" rel="noopener noreferrer">
+      Privacy policy
+    </a>
+    <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
+  </div>
 
   {#if confirming}
     <div class="backdrop">
@@ -339,7 +337,9 @@
     line-height: 17px;
   }
 
-  .privacy {
+  .legal {
+    display: flex;
+    gap: 12px;
     padding: 0 8px;
     font-size: 12px;
   }

@@ -1,0 +1,517 @@
+{
+  "description": "How far a video has been played, and when it is watched. Drive carries the position; every client works out the rest. In each case `entry` is the video's merged watched entry (absent when it has none) and `duration` the video's length in seconds as the client knows it (absent or 0 when unknown); `op` says what is checked. An entry's `position` counts only when it is a number that is not negative; anything else reads as no position. `watched`: whether the video is watched; `expected` is a boolean. It is watched when the entry's `watched` is true, or when it has a position, `duration` is greater than 10 and `position` >= `duration` - 10 (within the last 10 seconds of its length). So a video of 10 seconds or less, or of unknown length, is watched only by `watched: true`, and an old entry with `watched: true` and no position is watched as before. `resume`: where the video starts when opened; `expected` is in seconds. 0 when it is watched by the rule above or has no position; otherwise its position. `bar`: the progress bar along the bottom of the video's thumbnail; `expected` is the filled fraction from 0 to 1, or null for no bar. 1 when it is watched by the rule above; otherwise null without a position or without a `duration` greater than 0; otherwise `position` / `duration`. A fraction of 0 draws nothing. A playlist has no position and no bar: only `watched` counts for it. What a client writes, always under the item's id in its own file with `at` set to now, keeping any unknown fields the entry had: (1) while a video plays in its own player, `watched: false` and `position` as the player reports it — often on the device (every few seconds), and to Drive with the usual delayed upload only on pause, on leaving the player and when the app goes to the background, never every few seconds; nothing is written for a live broadcast, or before playback starts. (2) when the player reports the end, `watched: true` and `position` as reported; nothing more is written for that video until it plays again, and playing it again writes (1), which is how moving back in a watched video makes it unwatched with the new position. (3) a mark made without playing — setup's starting point, a playlist's last video ending, a mark made by hand — `watched: true`, leaving `position` as it was. (4) an unmark made by hand: `watched: false` and `position` removed. Leaving a video part-way therefore keeps its position and leaves it in the feed. The unwatched counts count every video that is not watched by the rule above, so a part-watched one counts.",
+  "cases": [
+    {
+      "name": "watched: no entry",
+      "op": "watched",
+      "duration": 600,
+      "expected": false
+    },
+    {
+      "name": "watched: watched true with no position, as older versions wrote",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true
+      },
+      "duration": 600,
+      "expected": true
+    },
+    {
+      "name": "watched: watched true wins over an early position",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true,
+        "position": 12
+      },
+      "duration": 600,
+      "expected": true
+    },
+    {
+      "name": "watched: watched true with the length unknown",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true
+      },
+      "expected": true
+    },
+    {
+      "name": "watched: watched false with no position",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false
+      },
+      "duration": 600,
+      "expected": false
+    },
+    {
+      "name": "watched: part-way",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 300
+      },
+      "duration": 600,
+      "expected": false
+    },
+    {
+      "name": "watched: exactly 10 seconds from the end",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 590
+      },
+      "duration": 600,
+      "expected": true
+    },
+    {
+      "name": "watched: a little more than 10 seconds from the end",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 589.9
+      },
+      "duration": 600,
+      "expected": false
+    },
+    {
+      "name": "watched: inside the last 10 seconds",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 599.5
+      },
+      "duration": 600,
+      "expected": true
+    },
+    {
+      "name": "watched: a position past the length",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 601.2
+      },
+      "duration": 600,
+      "expected": true
+    },
+    {
+      "name": "watched: a position of 0",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 0
+      },
+      "duration": 600,
+      "expected": false
+    },
+    {
+      "name": "watched: a fractional length, just short",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 50.4
+      },
+      "duration": 60.5,
+      "expected": false
+    },
+    {
+      "name": "watched: a fractional length, at the boundary",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 50.5
+      },
+      "duration": 60.5,
+      "expected": true
+    },
+    {
+      "name": "watched: a video of exactly 10 seconds is never watched by position",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 10
+      },
+      "duration": 10,
+      "expected": false
+    },
+    {
+      "name": "watched: a video under 10 seconds is never watched by position",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 8
+      },
+      "duration": 8,
+      "expected": false
+    },
+    {
+      "name": "watched: a video under 10 seconds whose player reported the end",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true,
+        "position": 8
+      },
+      "duration": 8,
+      "expected": true
+    },
+    {
+      "name": "watched: a video just over 10 seconds, near its start",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 0.5
+      },
+      "duration": 10.4,
+      "expected": true
+    },
+    {
+      "name": "watched: a video of 11 seconds, before its last 10",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 0.5
+      },
+      "duration": 11,
+      "expected": false
+    },
+    {
+      "name": "watched: an unknown length is never watched by position",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 5000
+      },
+      "expected": false
+    },
+    {
+      "name": "watched: a length of 0 is unknown",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 5000
+      },
+      "duration": 0,
+      "expected": false
+    },
+    {
+      "name": "watched: a position that is not a number reads as none",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": "595"
+      },
+      "duration": 600,
+      "expected": false
+    },
+    {
+      "name": "watched: a negative position reads as none",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": -1
+      },
+      "duration": 5,
+      "expected": false
+    },
+    {
+      "name": "watched: unknown fields change nothing",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 595,
+        "speed": 1.5
+      },
+      "duration": 600,
+      "expected": true
+    },
+    {
+      "name": "resume: no entry starts at the beginning",
+      "op": "resume",
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "resume: a part-watched video starts at its position",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 312.5
+      },
+      "duration": 600,
+      "expected": 312.5
+    },
+    {
+      "name": "resume: watched true starts at the beginning",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true,
+        "position": 312.5
+      },
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "resume: watched true without a position",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true
+      },
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "resume: an unwatched entry without a position",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false
+      },
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "resume: a position in the last 10 seconds is watched, so the beginning",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 595
+      },
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "resume: just short of the last 10 seconds",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 589
+      },
+      "duration": 600,
+      "expected": 589
+    },
+    {
+      "name": "resume: a short video resumes wherever it was left",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 8
+      },
+      "duration": 9,
+      "expected": 8
+    },
+    {
+      "name": "resume: with the length unknown the position is used",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 4000
+      },
+      "expected": 4000
+    },
+    {
+      "name": "resume: a length of 0 is unknown",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 4000
+      },
+      "duration": 0,
+      "expected": 4000
+    },
+    {
+      "name": "resume: a position that is not a number reads as none",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": "312"
+      },
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "resume: a negative position reads as none",
+      "op": "resume",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": -5
+      },
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "bar: no entry, no bar",
+      "op": "bar",
+      "duration": 600,
+      "expected": null
+    },
+    {
+      "name": "bar: position over length",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 150
+      },
+      "duration": 600,
+      "expected": 0.25
+    },
+    {
+      "name": "bar: watched true is full, whatever its position",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true,
+        "position": 150
+      },
+      "duration": 600,
+      "expected": 1
+    },
+    {
+      "name": "bar: watched true without a position is full",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true
+      },
+      "duration": 600,
+      "expected": 1
+    },
+    {
+      "name": "bar: watched true with the length unknown is full",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true
+      },
+      "expected": 1
+    },
+    {
+      "name": "bar: a position in the last 10 seconds is watched, so full",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 591
+      },
+      "duration": 600,
+      "expected": 1
+    },
+    {
+      "name": "bar: unwatched without a position, no bar",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false
+      },
+      "duration": 600,
+      "expected": null
+    },
+    {
+      "name": "bar: a position of 0 is an empty bar",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 0
+      },
+      "duration": 600,
+      "expected": 0
+    },
+    {
+      "name": "bar: unknown length, no bar",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 150
+      },
+      "expected": null
+    },
+    {
+      "name": "bar: a length of 0 is unknown",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 150
+      },
+      "duration": 0,
+      "expected": null
+    },
+    {
+      "name": "bar: a short video near its end is not full",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 6
+      },
+      "duration": 8,
+      "expected": 0.75
+    },
+    {
+      "name": "bar: a short video past its length is not more than full",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 9
+      },
+      "duration": 8,
+      "expected": 1
+    },
+    {
+      "name": "bar: a position that is not a number reads as none",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": "150"
+      },
+      "duration": 600,
+      "expected": null
+    },
+    {
+      "name": "bar: a negative position reads as none",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": -150
+      },
+      "duration": 600,
+      "expected": null
+    }
+  ]
+}

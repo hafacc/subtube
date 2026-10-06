@@ -1,3 +1,5 @@
+import { knownTopics } from "./chips";
+import { patternToPhrases } from "./phrases";
 import type {
   ChannelFilter,
   FeedItem,
@@ -179,6 +181,8 @@ export interface CompiledFilter {
   liveFilter: LiveFilter;
   /** which of Shorts and other videos are kept */
   shortsFilter: ShortsFilter;
+  /** the categories kept; empty keeps every one */
+  topics: ReadonlySet<string>;
   /** why the saved pattern was ignored, if it was */
   error: string | null;
 }
@@ -193,7 +197,8 @@ function oneOf<Value extends string>(
 
 /**
  * Read a saved filter for applying. A field that is missing or holds a value
- * this version doesn't recognize reads as its default (shared/fixtures/filters.json).
+ * this version doesn't recognize reads as its default, and a pattern that is
+ * not built from phrases as no pattern (shared/fixtures/filters.json).
  */
 export function compileFilter(filter: ChannelFilter): CompiledFilter {
   const raw = filter as unknown as Record<string, unknown>;
@@ -215,12 +220,20 @@ export function compileFilter(filter: ChannelFilter): CompiledFilter {
       ["all", "normal", "shorts"] as const,
       "all",
     ),
+    topics: knownTopics(
+      Array.isArray(raw.topics) &&
+        raw.topics.every((id) => typeof id === "string")
+        ? raw.topics
+        : [],
+    ),
   };
   const pattern = typeof raw.regex === "string" ? raw.regex : "";
   if (pattern === "") {
     return { ...base, regex: null, error: null };
   } else if (!isValidPattern(pattern)) {
     return { ...base, regex: null, error: "unsupported pattern" };
+  } else if (patternToPhrases(pattern) === null) {
+    return { ...base, regex: null, error: "not phrases" };
   } else {
     return {
       ...base,
@@ -235,8 +248,15 @@ export function videoPassesFilter(
   item: FeedItem,
   compiled: CompiledFilter,
 ): boolean {
-  const { regex, mode, scope, minDurationSeconds, liveFilter, shortsFilter } =
-    compiled;
+  const {
+    regex,
+    mode,
+    scope,
+    minDurationSeconds,
+    liveFilter,
+    shortsFilter,
+    topics,
+  } = compiled;
   // The broadcast/Shorts/duration gates are video-only; playlists skip them.
   // (Treat a missing kind — e.g. an older cached video — as a video.)
   if (item.kind !== "playlist") {
@@ -272,6 +292,12 @@ export function videoPassesFilter(
       minDurationSeconds > 0 &&
       item.durationSeconds &&
       item.durationSeconds < minDurationSeconds
+    ) {
+      return false;
+    }
+    if (
+      topics.size > 0 &&
+      (item.categoryId === undefined || !topics.has(item.categoryId))
     ) {
       return false;
     }

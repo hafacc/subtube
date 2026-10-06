@@ -47,8 +47,17 @@ Brand: Sunflower `#FFC20E` is the only brand colour; yellow fills carry ink
 - **Shorts from YouTube's own lists** (`UUSH` beside `UU`), not a probe; a probe
   of `/shorts/{id}` is only the fallback where a platform can make one.
 - **Filter patterns** are a small regex subset that JavaScript, ICU and Java read
-  identically; the meta regex rejects anything else before it is saved.
-- **Watched is self-tracked**, pruned to a year per device.
+  identically; the meta regex rejects anything else before it is saved. Users
+  type phrases, which are built into a pattern; a saved pattern that is not
+  phrases is not applied and is dropped at that filter's next save.
+- **Watched is self-tracked**, and a device drops its own entry 30 days after
+  it last saved it or last had the video in a full load (`seen`, set at most
+  once a day; YouTube's API policies). Drive carries each
+  video's playing position, and every client works out from it and the video's
+  length whether it is watched (the last 10 seconds of a video longer than
+  that); `watched: true` is for marks made without playing and for the
+  player's reported end.
+- **Topics are YouTube's fifteen video categories**, by category id.
 - **Keep the official IFrame player** so ads serve and views count.
 
 ## Status
@@ -63,12 +72,13 @@ paginated feed (older uploads beyond the first page per channel); build the
 feed in place while it loads (a placeholder row for each video known to pass,
 filled once its position is certain, rows growing upward with the scroll
 adjusted so the view doesn't jump) instead of greying the feed out until the
-load finishes.
+load finishes; an advanced setting for writing a raw regex pattern.
 
 ## Gotchas
 
 - The YouTube embed refuses pages that send no referrer (error 153): native web
-  views load the player with base URL `https://subtube.hafa.cc`.
+  views load the player with their app id as the base URL
+  (`https://cc.hafa.subtube`), which YouTube's rules require of native apps.
 - `UUSH`/`UULF`/`UULV` and the `/shorts/` redirect are undocumented.
 - A Drive app folder is only readable by OAuth clients of the project that wrote
   it, so every platform's client lives in subtube-dev.

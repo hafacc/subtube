@@ -1,13 +1,20 @@
 <script lang="ts">
   import { SHORTS_OPTIONS } from "../lib/channel-summary";
+  import { editorTopics, topicLabel } from "../lib/chips";
   import type { FeedController } from "../lib/feed.svelte";
-  import { compileFilter, isValidPattern } from "../lib/filters";
+  import { compileFilter } from "../lib/filters";
+  import {
+    patternToPhrases,
+    phrasePatternOnly,
+    phrasesToPattern,
+  } from "../lib/phrases";
   import type {
     Channel,
     ChannelFilter,
     ContentMode,
     LiveFilter,
   } from "../lib/types";
+  import Chip from "./Chip.svelte";
   import ChoiceRow from "./ChoiceRow.svelte";
   import PatternFields from "./PatternFields.svelte";
   import Switch from "./Switch.svelte";
@@ -26,33 +33,35 @@
     { value: "videos", label: "Uploads" },
     { value: "playlists", label: "Playlists" },
   ] as const satisfies readonly { value: ContentMode; label: string }[];
+  const CASE_OPTIONS = [
+    { value: "ignore", label: "Ignore" },
+    { value: "match", label: "Match" },
+  ] as const satisfies readonly { value: "ignore" | "match"; label: string }[];
   const LIVE_OPTIONS = [
     { value: "all", label: "Show" },
     { value: "normal", label: "Hide" },
     { value: "vod", label: "Only" },
   ] as const satisfies readonly { value: LiveFilter; label: string }[];
 
-  // the pattern as typed; saved only while it is valid
-  let patternDraft = $state("");
-
   const filter = $derived(channel.filter);
   const isPlaylists = $derived(filter.contentMode === "playlists");
   const compiled = $derived(compileFilter(filter));
-  const markAll = $derived(feed.markAllFor(channel));
-
-  $effect(() => {
-    patternDraft = channel.filter.regex;
-  });
+  const phrases = $derived(
+    patternToPhrases(phrasePatternOnly(filter.regex)) ?? [],
+  );
+  const topics = $derived(editorTopics(feed.channelFetched(channel.channelId)));
 
   function update(changes: Partial<ChannelFilter>): void {
     feed.updateFilter(channel.channelId, { ...channel.filter, ...changes });
   }
 
-  function setPattern(value: string): void {
-    patternDraft = value;
-    if (isValidPattern(value)) {
-      update({ regex: value });
-    }
+  function toggleTopic(categoryId: string): void {
+    const selected = Array.from(compiled.topics);
+    update({
+      topics: compiled.topics.has(categoryId)
+        ? selected.filter((other) => other !== categoryId)
+        : [...selected, categoryId],
+    });
   }
 </script>
 
@@ -76,21 +85,19 @@
 
   <div class="filter-group">
     <PatternFields
-      pattern={patternDraft}
+      {phrases}
       mode={compiled.mode}
       matchIn={compiled.scope}
-      onpattern={setPattern}
+      onphrases={(list) => update({ regex: phrasesToPattern(list) })}
       onmode={(mode) => update({ mode })}
       onscope={(searchScope) => update({ searchScope })}
     />
-    <button
-      type="button"
-      class="toggle"
-      aria-pressed={filter.caseSensitive === true}
-      onclick={() => update({ caseSensitive: filter.caseSensitive !== true })}
-    >
-      Match case
-    </button>
+    <ChoiceRow
+      label="Case"
+      options={CASE_OPTIONS}
+      value={filter.caseSensitive === true ? "match" : "ignore"}
+      onchange={(choice) => update({ caseSensitive: choice === "match" })}
+    />
   </div>
 
   {#if !isPlaylists}
@@ -126,16 +133,23 @@
         seconds
       </label>
     </div>
-  {/if}
 
-  <button
-    type="button"
-    class="button-outline mark-all"
-    disabled={markAll.ids.length === 0}
-    onclick={() => feed.markAll(channel)}
-  >
-    {markAll.watched ? "Mark all as watched" : "Mark all as unwatched"}
-  </button>
+    <div class="filter-group">
+      <span class="label">Topics</span>
+      <div class="chips">
+        {#each topics as categoryId (categoryId)}
+          <Chip
+            label={topicLabel(categoryId) ?? ""}
+            pressed={compiled.topics.has(categoryId)}
+            onclick={() => toggleTopic(categoryId)}
+          />
+        {/each}
+      </div>
+      <p class="secondary help">
+        Only videos with a selected topic are shown. None selected shows all.
+      </p>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -154,24 +168,19 @@
     font-weight: 500;
   }
 
-  .toggle {
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--page);
-    font-size: 13px;
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .toggle[aria-pressed="true"] {
-    background: var(--sunflower);
-    border-color: var(--sunflower);
-    color: var(--ink);
+  .label {
     font-weight: 500;
   }
 
-  .mark-all {
-    justify-content: center;
-    margin-top: 8px;
+  .help {
+    margin: 0;
+    font-size: 13px;
   }
 
   .duration {

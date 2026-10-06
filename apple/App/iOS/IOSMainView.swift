@@ -1,7 +1,7 @@
 import SubtubeCore
 import SwiftUI
 
-/// iOS: Feed, Channels and Settings tabs; the player covers the screen.
+/// iOS: Feed, Channels and Settings tabs; a card plays in place.
 struct PlatformMainView: View {
   let app: AppModel
   @Bindable var feed: FeedModel
@@ -53,9 +53,6 @@ struct PlatformMainView: View {
         IOSSettingsTab(app: app, feed: feed)
       }
     }
-    .fullScreenCover(item: $feed.player) { session in
-      IOSPlayerScreen(session: session, feed: feed)
-    }
     .onChange(of: openChannel) { _, channelId in
       feed.selectedChannel = channelId
     }
@@ -64,7 +61,7 @@ struct PlatformMainView: View {
       if phase == .active {
         feed.appeared()
       } else {
-        Task { await feed.flush() }
+        Task { await feed.leftForeground() }
       }
     }
     #if DEBUG
@@ -94,13 +91,13 @@ private struct IOSChannelPage: View {
   var body: some View {
     IOSFeedList(app: app, feed: feed, openChannel: { _ in })
       .navigationTitle(feed.channel(channelId)?.title ?? "")
+      .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItemGroup(placement: .topBarTrailing) {
-          HideWatchedButton(feed: feed)
+        ToolbarItem(placement: .topBarTrailing) {
           Button {
             editingFilters = true
           } label: {
-            Label(Strings.filters, systemImage: "gearshape")
+            Label(Strings.filters, systemImage: "line.3.horizontal.decrease.circle")
           }
         }
       }
@@ -130,11 +127,6 @@ private struct IOSFeedTab: View {
         scrollToTop: scrollToTop
       )
         .navigationTitle(Strings.feed)
-        .toolbar {
-          ToolbarItem(placement: .topBarTrailing) {
-            HideWatchedButton(feed: feed)
-          }
-        }
         .navigationDestination(for: ChannelRoute.self) { route in
           IOSChannelPage(app: app, feed: feed, channelId: route.channelId)
         }
@@ -142,21 +134,8 @@ private struct IOSFeedTab: View {
   }
 }
 
-/// Hide Watched for the feed and channel pages alike.
-private struct HideWatchedButton: View {
-  let feed: FeedModel
-
-  var body: some View {
-    Button {
-      feed.hideWatched.toggle()
-    } label: {
-      Label(Strings.hideWatched, systemImage: feed.hideWatched ? "eye.slash" : "eye")
-    }
-    .accessibilityAddTraits(feed.hideWatched ? .isSelected : [])
-  }
-}
-
-/// The feed (or the selected channel's page) as a column of big cards.
+/// The feed (or the selected channel's page): the chips, then a column of
+/// big cards, one of which may be playing in place.
 private struct IOSFeedList: View {
   let app: AppModel
   let feed: FeedModel
@@ -166,47 +145,63 @@ private struct IOSFeedList: View {
 
   var body: some View {
     ScrollViewReader { proxy in
-      list.onChange(of: scrollToTop) {
-        if let first = feed.shown.first {
-          withAnimation { proxy.scrollTo(first.id, anchor: .top) }
+      list
+        .overlay(alignment: .top) {
+          LoadProgressBar(progress: feed.loadProgress)
         }
-      }
+        .onChange(of: scrollToTop) {
+          withAnimation {
+            proxy.scrollTo(Self.chipsID, anchor: .top)
+          }
+        }
+        .onChange(of: feed.player?.item.id) { _, playing in
+          // auto-play's next card may be off screen; a tapped one already shows
+          if let playing {
+            withAnimation { proxy.scrollTo(playing) }
+          }
+        }
     }
   }
 
+  private static let chipsID = "chips"
+  private static let endID = "end"
+
   private var list: some View {
     List {
+      FeedChipRow(feed: feed)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets())
+        .id(Self.chipsID)
       if feed.error != nil || feed.notice != nil {
         FeedBanners(feed: feed, app: app)
           .listRowSeparator(.hidden)
       }
       ForEach(feed.shown) { item in
-        let watched = feed.watched.contains(item.id)
         ItemCard(
           item: item,
-          watched: watched,
+          watched: feed.watched.contains(item.id),
+          progress: feed.bars[item.id],
+          player: feed.player?.item.id == item.id ? feed.player : nil,
           onOpen: { feed.open(item) },
           onOpenChannel: { openChannel(item.channelId) },
-          onToggleWatched: { feed.toggleWatched(item) },
           large: true
         )
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 11, leading: 16, bottom: 11, trailing: 16))
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-          Button {
-            feed.toggleWatched(item)
-          } label: {
-            Label(watched ? Strings.markAsUnwatched : Strings.markAsWatched, systemImage: "eye")
-          }
-          .tint(Color.gold)
-        }
         .loadingDimmed(feed.loading)
       }
       FeedEmptyState(feed: feed)
         .listRowSeparator(.hidden)
+      if !feed.showsSkeletons {
+        YouTubeAttribution()
+          .frame(maxWidth: .infinity)
+          .listRowSeparator(.hidden)
+          .id(Self.endID)
+      }
     }
     .listStyle(.plain)
     .refreshable { await feed.load() }
+    .startsAtEndWhenAsked(Self.endID)
   }
 }
 
@@ -237,6 +232,8 @@ private struct IOSChannelsTab: View {
   @Binding var path: [ChannelRoute]
   @State private var search = ""
 
+  private static let endID = "end"
+
   private var rows: [ChannelFilter] {
     let query = search.trimmingCharacters(in: .whitespaces)
     return feed.orderedChannels.filter {
@@ -246,23 +243,43 @@ private struct IOSChannelsTab: View {
 
   var body: some View {
     NavigationStack(path: $path) {
-      List(rows, id: \.channelId) { channel in
-        HStack(spacing: 12) {
-          Button {
-            path.append(ChannelRoute(channelId: channel.channelId))
-          } label: {
-            ChannelRowLabel(channel: channel, feed: feed)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          ChannelSwitch(title: channel.title, isOn: feed.binding(channel, \.enabled))
+      List {
+        ChannelChipRow(feed: feed)
+          .listRowSeparator(.hidden)
+          .listRowInsets(EdgeInsets())
+        ChannelSearchField(text: $search)
+          .listRowSeparator(.hidden)
+          .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+        if feed.explainsNoChannels && rows.isEmpty {
+          NoChannelsForFilter()
+            .listRowSeparator(.hidden)
         }
-        .opacity(channel.enabled ? 1 : 0.5)
+        ForEach(rows, id: \.channelId) { channel in
+          HStack(spacing: 12) {
+            Button {
+              path.append(ChannelRoute(channelId: channel.channelId))
+            } label: {
+              ChannelRowLabel(channel: channel, feed: feed)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            UnwatchedCount(channel: channel, feed: feed)
+              .foregroundStyle(.secondary)
+            ChannelSwitch(title: channel.title, isOn: feed.binding(channel, \.enabled))
+          }
+          .opacity(channel.enabled ? 1 : 0.5)
+        }
+        YouTubeAttribution()
+          .frame(maxWidth: .infinity)
+          .listRowSeparator(.hidden)
+          .id(Self.endID)
       }
       .listStyle(.plain)
-      .searchable(
-        text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: Strings.searchChannels)
+      .scrollDismissesKeyboard(.interactively)
+      .startsAtEndWhenAsked(Self.endID)
       .navigationTitle(Strings.channels)
+      .onAppear(perform: feed.reorderChannels)
+      .onChange(of: search) { feed.reorderChannels() }
       .navigationDestination(for: ChannelRoute.self) { route in
         IOSChannelPage(app: app, feed: feed, channelId: route.channelId)
       }
@@ -282,6 +299,7 @@ private struct IOSChannelsTab: View {
 private struct IOSSettingsTab: View {
   let app: AppModel
   let feed: FeedModel
+  private static let endID = "end"
 
   var body: some View {
     NavigationStack {
@@ -316,53 +334,32 @@ private struct IOSSettingsTab: View {
           DeleteProfileFootnote(app: app)
         }
         Section {
-          PrivacyPolicyLink()
+          LegalLinks()
         }
+        .id(Self.endID)
       }
-      #if DEBUG
-        .defaultScrollAnchor(CommandLine.arguments.contains("-bottom") ? .bottom : .top)
-      #endif
+      .startsAtEndWhenAsked(Self.endID)
       .navigationTitle(Strings.settings)
     }
   }
 }
 
-/// The player over everything: video and its actions.
-private struct IOSPlayerScreen: View {
-  let session: PlayerSession
-  let feed: FeedModel
-
-  var body: some View {
-    NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 14) {
-          YouTubePlayerView(session: session)
-          VStack(alignment: .leading, spacing: 4) {
-            Text(session.title).font(.title3.bold())
-            PlayerMetaLine(session: session, onOpenChannel: { _ in }, fullDate: false)
-              .font(.subheadline)
-          }
-          .padding(.horizontal)
-          ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-              PlayerActions(session: session, feed: feed)
-            }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .padding(.horizontal)
+extension View {
+  /// In a debug build launched with `-bottom`, scroll the list to the row
+  /// with this id once it shows.
+  @ViewBuilder
+  fileprivate func startsAtEndWhenAsked(_ endID: String) -> some View {
+    #if DEBUG
+      ScrollViewReader { proxy in
+        task {
+          if CommandLine.arguments.contains("-bottom") {
+            try? await Task.sleep(for: .seconds(1))
+            proxy.scrollTo(endID, anchor: .bottom)
           }
         }
       }
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button {
-            feed.player = nil
-          } label: {
-            Label(Strings.closePlayer, systemImage: "chevron.down")
-          }
-        }
-      }
-    }
+    #else
+      self
+    #endif
   }
 }

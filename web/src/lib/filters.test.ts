@@ -66,36 +66,58 @@ describe("compileFilter", () => {
   });
 
   test("case-insensitive by default, sensitive when set", () => {
-    expect(compileFilter(channel({ regex: "a" })).regex?.test("A")).toBe(true);
+    expect(compileFilter(channel({ regex: "\\ba\\b" })).regex?.test("A")).toBe(
+      true,
+    );
     expect(
-      compileFilter(channel({ regex: "a", caseSensitive: true })).regex?.test(
-        "A",
-      ),
+      compileFilter(
+        channel({ regex: "\\ba\\b", caseSensitive: true }),
+      ).regex?.test("A"),
     ).toBe(false);
+  });
+});
+
+describe("compileFilter — phrases and topics", () => {
+  test("a valid pattern that is not phrases is not applied", () => {
+    const compiled = compileFilter(channel({ regex: "(ep|episode) ?\\d+" }));
+    expect(compiled.regex).toBeNull();
+    expect(compiled.error).not.toBeNull();
+  });
+
+  test("topics keep only ids that are topics", () => {
+    expect(
+      compileFilter(channel({ topics: ["10", "99", "28"] })).topics,
+    ).toEqual(new Set(["10", "28"]));
+    expect(compileFilter(channel()).topics.size).toBe(0);
+  });
+
+  test("selected topics keep only videos in one of them", () => {
+    const ch = channel({ topics: ["10"] });
+    expect(passes(video({ categoryId: "10" }), ch)).toBe(true);
+    expect(passes(video({ categoryId: "20" }), ch)).toBe(false);
+    expect(passes(video(), ch)).toBe(false);
+    expect(passes(playlist(), ch)).toBe(true);
   });
 });
 
 describe("videoPassesFilter — regex", () => {
   test("include keeps matches and drops non-matches", () => {
-    expect(passes(video({ title: "cats" }), channel({ regex: "cat" }))).toBe(
-      true,
-    );
-    expect(passes(video({ title: "dogs" }), channel({ regex: "cat" }))).toBe(
-      false,
-    );
+    const ch = channel({ regex: "\\bcats\\b" });
+    expect(passes(video({ title: "cats" }), ch)).toBe(true);
+    expect(passes(video({ title: "dogs" }), ch)).toBe(false);
   });
 
   test("exclude inverts the match", () => {
     expect(
       passes(
         video({ title: "cats" }),
-        channel({ regex: "cat", mode: "exclude" }),
+        channel({ regex: "\\bcats\\b", mode: "exclude" }),
       ),
     ).toBe(false);
   });
 
   test("description scope matches the description, not the title", () => {
-    const ch = channel({ regex: "secret", searchScope: "description" });
+    const ch = channel({ regex: "\\bsecret\\b", searchScope: "description" });
     expect(passes(video({ title: "secret", description: "" }), ch)).toBe(false);
     expect(passes(video({ title: "", description: "a secret" }), ch)).toBe(
       true,
@@ -171,7 +193,7 @@ describe("videoPassesFilter — playlists", () => {
       minDurationSeconds: 9999,
       liveFilter: "vod",
       shortsFilter: "shorts",
-      regex: "Episode",
+      regex: "\\bEpisode\\b",
     });
     expect(passes(playlist({ title: "Episode 1" }), ch)).toBe(true);
     expect(passes(playlist({ title: "Trailer" }), ch)).toBe(false);

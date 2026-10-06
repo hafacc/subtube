@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { privacyUrl } from "../lib/config";
+  import { privacyUrl, termsUrl } from "../lib/config";
   import Icon from "./Icon.svelte";
   import Logo from "./Logo.svelte";
 </script>
@@ -37,6 +37,7 @@
         <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
           >Privacy policy</a
         >
+        <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
       </p>
     </section>
   </main>

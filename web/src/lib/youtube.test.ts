@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
+  DailyLimitError,
   fetchShortIds,
   fetchUploads,
   GoogleRequestError,
+  isDailyLimit,
   parseIsoDuration,
   shortsPlaylistId,
   uploadsPlaylistId,
@@ -106,11 +108,92 @@ describe("a Shorts list that fails", () => {
     );
   });
 
+  const quotaExceeded = () =>
+    new Response(
+      '{"error":{"code":403,"errors":[{"domain":"youtube.quota","reason":"quotaExceeded"}]}}',
+      { status: 403 },
+    );
+
+  test("the daily limit on the Shorts list is the daily limit, asked once", async () => {
+    const { calls } = answer(quotaExceeded);
+    await expect(fetchShortIds("UCabc", "token")).rejects.toBeInstanceOf(
+      DailyLimitError,
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  test("the daily limit says so in the app's words", async () => {
+    answer(quotaExceeded);
+    await expect(fetchUploads("UCabc", "Chan", "token")).rejects.toThrow(
+      "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.",
+    );
+  });
+
+  test("uploads fetched without Shorts marks don't ask for the Shorts list", async () => {
+    const { calls } = answer(() =>
+      Response.json({
+        items: [
+          {
+            id: "v1",
+            snippet: { title: "One", description: "", thumbnails: {} },
+            contentDetails: { videoId: "v1", duration: "PT1M" },
+          },
+        ],
+      }),
+    );
+    const plain = await fetchUploads(
+      "UCabc",
+      "Chan",
+      "token",
+      50,
+      undefined,
+      false,
+    );
+    expect(plain[0].isShort).toBeUndefined();
+    expect(calls).not.toContain("UUSHabc");
+    await fetchUploads("UCabc", "Chan", "token", 50);
+    expect(calls).toContain("UUSHabc");
+  });
+
   test("a 5xx on the uploads list is still an error, with no retry", async () => {
     const { calls } = answer(backendError);
     await expect(fetchUploads("UCabc", "Chan", "token")).rejects.toBeInstanceOf(
       GoogleRequestError,
     );
     expect(calls).toEqual(["UUabc"]);
+  });
+});
+
+describe("isDailyLimit", () => {
+  const body = (domain: string, reason: string) =>
+    JSON.stringify({ error: { code: 403, errors: [{ domain, reason }] } });
+
+  test("a 403 quotaExceeded or dailyLimitExceeded is the daily limit", () => {
+    expect(isDailyLimit(403, body("youtube.quota", "quotaExceeded"))).toBe(
+      true,
+    );
+    expect(isDailyLimit(403, body("usageLimits", "dailyLimitExceeded"))).toBe(
+      true,
+    );
+  });
+
+  test("the per-minute limit, another refusal or another status is not", () => {
+    expect(isDailyLimit(403, body("usageLimits", "rateLimitExceeded"))).toBe(
+      false,
+    );
+    expect(isDailyLimit(403, body("global", "insufficientPermissions"))).toBe(
+      false,
+    );
+    expect(isDailyLimit(429, body("youtube.quota", "quotaExceeded"))).toBe(
+      false,
+    );
+  });
+
+  test("a body that isn't the error shape is not", () => {
+    expect(isDailyLimit(403, "quotaExceeded")).toBe(false);
+    expect(isDailyLimit(403, '{"error":{"errors":"quotaExceeded"}}')).toBe(
+      false,
+    );
+    expect(isDailyLimit(403, "null")).toBe(false);
   });
 });

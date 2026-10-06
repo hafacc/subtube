@@ -38,10 +38,47 @@ public struct WatchedEntry: Sendable, Hashable {
     self.extra = extra
   }
 
+  /// When this device last had the item among a full load's items, in
+  /// milliseconds since the epoch; nil when the entry has none or holds
+  /// anything but a whole number from 0 to ``maxEntryTime``.
+  public var seen: Int64? {
+    extra["seen"]?.integerValue.flatMap { (0...maxEntryTime).contains($0) ? $0 : nil }
+  }
+
+  /// When the entry was last saved or last among a load's items, whichever
+  /// is later.
+  var lastUsed: Int64 {
+    max(at, seen ?? at)
+  }
+
   var json: JSONValue {
     var object = extra
     object["at"] = .integer(at)
     object["watched"] = .bool(watched)
+    return .object(object)
+  }
+}
+
+/// A synced setting as a device last saved it, with when it was saved; what a
+/// value means is read by ``SyncedSettings``.
+public struct SettingEntry: Sendable, Hashable {
+  /// Milliseconds since the epoch.
+  public var at: Int64
+  /// The saved value, kept whatever it is.
+  public var value: JSONValue
+  /// The entry's other fields, kept as read.
+  public var extra: JSONObject = [:]
+
+  public init(at: Int64, value: JSONValue, extra: JSONObject = [:]) {
+    self.at = at
+    self.value = value
+    self.extra = extra
+  }
+
+  var json: JSONValue {
+    var object = extra
+    object["at"] = .integer(at)
+    object["value"] = value
     return .object(object)
   }
 }
@@ -53,15 +90,19 @@ public struct DeviceFile: Sendable, Hashable {
   public var channels: [String: ChannelEntry] = [:]
   /// The last watched mark for each video or playlist id.
   public var watched: [String: WatchedEntry] = [:]
+  /// The last value saved for each synced setting, by name; nil for a file
+  /// without the section, which is then written back without it.
+  public var settings: [String: SettingEntry]?
   /// Top-level fields this version doesn't know, written back unchanged.
   public var extra: JSONObject = [:]
 
   public init(
     channels: [String: ChannelEntry] = [:], watched: [String: WatchedEntry] = [:],
-    extra: JSONObject = [:]
+    settings: [String: SettingEntry]? = nil, extra: JSONObject = [:]
   ) {
     self.channels = channels
     self.watched = watched
+    self.settings = settings
     self.extra = extra
   }
 
@@ -71,14 +112,19 @@ public struct DeviceFile: Sendable, Hashable {
     object["version"] = .integer(1)
     object["channels"] = .object(channels.mapValues(\.json))
     object["watched"] = .object(watched.mapValues(\.json))
+    if let settings {
+      object["settings"] = .object(settings.mapValues(\.json))
+    }
     return .object(object)
   }
 }
 
 /// The only format version this client reads and writes.
 public let deviceFileVersion: Int64 = 1
-/// A watched mark this old is dropped when its device next saves.
-public let watchedRetentionMilliseconds: Int64 = 365 * 24 * 60 * 60 * 1000
+/// A watched entry neither saved nor loaded for this long is dropped when its device next saves.
+public let watchedRetentionMilliseconds: Int64 = 30 * 24 * 60 * 60 * 1000
+/// How old an entry's `seen` gets before a load writes a new one.
+public let seenRefreshMilliseconds: Int64 = 24 * 60 * 60 * 1000
 /// The largest `at` a file may carry (2^53 - 1).
 public let maxEntryTime: Int64 = 9_007_199_254_740_991
 
@@ -119,7 +165,7 @@ public func parseDeviceFile(_ value: JSONValue) -> DeviceFile? {
     return nil
   }
   var file = DeviceFile()
-  file.extra = object.filter { !["version", "channels", "watched"].contains($0.key) }
+  file.extra = object.filter { !["version", "channels", "watched", "settings"].contains($0.key) }
   for (key, raw) in object["channels"]?.objectValue ?? [:] {
     guard var entry = raw.objectValue, let at = entryTime(entry),
       let filter = entry["filter"]?.objectValue
@@ -135,6 +181,17 @@ public func parseDeviceFile(_ value: JSONValue) -> DeviceFile? {
     entry["at"] = nil
     entry["watched"] = nil
     file.watched[key] = WatchedEntry(at: at, watched: watched, extra: entry)
+  }
+  if let section = object["settings"] {
+    var settings: [String: SettingEntry] = [:]
+    for (key, raw) in section.objectValue ?? [:] {
+      guard var entry = raw.objectValue, let at = entryTime(entry), let value = entry["value"]
+      else { continue }
+      entry["at"] = nil
+      entry["value"] = nil
+      settings[key] = SettingEntry(at: at, value: value, extra: entry)
+    }
+    file.settings = settings
   }
   return file
 }
@@ -183,18 +240,35 @@ private func newest<Entry>(
 
 /// Every device's edits, the entry with the greatest `at` per key, the
 /// greater device id on a tie. Winning entries are kept whole; unknown
-/// top-level fields don't reach the merged view.
+/// top-level fields don't reach the merged view, which always has `settings`.
 public func mergeDeviceFiles(_ sources: [DeviceFileSource]) -> DeviceFile {
   DeviceFile(
     channels: newest(sources, \.channels, at: \.at),
-    watched: newest(sources, \.watched, at: \.at)
+    watched: newest(sources, \.watched, at: \.at),
+    settings: newest(sources, { $0.settings ?? [:] }, at: \.at)
   )
 }
 
-/// A device's own file with the watched marks a year old or older dropped.
+/// A device's own file after a full load whose items were `loaded`
+/// (shared/fixtures/prune.json): each of its entries among them gets `seen`
+/// set to `now`, unless its `seen` is younger than
+/// ``seenRefreshMilliseconds``. `at` is never changed.
+public func refreshSeen(_ file: DeviceFile, loaded: Set<String>, now: Int64) -> DeviceFile {
+  var refreshed = file
+  for (id, entry) in file.watched where loaded.contains(id) {
+    if let seen = entry.seen, now - seen < seenRefreshMilliseconds {
+      continue
+    }
+    refreshed.watched[id]?.extra["seen"] = .integer(now)
+  }
+  return refreshed
+}
+
+/// A device's own file without the watched entries neither saved nor seen in
+/// a load within ``watchedRetentionMilliseconds``.
 public func pruneDeviceFile(_ file: DeviceFile, now: Int64) -> DeviceFile {
   var pruned = file
-  pruned.watched = file.watched.filter { now - $0.value.at < watchedRetentionMilliseconds }
+  pruned.watched = file.watched.filter { now - $0.value.lastUsed < watchedRetentionMilliseconds }
   return pruned
 }
 
@@ -269,9 +343,12 @@ public func followedWithoutIdentity(
 /// is something to keep, or Drive's copy differs from the local one.
 public func needsUpload(local: DeviceFile, remote: DeviceFile?) -> Bool {
   if let remote {
-    return local != remote
+    // a section that is missing and one that is empty hold the same settings
+    return local.channels != remote.channels || local.watched != remote.watched
+      || (local.settings ?? [:]) != (remote.settings ?? [:]) || local.extra != remote.extra
   } else {
     return !local.channels.isEmpty || !local.watched.isEmpty
+      || !(local.settings ?? [:]).isEmpty
   }
 }
 

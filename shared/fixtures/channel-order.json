@@ -1,26 +1,26 @@
 {
-  "description": "The order of every channel list: channels that are on and have at least one item passing their filter come first, by the `publishedAt` of their newest passing item, newest first (RFC 3339 UTC strings compared as plain ASCII strings; watched items count); then channels that are on with nothing passing (`newestPassing` absent); then channels that are off (`enabled` false, whatever they have). Ties, and the two tail groups, go by `title` compared case-insensitively, then by `id` (ASCII). `expected` is the ids in order.",
+  "description": "The order of every channel list. `sort` (absent means `newest`) is the chosen order; `expected` is the ids in order. In every sort the channels that are off (`enabled` false, whatever they have) go last, by name. By name means: by `title` ignoring case exactly as the feed's `title` sort compares titles (shared/fixtures/feed-order.json), then by `id` (ASCII). `newest`: channels that are on and have at least one fetched item come first, by the `publishedAt` of their newest fetched item, newest first (RFC 3339 UTC strings compared as plain ASCII strings), ties by name; then channels that are on with nothing fetched (`newest` absent), by name. Every fetched item counts, whether or not it passes the channel's filter and whether or not it is watched. `name`: the channels that are on, by name, fetched or not. `unwatched`: the channels that are on by `unwatched` (how many of the channel's unwatched fetched items pass its filter; absent means 0), most first, ties in `newest` order. The chips at the top of the feed change neither the counts nor the order; the channel list's own chips (shared/fixtures/channel-chips.json) choose which channels are listed and change neither.",
   "cases": [
     {
-      "name": "newest passing item first",
+      "name": "newest item first",
       "channels": [
         {
           "id": "UCa",
           "title": "Alpha",
           "enabled": true,
-          "newestPassing": "2026-01-02T00:00:00Z"
+          "newest": "2026-01-02T00:00:00Z"
         },
         {
           "id": "UCb",
           "title": "Beta",
           "enabled": true,
-          "newestPassing": "2026-01-09T00:00:00Z"
+          "newest": "2026-01-09T00:00:00Z"
         },
         {
           "id": "UCc",
           "title": "Gamma",
           "enabled": true,
-          "newestPassing": "2026-01-05T12:00:00Z"
+          "newest": "2026-01-05T12:00:00Z"
         }
       ],
       "expected": [
@@ -30,7 +30,7 @@
       ]
     },
     {
-      "name": "channels with nothing passing follow, by title",
+      "name": "channels with nothing fetched follow, by title",
       "channels": [
         {
           "id": "UCa",
@@ -46,7 +46,7 @@
           "id": "UCc",
           "title": "Old",
           "enabled": true,
-          "newestPassing": "2020-01-01T00:00:00Z"
+          "newest": "2020-01-01T00:00:00Z"
         }
       ],
       "expected": [
@@ -62,7 +62,7 @@
           "id": "UCa",
           "title": "Off new",
           "enabled": false,
-          "newestPassing": "2026-06-01T00:00:00Z"
+          "newest": "2026-06-01T00:00:00Z"
         },
         {
           "id": "UCb",
@@ -78,7 +78,7 @@
           "id": "UCd",
           "title": "On",
           "enabled": true,
-          "newestPassing": "2026-01-01T00:00:00Z"
+          "newest": "2026-01-01T00:00:00Z"
         }
       ],
       "expected": [
@@ -95,19 +95,19 @@
           "id": "UCz",
           "title": "Same",
           "enabled": true,
-          "newestPassing": "2026-01-01T00:00:00Z"
+          "newest": "2026-01-01T00:00:00Z"
         },
         {
           "id": "UCa",
           "title": "same",
           "enabled": true,
-          "newestPassing": "2026-01-01T00:00:00Z"
+          "newest": "2026-01-01T00:00:00Z"
         },
         {
           "id": "UCm",
           "title": "Earlier name",
           "enabled": true,
-          "newestPassing": "2026-01-01T00:00:00Z"
+          "newest": "2026-01-01T00:00:00Z"
         }
       ],
       "expected": [
@@ -120,6 +120,220 @@
       "name": "empty",
       "channels": [],
       "expected": []
+    },
+    {
+      "name": "name: by title ignoring case, fetched or not",
+      "sort": "name",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "zeta",
+          "enabled": true,
+          "newest": "2026-06-01T00:00:00Z"
+        },
+        {
+          "id": "UCb",
+          "title": "Alpha",
+          "enabled": true
+        },
+        {
+          "id": "UCc",
+          "title": "beta",
+          "enabled": true,
+          "newest": "2020-01-01T00:00:00Z"
+        },
+        {
+          "id": "UCd",
+          "title": "Émile",
+          "enabled": true
+        }
+      ],
+      "expected": [
+        "UCb",
+        "UCc",
+        "UCa",
+        "UCd"
+      ]
+    },
+    {
+      "name": "name: equal titles go by id",
+      "sort": "name",
+      "channels": [
+        {
+          "id": "UCz",
+          "title": "Same",
+          "enabled": true
+        },
+        {
+          "id": "UCa",
+          "title": "SAME",
+          "enabled": true
+        },
+        {
+          "id": "UCm",
+          "title": "same",
+          "enabled": true
+        }
+      ],
+      "expected": [
+        "UCa",
+        "UCm",
+        "UCz"
+      ]
+    },
+    {
+      "name": "name: channels that are off still go last",
+      "sort": "name",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "Aardvark",
+          "enabled": false
+        },
+        {
+          "id": "UCb",
+          "title": "Zulu",
+          "enabled": true
+        },
+        {
+          "id": "UCc",
+          "title": "Beta",
+          "enabled": false,
+          "newest": "2026-06-01T00:00:00Z"
+        },
+        {
+          "id": "UCd",
+          "title": "Mike",
+          "enabled": true
+        }
+      ],
+      "expected": [
+        "UCd",
+        "UCb",
+        "UCa",
+        "UCc"
+      ]
+    },
+    {
+      "name": "unwatched: most first",
+      "sort": "unwatched",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "Alpha",
+          "enabled": true,
+          "newest": "2026-01-09T00:00:00Z",
+          "unwatched": 2
+        },
+        {
+          "id": "UCb",
+          "title": "Beta",
+          "enabled": true,
+          "newest": "2026-01-01T00:00:00Z",
+          "unwatched": 12
+        },
+        {
+          "id": "UCc",
+          "title": "Gamma",
+          "enabled": true,
+          "newest": "2026-01-05T00:00:00Z",
+          "unwatched": 5
+        }
+      ],
+      "expected": [
+        "UCb",
+        "UCc",
+        "UCa"
+      ]
+    },
+    {
+      "name": "unwatched: ties go in newest order",
+      "sort": "unwatched",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "Alpha",
+          "enabled": true,
+          "newest": "2026-01-02T00:00:00Z",
+          "unwatched": 3
+        },
+        {
+          "id": "UCb",
+          "title": "Beta",
+          "enabled": true,
+          "newest": "2026-01-09T00:00:00Z",
+          "unwatched": 3
+        },
+        {
+          "id": "UCc",
+          "title": "Gamma",
+          "enabled": true,
+          "unwatched": 0
+        },
+        {
+          "id": "UCd",
+          "title": "Delta",
+          "enabled": true,
+          "newest": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "UCe",
+          "title": "Epsilon",
+          "enabled": true,
+          "newest": "2026-01-07T00:00:00Z",
+          "unwatched": 0
+        },
+        {
+          "id": "UCf",
+          "title": "Alef",
+          "enabled": true
+        }
+      ],
+      "expected": [
+        "UCb",
+        "UCa",
+        "UCe",
+        "UCd",
+        "UCf",
+        "UCc"
+      ]
+    },
+    {
+      "name": "unwatched: channels that are off go last by name, whatever they count",
+      "sort": "unwatched",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "Off busy",
+          "enabled": false,
+          "newest": "2026-06-01T00:00:00Z",
+          "unwatched": 40
+        },
+        {
+          "id": "UCb",
+          "title": "On",
+          "enabled": true,
+          "newest": "2026-01-01T00:00:00Z",
+          "unwatched": 1
+        },
+        {
+          "id": "UCc",
+          "title": "Off again",
+          "enabled": false
+        },
+        {
+          "id": "UCd",
+          "title": "Quiet",
+          "enabled": true,
+          "newest": "2026-03-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "UCb",
+        "UCd",
+        "UCc",
+        "UCa"
+      ]
     }
   ]
 }

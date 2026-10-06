@@ -1,5 +1,5 @@
 {
-  "description": "Whether a channel's filter keeps a feed item. `filter` is a saved filter as stored in a device file; `item` holds only the fields the filter reads (absent means unknown). A filter field that is missing or holds an unrecognized value reads as its default; an invalid pattern reads as no pattern.",
+  "description": "Whether a channel's filter keeps a feed item. `filter` is a saved filter as stored in a device file; `item` holds only the fields the filter reads (absent means unknown). A filter field that is missing or holds an unrecognized value reads as its default; `regex` is applied only when it is a pattern built from phrases (one that shared/fixtures/phrases.json reads back into phrases); an invalid pattern, or a valid one that is not phrases, reads as no pattern, and a client writes `regex` as \"\" in its place the next time it saves that filter (it does not rewrite filters it is not saving). `topics` lists YouTube video category ids (shared/fixtures/feed-chips.json has the table); of them only the ids in the table count. With none of those the filter keeps every category; otherwise a video is kept only when its `categoryId` is one of them, so a video without a category or with one not in the table is dropped. A `topics` that is not an array, or holds anything but strings, reads as empty. Playlists skip this gate like the Shorts, live and duration ones.",
   "cases": [
     {
       "name": "default filter keeps a plain video",
@@ -58,7 +58,7 @@
       "name": "include keeps a title match",
       "filter": {
         "enabled": true,
-        "regex": "hello",
+        "regex": "\\bhello\\b",
         "mode": "include"
       },
       "item": {
@@ -75,7 +75,7 @@
       "name": "include drops a title miss",
       "filter": {
         "enabled": true,
-        "regex": "cat",
+        "regex": "\\bcat\\b",
         "mode": "include"
       },
       "item": {
@@ -92,7 +92,7 @@
       "name": "exclude drops a title match",
       "filter": {
         "enabled": true,
-        "regex": "hello",
+        "regex": "\\bhello\\b",
         "mode": "exclude"
       },
       "item": {
@@ -109,7 +109,7 @@
       "name": "exclude keeps a title miss",
       "filter": {
         "enabled": true,
-        "regex": "cat",
+        "regex": "\\bcat\\b",
         "mode": "exclude"
       },
       "item": {
@@ -140,7 +140,7 @@
       "kept": true
     },
     {
-      "name": "whitespace is a pattern, not an empty one",
+      "name": "a pattern of only whitespace is not phrases, so it is ignored",
       "filter": {
         "enabled": true,
         "regex": " ",
@@ -154,13 +154,13 @@
         "liveStatus": "normal",
         "isShort": false
       },
-      "kept": false
+      "kept": true
     },
     {
       "name": "case-insensitive by default",
       "filter": {
         "enabled": true,
-        "regex": "HELLO",
+        "regex": "\\bHELLO\\b",
         "mode": "include"
       },
       "item": {
@@ -177,7 +177,7 @@
       "name": "caseSensitive true",
       "filter": {
         "enabled": true,
-        "regex": "HELLO",
+        "regex": "\\bHELLO\\b",
         "mode": "include",
         "caseSensitive": true
       },
@@ -195,7 +195,7 @@
       "name": "scope title ignores the description",
       "filter": {
         "enabled": true,
-        "regex": "secret",
+        "regex": "\\bsecret\\b",
         "mode": "include",
         "searchScope": "title"
       },
@@ -213,7 +213,7 @@
       "name": "scope defaults to title",
       "filter": {
         "enabled": true,
-        "regex": "secret",
+        "regex": "\\bsecret\\b",
         "mode": "include"
       },
       "item": {
@@ -230,7 +230,7 @@
       "name": "scope description ignores the title",
       "filter": {
         "enabled": true,
-        "regex": "secret",
+        "regex": "\\bsecret\\b",
         "mode": "include",
         "searchScope": "description"
       },
@@ -248,7 +248,7 @@
       "name": "scope description matches the description",
       "filter": {
         "enabled": true,
-        "regex": "secret",
+        "regex": "\\bsecret\\b",
         "mode": "include",
         "searchScope": "description"
       },
@@ -266,7 +266,7 @@
       "name": "scope both matches the title",
       "filter": {
         "enabled": true,
-        "regex": "secret",
+        "regex": "\\bsecret\\b",
         "mode": "include",
         "searchScope": "both"
       },
@@ -284,7 +284,7 @@
       "name": "scope both matches the description",
       "filter": {
         "enabled": true,
-        "regex": "secret",
+        "regex": "\\bsecret\\b",
         "mode": "include",
         "searchScope": "both"
       },
@@ -302,7 +302,7 @@
       "name": "scope both searches each field on its own, never across them",
       "filter": {
         "enabled": true,
-        "regex": "World.*Intro",
+        "regex": "\\bWorld\\s+Intro\\b",
         "mode": "include",
         "searchScope": "both"
       },
@@ -320,7 +320,7 @@
       "name": "scope both with exclude drops a match in either",
       "filter": {
         "enabled": true,
-        "regex": "sponsor",
+        "regex": "\\bsponsor\\b",
         "mode": "exclude",
         "searchScope": "both"
       },
@@ -335,10 +335,10 @@
       "kept": false
     },
     {
-      "name": "pattern searches the description verbatim, line breaks included",
+      "name": "a phrase's space finds a line break in the description",
       "filter": {
         "enabled": true,
-        "regex": "a.b",
+        "regex": "\\ba\\s+b\\b",
         "mode": "include",
         "searchScope": "description"
       },
@@ -387,10 +387,78 @@
       "kept": true
     },
     {
+      "name": "a valid pattern that is not phrases is ignored (include)",
+      "filter": {
+        "enabled": true,
+        "regex": "cat",
+        "mode": "include"
+      },
+      "item": {
+        "kind": "video",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "title": "Hello World"
+      },
+      "kept": true
+    },
+    {
+      "name": "a valid pattern that is not phrases is ignored (exclude)",
+      "filter": {
+        "enabled": true,
+        "regex": "(ep|episode) ?\\d+",
+        "mode": "exclude"
+      },
+      "item": {
+        "kind": "video",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "title": "Episode 12"
+      },
+      "kept": true
+    },
+    {
+      "name": "a phrase is found only as whole words",
+      "filter": {
+        "enabled": true,
+        "regex": "\\bcat\\b",
+        "mode": "include"
+      },
+      "item": {
+        "kind": "video",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "title": "Concatenate"
+      },
+      "kept": false
+    },
+    {
+      "name": "any of several phrases",
+      "filter": {
+        "enabled": true,
+        "regex": "\\btrailer\\b|\\bhello\\s+world\\b|#shorts\\b",
+        "mode": "include"
+      },
+      "item": {
+        "kind": "video",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "title": "Hello  World"
+      },
+      "kept": true
+    },
+    {
       "name": "unrecognized mode reads as include",
       "filter": {
         "enabled": true,
-        "regex": "hello",
+        "regex": "\\bhello\\b",
         "mode": "highlight"
       },
       "item": {
@@ -407,7 +475,7 @@
       "name": "unrecognized searchScope reads as title",
       "filter": {
         "enabled": true,
-        "regex": "secret",
+        "regex": "\\bsecret\\b",
         "mode": "include",
         "searchScope": "tags"
       },
@@ -425,7 +493,7 @@
       "name": "non-boolean caseSensitive reads as false",
       "filter": {
         "enabled": true,
-        "regex": "HELLO",
+        "regex": "\\bHELLO\\b",
         "mode": "include",
         "caseSensitive": "yes"
       },
@@ -971,7 +1039,7 @@
       "name": "gates run before the pattern: exclude cannot rescue a dropped item",
       "filter": {
         "enabled": true,
-        "regex": "cat",
+        "regex": "\\bcat\\b",
         "mode": "exclude",
         "liveFilter": "vod"
       },
@@ -1034,7 +1102,7 @@
       "name": "playlist still matches the pattern",
       "filter": {
         "enabled": true,
-        "regex": "episode",
+        "regex": "\\bepisode\\b",
         "mode": "include",
         "shortsFilter": "shorts",
         "liveFilter": "vod",
@@ -1051,7 +1119,7 @@
       "name": "playlist still misses the pattern",
       "filter": {
         "enabled": true,
-        "regex": "trailer",
+        "regex": "\\btrailer\\b",
         "mode": "include"
       },
       "item": {
@@ -1065,7 +1133,7 @@
       "name": "playlist description scope",
       "filter": {
         "enabled": true,
-        "regex": "season",
+        "regex": "\\bseason\\b",
         "mode": "include",
         "searchScope": "description"
       },
@@ -1073,6 +1141,292 @@
         "kind": "playlist",
         "title": "Episode 1",
         "description": "Season 2"
+      },
+      "kept": true
+    },
+    {
+      "name": "topics: a video in a listed category is kept",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "10",
+          "28"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "28"
+      },
+      "kept": true
+    },
+    {
+      "name": "topics: a video in another category is dropped",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "10",
+          "28"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "20"
+      },
+      "kept": false
+    },
+    {
+      "name": "topics: a video without a category is dropped",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "10"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false
+      },
+      "kept": false
+    },
+    {
+      "name": "topics: an empty list keeps every category",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": []
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "20"
+      },
+      "kept": true
+    },
+    {
+      "name": "topics: an empty list keeps a video without a category",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": []
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false
+      },
+      "kept": true
+    },
+    {
+      "name": "topics: ids match as written",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "10"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "1"
+      },
+      "kept": false
+    },
+    {
+      "name": "topics: a listed id in no table is ignored, so alone it keeps everything",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "99"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "20"
+      },
+      "kept": true
+    },
+    {
+      "name": "topics: a video whose category is in no table is dropped even when that id is listed",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "99",
+          "10"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "99"
+      },
+      "kept": false
+    },
+    {
+      "name": "topics: not an array reads as empty",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": "10"
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "20"
+      },
+      "kept": true
+    },
+    {
+      "name": "topics: a list holding anything but strings reads as empty",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "10",
+          28
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "20"
+      },
+      "kept": true
+    },
+    {
+      "name": "topics: the pattern must pass too",
+      "filter": {
+        "enabled": true,
+        "regex": "\\btrailer\\b",
+        "mode": "include",
+        "topics": [
+          "10"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "10"
+      },
+      "kept": false
+    },
+    {
+      "name": "topics: a matching pattern does not rescue another category",
+      "filter": {
+        "enabled": true,
+        "regex": "\\bhello\\b",
+        "mode": "include",
+        "topics": [
+          "10"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "20"
+      },
+      "kept": false
+    },
+    {
+      "name": "topics: exclude mode still needs a listed category",
+      "filter": {
+        "enabled": true,
+        "regex": "\\btrailer\\b",
+        "mode": "exclude",
+        "topics": [
+          "10"
+        ]
+      },
+      "item": {
+        "kind": "video",
+        "title": "Hello World",
+        "description": "",
+        "durationSeconds": 600,
+        "liveStatus": "normal",
+        "isShort": false,
+        "categoryId": "20"
+      },
+      "kept": false
+    },
+    {
+      "name": "playlist skips the topic gate",
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "10"
+        ]
+      },
+      "item": {
+        "kind": "playlist",
+        "title": "Episode 1",
+        "description": ""
       },
       "kept": true
     }

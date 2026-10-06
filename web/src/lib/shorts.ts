@@ -18,6 +18,19 @@ export function isShortsCandidate(item: FeedItem): boolean {
 }
 
 /**
+ * One channel's uploads when its Shorts list isn't read, because nothing
+ * filters on Shorts: a video that can't be a Short is marked not one, and a
+ * candidate is left unjudged.
+ */
+export function withoutShortsList(videos: Video[]): Video[] {
+  return videos.map((video) =>
+    isShortsCandidate(video)
+      ? { ...video, isShort: undefined }
+      : { ...video, isShort: false },
+  );
+}
+
+/**
  * Set `isShort` on one channel's uploads. The verdict comes from the channel's
  * Shorts list (`loadShortIds`, null when the channel has none). Should that list
  * ever stop being served, every channel would look Short-free, so a platform

@@ -14,6 +14,9 @@ public enum GoogleAPIError: Error, Sendable, Equatable {
   case playlistNotFound(String)
   /// The Google account has no YouTube channel to key its data by.
   case noChannel
+  /// YouTube refused the request because the app's daily quota is used up;
+  /// asking again today can't work.
+  case dailyLimit
   /// Any other failure, with the status and response body.
   case http(status: Int, body: String)
 }
@@ -26,6 +29,10 @@ extension GoogleAPIError: LocalizedError {
       String(localized: "SubTube needs both permissions Google asks for. Sign in again and allow them.")
     case .playlistNotFound(let playlistId): "Playlist \(playlistId) not found"
     case .noChannel: String(localized: "This Google account has no YouTube channel.")
+    case .dailyLimit:
+      String(
+        localized:
+          "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.")
     // the body is logged where the error is raised, not shown
     case .http(let status, _): String(localized: "Google request failed: \(status)")
     }
@@ -49,10 +56,13 @@ public struct ChannelSummary: Codable, Sendable, Hashable {
   }
 }
 
-/// A video's duration and broadcast kind, which `playlistItems` doesn't carry.
+/// A video's duration, broadcast kind and category, which `playlistItems`
+/// doesn't carry.
 public struct VideoDetails: Sendable, Hashable {
   public var durationSeconds: Int
   public var liveStatus: LiveStatus
+  /// YouTube's category id; nil when it has none.
+  public var categoryId: String?
 }
 
 /// A channel's uploads playlist: its id with `UU` in place of `UC`.
@@ -77,6 +87,10 @@ public func parseIsoDuration(_ iso: String) -> Int {
   func number(_ part: Substring?) -> Int { part.flatMap { Int($0) } ?? 0 }
   return number(days) * 86400 + number(hours) * 3600 + number(minutes) * 60 + number(seconds)
 }
+
+/// The `videos.list` parts ``YouTubeClient/videoDetails(_:)`` reads; the call
+/// costs one unit whatever the parts.
+let videoDetailParts = "snippet,contentDetails,liveStreamingDetails"
 
 private let hiddenTitles: Set<String> = ["Private video", "Deleted video"]
 
@@ -126,7 +140,10 @@ struct PlaylistItemsResponse: Decodable {
 
 struct VideoListResponse: Decodable {
   struct Item: Decodable {
-    struct Snippet: Decodable { var liveBroadcastContent: String }
+    struct Snippet: Decodable {
+      var liveBroadcastContent: String
+      var categoryId: String?
+    }
     /// `duration` is missing for an upcoming or scheduled video.
     struct ContentDetails: Decodable { var duration: String? }
     struct LiveStreamingDetails: Decodable { var actualEndTime: String? }
@@ -187,8 +204,30 @@ func classifyLiveStatus(_ item: VideoListResponse.Item) -> LiveStatus {
   }
 }
 
-/// Raise the error a failed Google API response stands for.
-func checkGoogleResponse(_ response: URLResponse, body: Data, playlistId: String? = nil) throws {
+private struct ErrorResponse: Decodable {
+  struct Failure: Decodable {
+    struct Entry: Decodable { var reason: String? }
+    var errors: [Entry]?
+  }
+  var error: Failure?
+}
+
+/// Whether an answer says YouTube's daily quota is used up: status 403 with a
+/// JSON body whose `error.errors` holds a `reason` of `quotaExceeded` or
+/// `dailyLimitExceeded`. The per-minute `rateLimitExceeded` is not it.
+public func isDailyLimit(status: Int, body: Data) -> Bool {
+  guard status == 403, let answer = try? JSONDecoder().decode(ErrorResponse.self, from: body)
+  else { return false }
+  return (answer.error?.errors ?? []).contains {
+    $0.reason == "quotaExceeded" || $0.reason == "dailyLimitExceeded"
+  }
+}
+
+/// Raise the error a failed Google API response stands for; `youTube` for an
+/// answer of the YouTube Data API, the only one with a daily limit read here.
+func checkGoogleResponse(
+  _ response: URLResponse, body: Data, playlistId: String? = nil, youTube: Bool = false
+) throws {
   guard let http = response as? HTTPURLResponse else {
     throw GoogleAPIError.http(status: 0, body: "")
   }
@@ -201,6 +240,9 @@ func checkGoogleResponse(_ response: URLResponse, body: Data, playlistId: String
       && (text.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") || text.contains("insufficient"))
     {
       throw GoogleAPIError.insufficientScope
+    }
+    if youTube && isDailyLimit(status: http.statusCode, body: body) {
+      throw GoogleAPIError.dailyLimit
     }
     if http.statusCode == 404 && text.contains("playlistNotFound") {
       throw GoogleAPIError.playlistNotFound(playlistId ?? "")
@@ -233,7 +275,8 @@ public struct YouTubeClient: Sendable {
     var request = URLRequest(url: components.url!)
     request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
     let (body, response) = try await session.data(for: request)
-    try checkGoogleResponse(response, body: body, playlistId: parameters["playlistId"])
+    try checkGoogleResponse(
+      response, body: body, playlistId: parameters["playlistId"], youTube: true)
     return try JSONDecoder().decode(Response.self, from: body)
   }
 
@@ -257,32 +300,36 @@ public struct YouTubeClient: Sendable {
     return subscriptions
   }
 
-  /// Duration and broadcast kind per video id, 50 ids per call.
+  /// Duration, broadcast kind and category per video id, 50 ids per call.
   public func videoDetails(_ videoIds: [String]) async throws -> [String: VideoDetails] {
     var details: [String: VideoDetails] = [:]
     for start in stride(from: 0, to: videoIds.count, by: 50) {
       let batch = videoIds[start..<min(start + 50, videoIds.count)]
       let page: VideoListResponse = try await get(
         "videos",
-        ["part": "snippet,contentDetails,liveStreamingDetails", "id": batch.joined(separator: ",")]
+        ["part": videoDetailParts, "id": batch.joined(separator: ",")]
       )
       for item in page.items {
         details[item.id] = VideoDetails(
           durationSeconds: parseIsoDuration(item.contentDetails.duration ?? ""),
-          liveStatus: classifyLiveStatus(item)
+          liveStatus: classifyLiveStatus(item),
+          categoryId: item.snippet.categoryId
         )
       }
     }
     return details
   }
 
-  /// A channel's newest uploads, each with its duration, broadcast kind and
-  /// Short-ness. `probe` asks `/shorts/{id}` directly.
+  /// A channel's newest uploads, each with its duration and broadcast kind,
+  /// and with `judgeShorts` whether it is a Short; without, the Shorts list
+  /// is not fetched and a video that could be a Short is left unjudged.
+  /// `probe` asks `/shorts/{id}` directly.
   public func uploads(
     channelId: String,
     channelTitle: String,
     maxResults: Int = 15,
-    probe: ShortsProbeFunction? = nil
+    probe: ShortsProbeFunction? = nil,
+    judgeShorts: Bool = true
   ) async throws -> [Video] {
     let page: PlaylistItemsResponse = try await get(
       "playlistItems",
@@ -308,10 +355,23 @@ public struct YouTubeClient: Sendable {
       var detailedVideo = video
       detailedVideo.durationSeconds = details[video.videoId]?.durationSeconds ?? 0
       detailedVideo.liveStatus = details[video.videoId]?.liveStatus ?? .normal
+      detailedVideo.categoryId = details[video.videoId]?.categoryId
       return detailedVideo
     }
-    return try await classifyShorts(
-      detailed,
+    if judgeShorts {
+      return try await markShorts(detailed, channelId: channelId, maxResults: maxResults, probe: probe)
+    } else {
+      return withoutShortsList(detailed)
+    }
+  }
+
+  /// Say which of a channel's already fetched uploads are Shorts, from its
+  /// Shorts list; `maxResults` is the size of the uploads page they came from.
+  public func markShorts(
+    _ videos: [Video], channelId: String, maxResults: Int, probe: ShortsProbeFunction? = nil
+  ) async throws -> [Video] {
+    try await classifyShorts(
+      videos,
       loadShortIds: { try await shortIds(channelId: channelId, max: maxResults) },
       probe: probe
     )

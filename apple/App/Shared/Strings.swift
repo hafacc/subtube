@@ -13,13 +13,7 @@ enum Strings {
   static let back = String(localized: "Back")
 
   static let refresh = String(localized: "Refresh")
-  static let hideWatched = String(localized: "Hide Watched")
   static let filters = String(localized: "Filters")
-  static let nextVideo = String(localized: "Next Video")
-  static let markAsWatched = String(localized: "Mark as Watched")
-  static let markAllAsWatched = String(localized: "Mark All as Watched")
-  static let markAllAsUnwatched = String(localized: "Mark All as Unwatched")
-  static let markAsUnwatched = String(localized: "Mark as Unwatched")
   static let inspector = String(localized: "Details")
   static let showInspector = String(localized: "Show Details")
   static let hideInspector = String(localized: "Hide Details")
@@ -27,6 +21,9 @@ enum Strings {
   static let watchedBadge = String(localized: "watched")
   static let noChannelSelected = String(localized: "Select a channel to edit its filters.")
   static let noMatches = String(localized: "Nothing new. You're caught up.")
+  static let noVideosForFilter = String(localized: "No videos for selected filter")
+  static let noChannelsForFilter = String(localized: "No channels for selected filter")
+  static let clearTopics = String(localized: "Clear topics")
   static let dismiss = String(localized: "Dismiss")
 
   static func videoCount(_ count: Int) -> String {
@@ -41,8 +38,61 @@ enum Strings {
     String(localized: "Play \(title)")
   }
 
-  static let closePlayer = String(localized: "Close Player")
-  static let openOnYouTube = String(localized: "Open on YouTube")
+  static let player = String(localized: "Player")
+
+  static func autoplayOption(_ autoplay: Bool) -> String {
+    if autoplay {
+      String(localized: "Auto-play")
+    } else {
+      String(localized: "Play one")
+    }
+  }
+
+  static func feedSortOption(_ sort: FeedSort) -> String {
+    switch sort {
+    case .newest: String(localized: "Latest")
+    case .shortest: String(localized: "Shortest")
+    case .title: String(localized: "Title")
+    case .random: String(localized: "Random")
+    }
+  }
+
+  static let allTime = String(localized: "All time")
+  static let pastDay = String(localized: "Past day")
+  static let pastWeek = String(localized: "Past week")
+
+  static func timeChipOption(_ timeChip: TimeChip) -> String {
+    switch timeChip {
+    case .anyTime: allTime
+    case .day: pastDay
+    case .week: pastWeek
+    case .month: String(localized: "Past month")
+    }
+  }
+
+  static func watchedModeOption(_ mode: WatchedMode) -> String {
+    switch mode {
+    case .unwatched: String(localized: "Unwatched")
+    case .watched: String(localized: "Watched")
+    case .all: String(localized: "All")
+    }
+  }
+
+  static func channelSortOption(_ sort: ChannelSort) -> String {
+    switch sort {
+    case .newest: String(localized: "Latest")
+    case .name: String(localized: "Name")
+    case .unwatched: String(localized: "Unwatched")
+    }
+  }
+
+  static func startOption(_ start: StartFrom) -> String {
+    switch start {
+    case .day: pastDay
+    case .week: pastWeek
+    case .all: allTime
+    }
+  }
 
   static let showInFeed = String(localized: "Show in Feed")
   static let show = String(localized: "Show")
@@ -61,7 +111,15 @@ enum Strings {
   static let scopeTitle = String(localized: "Title")
   static let scopeBoth = String(localized: "Both")
   static let scopeDescription = String(localized: "Description")
-  static let matchCase = String(localized: "Match Case")
+  static let caseHeading = String(localized: "Case")
+  static let caseIgnore = String(localized: "Ignore")
+  static let caseMatch = String(localized: "Match")
+  static let addPhrase = String(localized: "Add a phrase")
+  static let phrasesDetail = String(
+    localized: "Videos match if they contain any of these phrases.")
+  static let topics = String(localized: "Topics")
+  static let topicsDetail = String(
+    localized: "Only videos with a selected topic are shown. None selected shows all.")
   static let shorts = String(localized: "Shorts")
   static let live = String(localized: "Live")
   #if os(macOS)
@@ -70,8 +128,6 @@ enum Strings {
     static let hideVideosUnder = String(localized: "Hide Videos Under")
   #endif
   static let seconds = String(localized: "seconds")
-  static let noRecentVideos = String(localized: "No recent videos.")
-  static let previewFailed = String(localized: "Couldn't load this channel's videos.")
 
   static func showChannelInFeed(_ title: String) -> String {
     String(localized: "Show \(title) in Feed")
@@ -179,7 +235,7 @@ enum Strings {
 
   static let nuxHeadline = String(localized: "Your subscriptions, your filters, no algorithm.")
   static let nuxBulletNewest = String(
-    localized: "New videos from the channels you subscribe to, newest first.")
+    localized: "New videos from the channels you subscribe to, latest first.")
   static let nuxBulletFilters = String(
     localized: "Filters for each channel hide Shorts, live streams, or titles you don't want.")
   static let nuxBulletWatched = String(
@@ -188,24 +244,19 @@ enum Strings {
   #if os(macOS)
     static let signInHeading = String(localized: "Sign In with Google")
     static let chooseChannels = String(localized: "Choose Channels")
-    static let tryAFilter = String(localized: "Try a Filter")
-    static let hideTitles = String(localized: "Hide Titles")
     static let youreSet = String(localized: "You're Set")
     static let doneDetail = String(
       localized:
-        "Your feed starts with the newest video you haven't watched. Click one to play it. When you close it, it's marked watched."
-    )
+        "Your feed starts with the latest video you haven't watched. Click one to play it.")
   #else
     static let signInHeading = String(localized: "Sign in with Google")
     static let chooseChannels = String(localized: "Choose channels")
-    static let tryAFilter = String(localized: "Try a filter")
-    static let hideTitles = String(localized: "Hide titles")
     static let youreSet = String(localized: "You're set")
     static let doneDetail = String(
       localized:
-        "Your feed starts with the newest video you haven't watched. Tap one to play it. When you close it, it's marked watched."
-    )
+        "Your feed starts with the latest video you haven't watched. Tap one to play it.")
   #endif
+  static let whereToStart = String(localized: "Where to start")
   static let noServer = String(
     localized:
       "SubTube has no server of its own. Your data stays in your Google account and on this device."
@@ -213,6 +264,20 @@ enum Strings {
   static let signIn = String(localized: "Sign In with Google")
   static let signInShort = String(localized: "Sign In")
   static let privacyPolicy = String(localized: "Privacy Policy")
+  static let terms = String(localized: "Terms")
+  static let videosFromYouTube = String(localized: "Videos from YouTube")
+
+  /// The line under a sign-in button, with "Terms" and "Privacy Policy" as links.
+  static var signInAgreement: AttributedString {
+    var line = AttributedString(
+      localized: "By signing in, you agree to SubTube's Terms and Privacy Policy.")
+    for (phrase, address) in [(terms, Links.terms), (privacyPolicy, Links.privacyPolicy)] {
+      if let range = line.range(of: phrase) {
+        line[range].link = address
+      }
+    }
+    return line
+  }
   static let permissionsIntro = String(localized: "SubTube asks Google for two permissions:")
   static let permissionYouTube = String(localized: "Read your YouTube subscriptions")
   static let permissionYouTubeDetail = String(
@@ -224,29 +289,17 @@ enum Strings {
   )
   static let chooseChannelsDetail = String(
     localized: "Your subscriptions start on. Turn off any you don't want in your feed.")
+  static let shortsSetupDetail = String(
+    localized:
+      "This applies to every channel. You can change it for a single channel under Channels.")
+  static let whereToStartDetail = String(localized: "Older videos are marked as watched.")
   static let noSubscriptions = String(
     localized:
       "You don't subscribe to any channels yet. Subscribe on YouTube and they'll show up here.")
   static let searchChannels = String(localized: "Search channels")
   static let turnAllOff = String(localized: "Turn All Off")
   static let turnAllOn = String(localized: "Turn All On")
-  static let hideShorts = String(localized: "Hide Shorts")
-  static let exampleChannel = String(localized: "Example channel")
-  static let tryAFilterDetail = String(
-    localized:
-      "Each channel can have its own filter. Let's set one up on an example channel. You can change it any time under Channels."
-  )
-  static let hideShortsDetail = String(
-    localized: "Choose whether this channel shows Shorts. The preview shows what you'd see.")
-  static let hideTitlesDetail = String(
-    localized: "Type a word, and videos with it in the title are hidden, like “live” or “trailer”.")
   static let openMyFeed = String(localized: "Open My Feed")
-
-  static let hidden = String(localized: "Hidden")
-
-  static func previewCount(_ shown: Int, of total: Int) -> String {
-    String(localized: "Preview: \(shown) of \(total) shown")
-  }
 
   static func onCount(_ count: Int, of total: Int) -> String {
     String(localized: "\(count) of \(total) on")
@@ -264,6 +317,6 @@ enum Strings {
     localized: "SubTube needs both permissions Google asks for. Sign in again and allow them.")
   static let playerFailed = String(
     localized:
-      "Couldn't load the YouTube player. Check your connection or any content blockers, then close and reopen."
+      "Couldn't load the YouTube player. Check your connection or any content blockers, then try again."
   )
 }

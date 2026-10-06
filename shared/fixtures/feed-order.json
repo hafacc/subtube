@@ -1,5 +1,5 @@
 {
-  "description": "The feed's order: newest first by `publishedAt` (RFC 3339 UTC strings from YouTube, compared as plain ASCII strings), equal times by item id (video or playlist id, ASCII order, ascending). `sort` orders a whole list. The feed is shown in this order once a load has finished; while a load runs the previous feed stays, greyed out.",
+  "description": "The feed's orders. `sort` (absent means `newest`) orders a whole list of `items`; `expected` is their ids in order. Every order ends in the same tie-break: newest first by `publishedAt` (RFC 3339 UTC strings from YouTube, compared as plain ASCII strings), then by item id (video or playlist id, ASCII order, ascending). `newest`: that tie-break alone. `title`: by `title` (absent here means the id) ignoring case: replace each Unicode code point of both titles, one at a time and with no context, by its locale-independent lowercase mapping (which may be several code points), then compare the results code point by code point (not by UTF-16 unit), a title that is a prefix of the other first; no Unicode normalization; titles equal after lowercasing tie. `shortest`: by `durationSeconds` ascending; items without a duration (a playlist, `kind` \"playlist\" here, or a video whose `durationSeconds` is absent or 0) come after every item with one, tying with each other. `random`: ascending by the 32-bit FNV-1a hash (start 2166136261; for each byte: xor the byte in, then multiply by 16777619 modulo 2^32; compared unsigned) of the UTF-8 bytes of `seed` written in decimal, a colon, and the item id; `seed` is a whole number from 0 to 2^32-1 that a client picks anew at each full load and never syncs, so the order holds until the next full load. The feed is shown in the chosen order once a load has finished; while a load runs the previous feed stays, greyed out.",
   "cases": [
     {
       "name": "sort: newest first",
@@ -73,6 +73,563 @@
         "_",
         "a",
         "b"
+      ]
+    },
+    {
+      "name": "title: ignores case",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "1",
+          "title": "banana",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "2",
+          "title": "Cherry",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "3",
+          "title": "apple",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "4",
+          "title": "Banana split",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "3",
+        "1",
+        "4",
+        "2"
+      ]
+    },
+    {
+      "name": "title: equal ignoring case go newest first, then by id",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "b",
+          "title": "Episode",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "a",
+          "title": "EPISODE",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "z",
+          "title": "episode",
+          "publishedAt": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "first",
+          "title": "Episod",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "first",
+        "z",
+        "a",
+        "b"
+      ]
+    },
+    {
+      "name": "title: digits, punctuation and spaces go by code point",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "1",
+          "title": "a b",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "2",
+          "title": "a-b",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "3",
+          "title": "ab",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "4",
+          "title": "a_b",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "5",
+          "title": "10 things",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "6",
+          "title": "9 things",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "7",
+          "title": "[live] a",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "8",
+          "title": "Zebra",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "5",
+        "6",
+        "7",
+        "1",
+        "2",
+        "4",
+        "3",
+        "8"
+      ]
+    },
+    {
+      "name": "title: letters outside ASCII are lowercased too",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "1",
+          "title": "Élan",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "2",
+          "title": "éclair",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "3",
+          "title": "Яблоко",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "4",
+          "title": "груша",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "5",
+          "title": "zebra",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "6",
+          "title": "ÉCOLE",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "5",
+        "2",
+        "6",
+        "1",
+        "4",
+        "3"
+      ]
+    },
+    {
+      "name": "title: each code point is lowercased alone, so a final capital sigma is σ, not ς",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "1",
+          "title": "ΟΔΟΣ",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "2",
+          "title": "οδοσ",
+          "publishedAt": "2026-01-02T00:00:00Z"
+        },
+        {
+          "id": "3",
+          "title": "οδος",
+          "publishedAt": "2026-01-03T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "3",
+        "2",
+        "1"
+      ]
+    },
+    {
+      "name": "title: a capital dotted I lowercases to i and a combining dot",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "1",
+          "title": "İz",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "2",
+          "title": "i̇y",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "3",
+          "title": "iz",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "4",
+          "title": "ï",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "3",
+        "2",
+        "1",
+        "4"
+      ]
+    },
+    {
+      "name": "title: code point order, not UTF-16 order",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "1",
+          "title": "😀 smile",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "2",
+          "title": "Ａ fullwidth",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "3",
+          "title": "plain",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "3",
+        "2",
+        "1"
+      ]
+    },
+    {
+      "name": "title: no normalization, so composed and decomposed letters differ",
+      "op": "sort",
+      "sort": "title",
+      "items": [
+        {
+          "id": "1",
+          "title": "éa",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "2",
+          "title": "éb",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "3",
+          "title": "ez",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "3",
+        "2",
+        "1"
+      ]
+    },
+    {
+      "name": "shortest: by duration, then newest first",
+      "op": "sort",
+      "sort": "shortest",
+      "items": [
+        {
+          "id": "long",
+          "publishedAt": "2026-01-01T00:00:00Z",
+          "durationSeconds": 3600
+        },
+        {
+          "id": "short",
+          "publishedAt": "2026-01-01T00:00:00Z",
+          "durationSeconds": 45
+        },
+        {
+          "id": "mid-old",
+          "publishedAt": "2026-01-01T00:00:00Z",
+          "durationSeconds": 600
+        },
+        {
+          "id": "mid-new",
+          "publishedAt": "2026-01-02T00:00:00Z",
+          "durationSeconds": 600
+        }
+      ],
+      "expected": [
+        "short",
+        "mid-new",
+        "mid-old",
+        "long"
+      ]
+    },
+    {
+      "name": "shortest: items without a duration go last, newest first",
+      "op": "sort",
+      "sort": "shortest",
+      "items": [
+        {
+          "id": "live",
+          "publishedAt": "2026-01-03T00:00:00Z",
+          "durationSeconds": 0
+        },
+        {
+          "id": "list",
+          "kind": "playlist",
+          "publishedAt": "2026-01-09T00:00:00Z"
+        },
+        {
+          "id": "unknown",
+          "publishedAt": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "b",
+          "publishedAt": "2026-01-01T00:00:00Z",
+          "durationSeconds": 900
+        },
+        {
+          "id": "a",
+          "publishedAt": "2026-01-01T00:00:00Z",
+          "durationSeconds": 30
+        }
+      ],
+      "expected": [
+        "a",
+        "b",
+        "list",
+        "unknown",
+        "live"
+      ]
+    },
+    {
+      "name": "random: seed 0",
+      "op": "sort",
+      "sort": "random",
+      "seed": 0,
+      "items": [
+        {
+          "id": "dQw4w9WgXcQ",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "9bZkp7q19f0",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "kJQP7kiw5Fk",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "JGwWNGJdvx8",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "PLbpi6ZahtOH6Blw3RGYpWkSByi_T7Rygb",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "a",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "b",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "c",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "dQw4w9WgXcQ",
+        "JGwWNGJdvx8",
+        "c",
+        "b",
+        "a",
+        "kJQP7kiw5Fk",
+        "PLbpi6ZahtOH6Blw3RGYpWkSByi_T7Rygb",
+        "9bZkp7q19f0"
+      ]
+    },
+    {
+      "name": "random: another seed gives another order",
+      "op": "sort",
+      "sort": "random",
+      "seed": 4294967295,
+      "items": [
+        {
+          "id": "dQw4w9WgXcQ",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "9bZkp7q19f0",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "kJQP7kiw5Fk",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "JGwWNGJdvx8",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "PLbpi6ZahtOH6Blw3RGYpWkSByi_T7Rygb",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "a",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "b",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "c",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "JGwWNGJdvx8",
+        "a",
+        "b",
+        "c",
+        "kJQP7kiw5Fk",
+        "PLbpi6ZahtOH6Blw3RGYpWkSByi_T7Rygb",
+        "9bZkp7q19f0",
+        "dQw4w9WgXcQ"
+      ]
+    },
+    {
+      "name": "random: the same seed gives the same order whatever order the items arrive in",
+      "op": "sort",
+      "sort": "random",
+      "seed": 20261004,
+      "items": [
+        {
+          "id": "c",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "b",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "a",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "PLbpi6ZahtOH6Blw3RGYpWkSByi_T7Rygb",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "JGwWNGJdvx8",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "kJQP7kiw5Fk",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "9bZkp7q19f0",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "dQw4w9WgXcQ",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "dQw4w9WgXcQ",
+        "kJQP7kiw5Fk",
+        "9bZkp7q19f0",
+        "PLbpi6ZahtOH6Blw3RGYpWkSByi_T7Rygb",
+        "a",
+        "b",
+        "c",
+        "JGwWNGJdvx8"
+      ]
+    },
+    {
+      "name": "random: dates and titles do not count",
+      "op": "sort",
+      "sort": "random",
+      "seed": 20261004,
+      "items": [
+        {
+          "id": "dQw4w9WgXcQ",
+          "title": "Z",
+          "publishedAt": "2020-01-01T00:00:00Z"
+        },
+        {
+          "id": "9bZkp7q19f0",
+          "title": "A",
+          "publishedAt": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "kJQP7kiw5Fk",
+          "title": "M",
+          "publishedAt": "2023-01-01T00:00:00Z"
+        },
+        {
+          "id": "JGwWNGJdvx8",
+          "publishedAt": "2024-01-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "dQw4w9WgXcQ",
+        "kJQP7kiw5Fk",
+        "9bZkp7q19f0",
+        "JGwWNGJdvx8"
+      ]
+    },
+    {
+      "name": "random: the hash itself",
+      "op": "hash",
+      "seed": 20261004,
+      "items": [
+        {
+          "id": "dQw4w9WgXcQ"
+        },
+        {
+          "id": ""
+        },
+        {
+          "id": "é"
+        }
+      ],
+      "expected": [
+        1331776050,
+        3778831508,
+        1128508628
       ]
     }
   ]

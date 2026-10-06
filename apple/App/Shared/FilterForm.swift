@@ -57,7 +57,7 @@ private struct FilterFields: View {
           // `-bottom` opens the form at its end, for screenshots
           if CommandLine.arguments.contains("-bottom") {
             try? await Task.sleep(for: .milliseconds(600))
-            proxy.scrollTo(Self.markAllID, anchor: .bottom)
+            proxy.scrollTo(Self.endID, anchor: .bottom)
           }
         }
       }
@@ -66,7 +66,33 @@ private struct FilterFields: View {
     #endif
   }
 
-  private static let markAllID = "markAll"
+  private static let endID = "end"
+
+  /// The fifteen topics as toggles for the filter's `topics`, the channel's
+  /// most common first.
+  private var topics: some View {
+    Section {
+      FlowLayout(spacing: 8) {
+        ForEach(editorTopics(feed.channelFetched(channel.channelId)), id: \.self) { categoryId in
+          Chip(
+            label: topicLabel(categoryId) ?? "", selected: channel.topics.contains(categoryId)
+          ) {
+            var edited = channel
+            if edited.topics.contains(categoryId) {
+              edited.topics.removeAll { $0 == categoryId }
+            } else {
+              edited.topics.append(categoryId)
+            }
+            feed.updateFilter(edited)
+          }
+        }
+      }
+    } header: {
+      Text(Strings.topics)
+    } footer: {
+      Text(Strings.topicsDetail)
+    }
+  }
 
   private var form: some View {
     Form {
@@ -82,6 +108,7 @@ private struct FilterFields: View {
         TitlePatternFields(
           filter: Binding(get: { channel }, set: { feed.updateFilter($0) }))
       }
+      .id(isVideos ? "pattern" : Self.endID)
       if isVideos {
         Section {
           ShortsPicker(selection: binding(\.shortsFilter))
@@ -102,33 +129,22 @@ private struct FilterFields: View {
             }
           }
         }
+        topics.id(Self.endID)
       }
-      Section {
-        switch feed.markAllChoice(channel.channelId) {
-        case .watched(let ids):
-          Button(Strings.markAllAsWatched) { feed.applyMarkAll(channel.channelId) }
-            .disabled(ids.isEmpty)
-        case .unwatched:
-          Button(Strings.markAllAsUnwatched) { feed.applyMarkAll(channel.channelId) }
-        }
-      }
-      .id(Self.markAllID)
     }
     .formStyle(.grouped)
   }
 }
 
-/// The title pattern, whether it hides or keeps matches, where it matches,
-/// and case.
+/// The phrases the filter looks for, whether it hides or keeps what has
+/// one, where it looks, and case.
 struct TitlePatternFields: View {
   @Binding var filter: ChannelFilter
-  /// Told whether what is typed is a pattern that can be saved.
-  var onValidity: (Bool) -> Void = { _ in }
 
   var body: some View {
-    PatternField(
-      label: Strings.patternHeading(filter.searchScope), pattern: $filter.regex,
-      onValidity: onValidity)
+    PhraseFields(
+      phrases: patternToPhrases(filter.regex) ?? [],
+      onChange: { filter.regex = phrasesToPattern($0) })
     SegmentedRow(
       label: Strings.matches, selection: $filter.mode,
       options: [(.exclude, Strings.choiceHide), (.include, Strings.choiceShow)],
@@ -137,14 +153,57 @@ struct TitlePatternFields: View {
       label: Strings.matchIn, selection: $filter.searchScope,
       options: FilterScope.allCases.map { ($0, Strings.scopeOption($0)) },
       showsHeading: true)
-    #if os(macOS)
-      Toggle(Strings.matchCase, isOn: $filter.caseSensitive)
-        .toggleStyle(.checkbox)
-        .tint(Color.gold)
-    #else
-      Toggle(Strings.matchCase, isOn: $filter.caseSensitive)
-        .tint(Color.sunflower)
-    #endif
+    SegmentedRow(
+      label: Strings.caseHeading, selection: $filter.caseSensitive,
+      options: [(false, Strings.caseIgnore), (true, Strings.caseMatch)],
+      showsHeading: true)
+  }
+}
+
+/// The filter's phrases as chips over the field that adds one: Return or a
+/// comma turns what is typed into a chip, pressing a chip removes it, and
+/// Delete in the empty field removes the last.
+struct PhraseFields: View {
+  let phrases: [String]
+  /// Called with the whole new list when a phrase is added or removed.
+  let onChange: ([String]) -> Void
+  /// The phrase being typed, not yet a chip.
+  @State private var draft = ""
+
+  /// A comma ends a phrase: everything before the last one becomes chips,
+  /// the rest stays in the field.
+  private func typed(_ value: String) {
+    let parts = value.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+    if parts.count > 1 {
+      draft = parts[parts.count - 1]
+      onChange(phrases + parts.dropLast())
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      if !phrases.isEmpty {
+        FlowLayout {
+          ForEach(phrases, id: \.self) { phrase in
+            Chip(label: phrase, removes: true) {
+              onChange(phrases.filter { $0 != phrase })
+            }
+          }
+        }
+      }
+      PhraseInput(
+        text: $draft, prompt: Strings.addPhrase,
+        onSubmit: {
+          onChange(phrases + [draft])
+          draft = ""
+        },
+        onDeleteWhenEmpty: { onChange(phrases.dropLast()) }
+      )
+      .onChange(of: draft) { _, value in typed(value) }
+      Text(Strings.phrasesDetail)
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    }
   }
 }
 
@@ -202,141 +261,5 @@ struct ShortsPicker: View {
       label: Strings.shorts, selection: $selection,
       options: ShortsFilter.allCases.map { ($0, Strings.shortsOption($0)) },
       showsHeading: true)
-  }
-}
-
-/// The first run's preview section: the channel's newest items under a
-/// filter not saved yet, what it drops dimmed and tagged, the pattern's
-/// match highlighted, and how many it keeps.
-struct FilterPreview: View {
-  let feed: FeedModel
-  let channel: ChannelFilter
-
-  var body: some View {
-    let compiled = compileFilter(channel)
-    let items = feed.previewItems(channel.channelId)
-    let kept = items?.count { itemPassesFilter($0, compiled) } ?? 0
-    Section(Strings.previewCount(kept, of: items?.count ?? 0)) {
-      if let items {
-        if items.isEmpty {
-          Text(Strings.noRecentVideos).foregroundStyle(.secondary)
-        } else {
-          ForEach(items) { item in
-            PreviewRow(
-              title: highlighted(item.title, compiled),
-              meta: meta(item),
-              thumbnail: item.thumbnail,
-              kept: itemPassesFilter(item, compiled))
-          }
-        }
-      } else if feed.previewFailed.contains(channel.channelId) {
-        Text(Strings.previewFailed).foregroundStyle(.secondary)
-      } else {
-        ForEach(0..<4, id: \.self) { _ in
-          HStack(spacing: 10) {
-            Thumbnail(url: "", cornerRadius: 4).frame(width: 56)
-            VStack(alignment: .leading, spacing: 5) {
-              SkeletonLine(width: 200)
-              SkeletonLine(width: 60, height: 9)
-            }
-            Spacer(minLength: 0)
-          }
-          .skeleton()
-        }
-      }
-    }
-  }
-
-  private func meta(_ item: FeedItem) -> String {
-    switch item {
-    case .video(let video):
-      let duration = formatDuration(video.durationSeconds ?? 0)
-      return video.isShort == true ? "\(duration) · \(Strings.shortBadge)" : duration
-    case .playlist(let playlist):
-      return Strings.videoCount(playlist.itemCount)
-    }
-  }
-
-  private func highlighted(_ title: String, _ compiled: CompiledFilter) -> AttributedString {
-    var text = AttributedString(title)
-    if let range = titleMatchRange(title, compiled),
-      let lower = AttributedString.Index(range.lowerBound, within: text),
-      let upper = AttributedString.Index(range.upperBound, within: text)
-    {
-      text[lower..<upper].backgroundColor = .tintFill
-      text[lower..<upper].foregroundColor = .tintText
-    }
-    return text
-  }
-}
-
-/// One preview row: thumbnail, title, length; dimmed and tagged when dropped.
-struct PreviewRow: View {
-  let title: AttributedString
-  let meta: String
-  let thumbnail: String
-  let kept: Bool
-
-  var body: some View {
-    HStack(spacing: 10) {
-      Thumbnail(url: thumbnail, cornerRadius: 4).frame(width: 56)
-      VStack(alignment: .leading, spacing: 1) {
-        Text(title).lineLimit(2)
-        Text(meta).font(.caption).foregroundStyle(.secondary)
-      }
-      Spacer(minLength: 0)
-      if !kept {
-        Text(Strings.hidden)
-          .font(.caption.weight(.medium))
-          .foregroundStyle(Color.tintText)
-          .padding(.horizontal, 6)
-          .padding(.vertical, 2)
-          .background(Color.tintFill, in: Capsule())
-      }
-    }
-    .opacity(kept ? 1 : 0.4)
-  }
-}
-
-/// A pattern text field that saves only valid patterns and says why one
-/// isn't.
-struct PatternField: View {
-  let label: String
-  @Binding var pattern: String
-  /// Told whether what is typed is a pattern that can be saved.
-  var onValidity: (Bool) -> Void = { _ in }
-  @State private var draft = ""
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      TextField(label, text: $draft, prompt: Text(verbatim: ""))
-        .labelsHidden()
-        .autocorrectionDisabled()
-        #if os(iOS)
-          .textInputAutocapitalization(.never)
-        #endif
-        .font(.body.monospaced())
-        .onAppear {
-          draft = pattern
-          onValidity(isValidPattern(pattern))
-        }
-        .onChange(of: pattern) { _, saved in
-          if isValidPattern(draft) {
-            draft = saved
-          }
-        }
-        .onChange(of: draft) { _, typed in
-          let valid = isValidPattern(typed)
-          onValidity(valid)
-          if valid && typed != pattern {
-            pattern = typed
-          }
-        }
-      if let error = patternError(draft) {
-        Text(error)
-          .font(.caption)
-          .foregroundStyle(.red)
-      }
-    }
   }
 }

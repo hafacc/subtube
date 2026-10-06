@@ -1,20 +1,31 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
+  import { AUTOPLAY_OPTIONS } from "../lib/autoplay";
+  import { TIME_CHIP_OPTIONS } from "../lib/chips";
   import { videoCount } from "../lib/duration";
   import { FeedController } from "../lib/feed.svelte";
   import { feedItemId } from "../lib/feed-item";
+  import { FEED_SORT_OPTIONS } from "../lib/feed-order";
+  import type { RouteItem } from "../lib/router";
   import type { Router } from "../lib/router.svelte";
   import type { Session } from "../lib/session.svelte";
   import type { SyncStore } from "../lib/sync-store";
   import { cycleTheme, readTheme, type Theme } from "../lib/theme";
+  import type { FeedItem } from "../lib/types";
+  import { WATCHED_MODE_OPTIONS } from "../lib/watched-mode";
   import Avatar from "./Avatar.svelte";
   import ChannelSidebar from "./ChannelSidebar.svelte";
+  import ChipRow from "./ChipRow.svelte";
+  import CycleChip from "./CycleChip.svelte";
   import FeedCard from "./FeedCard.svelte";
   import FeedCardSkeleton from "./FeedCardSkeleton.svelte";
   import FilterEditor from "./FilterEditor.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
+  import LoadBar from "./LoadBar.svelte";
   import Player from "./Player.svelte";
+  import PlayerFrame from "./PlayerFrame.svelte";
   import Settings from "./Settings.svelte";
+  import YouTubeAttribution from "./YouTubeAttribution.svelte";
 
   let {
     session,
@@ -45,6 +56,7 @@
   /** localStorage key: set while the left sidebar is collapsed to its icons. */
   const SIDEBAR_COLLAPSED = "subtube.sidebarCollapsed";
   const NARROW = window.matchMedia("(max-width: 760px)");
+  const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   function readCollapsed(): boolean {
     try {
@@ -61,6 +73,8 @@
   let collapsed = $state(readCollapsed());
   let showDetails = $state(false);
   let showSettings = $state(false);
+  // the card playing in place of its thumbnail, in a narrow window
+  let inlineItem: RouteItem | null = $state(null);
   let theme: Theme = $state(readTheme());
 
   const account = $derived(session.account);
@@ -81,6 +95,58 @@
           "")
       : "Feed",
   );
+
+  // changes whenever the user goes somewhere, which lets the channel list be put in order again
+  const whereabouts = $derived(
+    JSON.stringify([
+      route.channel,
+      route.item !== null,
+      showSettings,
+      narrow && showSidebar,
+    ]),
+  );
+
+  function routeItem(item: FeedItem): RouteItem {
+    return { kind: item.kind, id: feedItemId(item) };
+  }
+
+  function cardOf(id: string): HTMLElement | null {
+    return document.querySelector<HTMLElement>(
+      `[data-card="${CSS.escape(id)}"]`,
+    );
+  }
+
+  /** Play a card: in place of its thumbnail in a narrow window, otherwise in the player over the app. */
+  function play(item: FeedItem): void {
+    if (narrow) {
+      inlineItem = routeItem(item);
+    } else {
+      inlineItem = null;
+      router.open({ channel: router.route.channel, item: routeItem(item) });
+    }
+  }
+
+  /** The card playing in place ended: auto-play's next card takes over, scrolled into view. */
+  function inlineEnded(endedId: string): void {
+    const next = feed.autoplayNext(endedId);
+    inlineItem = next ? routeItem(next) : null;
+    if (next) {
+      void tick().then(() => {
+        cardOf(feedItemId(next))?.scrollIntoView({
+          block: "nearest",
+          behavior: REDUCED_MOTION.matches ? "auto" : "smooth",
+        });
+      });
+    }
+  }
+
+  /** The player over the app ended: auto-play's next item plays in it. */
+  function overlayEnded(endedId: string): void {
+    const next = feed.autoplayNext(endedId);
+    if (next) {
+      router.replace({ channel: router.route.channel, item: routeItem(next) });
+    }
+  }
 
   /** Show the feed (null) or a channel's page. */
   function open(channelId: string | null): void {
@@ -150,6 +216,24 @@
     }
   });
 
+  // a card that left the list stops playing; unmounting it saved its position
+  $effect(() => {
+    const playing = inlineItem;
+    if (playing && !feed.feed.some((item) => feedItemId(item) === playing.id)) {
+      inlineItem = null;
+    }
+  });
+
+  // focus goes back to the card of whatever the closed player last played
+  let overlayId: string | null = null;
+  $effect(() => {
+    const openId = router.route.item?.id ?? null;
+    if (openId === null && overlayId !== null) {
+      cardOf(overlayId)?.querySelector("button")?.focus();
+    }
+    overlayId = openId;
+  });
+
   $effect(() => {
     void router.route.channel;
     void feed.channels;
@@ -163,6 +247,7 @@
       <ChannelSidebar
         {feed}
         selected={route.channel}
+        {whereabouts}
         onselect={select}
         onhome={home}
         collapsed={!narrow && collapsed}
@@ -196,22 +281,12 @@
         </button>
       {/if}
       <div class="titles">
-        <h1>{title}</h1>
+        <h1 id="page-title">{title}</h1>
         {#if !route.channel && !firstLoad}
           <span class="secondary subtitle">{videoCount(feed.feed.length)}</span>
         {/if}
       </div>
       <div class="tools">
-        <button
-          type="button"
-          class="icon-button"
-          aria-label="Hide watched"
-          title="Hide watched"
-          aria-pressed={!feed.showWatched}
-          onclick={() => feed.toggleShowWatched()}
-        >
-          <Icon name={feed.showWatched ? "eye" : "eyeOff"} />
-        </button>
         <button
           type="button"
           class="icon-button"
@@ -273,84 +348,124 @@
       />
     {/if}
 
+    <ChipRow
+      topics={feed.topicChips}
+      selected={feed.settings.topicChips}
+      ontopic={(categoryId) => feed.toggleTopicChip(categoryId)}
+      onclear={() => feed.setSetting("topicChips", [])}
+    >
+      {#snippet leading()}
+        <CycleChip
+          options={AUTOPLAY_OPTIONS}
+          value={feed.settings.autoplay ? "on" : "off"}
+          onchange={(autoplay) =>
+            feed.setSetting("autoplay", autoplay === "on")}
+        />
+        <CycleChip
+          options={FEED_SORT_OPTIONS}
+          value={feed.settings.feedSort}
+          onchange={(feedSort) => feed.setSetting("feedSort", feedSort)}
+        />
+        <CycleChip
+          options={TIME_CHIP_OPTIONS}
+          value={feed.settings.timeChip}
+          onchange={(timeChip) => feed.setSetting("timeChip", timeChip)}
+        />
+        <CycleChip
+          options={WATCHED_MODE_OPTIONS}
+          value={feed.watchedMode}
+          onchange={(mode) => feed.setWatchedMode(mode)}
+        />
+      {/snippet}
+    </ChipRow>
+
     <div class="body">
-      <div class="content">
-        {#if !session.ready && !session.checking && !session.connecting}
-          <div class="banner">
-            <span>
-              {session.expired
-                ? "Your Google session ended. Sign in again to refresh."
-                : "Sign in again to load your feed."}
-            </span>
-            <button
-              type="button"
-              class="button-small"
-              onclick={() => void session.signIn()}
-            >
-              Sign in
-            </button>
-          </div>
-        {/if}
-        {#if session.error || feed.error}
-          <div class="banner error" role="alert">
-            <span>{feed.error ?? session.error}</span>
-          </div>
-        {/if}
-        {#if feed.notice}
-          <div class="banner" role="status">
-            <span>{feed.notice}</span>
-            <button
-              type="button"
-              class="icon-button"
-              aria-label="Dismiss"
-              onclick={() => {
-                feed.notice = null;
-              }}
-            >
-              <Icon name="close" />
-            </button>
-          </div>
-        {/if}
+      <div class="pane">
+        <div class="content">
+          {#if !session.ready && !session.checking && !session.connecting}
+            <div class="banner">
+              <span>
+                {session.expired
+                  ? "Your Google session ended. Sign in again to refresh."
+                  : "Sign in again to load your feed."}
+              </span>
+              <button
+                type="button"
+                class="button-small"
+                onclick={() => void session.signIn()}
+              >
+                Sign in
+              </button>
+            </div>
+          {/if}
+          {#if session.error || feed.error}
+            <div class="banner error" role="alert">
+              <span>{feed.error ?? session.error}</span>
+            </div>
+          {/if}
+          {#if feed.notice}
+            <div class="banner" role="status">
+              <span>{feed.notice}</span>
+              <button
+                type="button"
+                class="icon-button"
+                aria-label="Dismiss"
+                onclick={() => {
+                  feed.notice = null;
+                }}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+          {/if}
 
-        <main
-          class:stale={feed.loading}
-          class:shimmer={feed.loading || firstLoad}
-          class:over-cards={!firstLoad}
-          inert={feed.loading || firstLoad}
-          aria-busy={feed.loading || firstLoad}
-        >
-          {#if firstLoad}
-            {#each SKELETONS as index (index)}
-              <FeedCardSkeleton />
+          <main
+            class:stale={feed.loading}
+            class:shimmer={firstLoad}
+            inert={feed.loading || firstLoad}
+            aria-busy={feed.loading || firstLoad}
+          >
+            {#if firstLoad}
+              {#each SKELETONS as index (index)}
+                <FeedCardSkeleton />
+              {/each}
+            {/if}
+            {#each feed.feed as item (feedItemId(item))}
+              {@const id = feedItemId(item)}
+              <FeedCard
+                {item}
+                watched={feed.watched.has(id)}
+                progress={feed.bars.get(id) ?? null}
+                player={inlineItem?.id === id ? inlinePlayer : undefined}
+                onopen={() => play(item)}
+                onopenchannel={() => open(item.channelId)}
+              />
             {/each}
-          {/if}
-          {#each feed.feed as item (feedItemId(item))}
-            <FeedCard
-              {item}
-              watched={feed.watched.has(feedItemId(item))}
-              onopen={() =>
-                router.open({
-                  channel: route.channel,
-                  item:
-                    item.kind === "playlist"
-                      ? { kind: "playlist", id: item.playlistId }
-                      : { kind: "video", id: item.videoId },
-                })}
-              onopenchannel={() => open(item.channelId)}
-              ontogglewatched={() => feed.toggleWatched(item)}
-            />
-          {/each}
-        </main>
+          </main>
 
-        {#if feed.feed.length === 0}
-          {#if firstLoad}
-            <!-- the skeleton cards above stand in for the list -->
-          {:else if feed.channelError}
-            <p class="empty error-text">{feed.channelError}</p>
-          {:else if session.ready}
-            <p class="empty secondary">Nothing new. You're caught up.</p>
+          {#if feed.feed.length === 0}
+            {#if firstLoad}
+              <!-- the skeleton cards above stand in for the list -->
+            {:else if feed.channelError}
+              <p class="empty error-text">{feed.channelError}</p>
+            {:else if session.ready}
+              <p class="empty secondary">
+                {feed.emptiedBySelection
+                  ? "No videos for selected filter"
+                  : "Nothing new. You're caught up."}
+              </p>
+            {/if}
           {/if}
+          {#if !firstLoad}
+            <div class="attribution">
+              <YouTubeAttribution />
+            </div>
+          {/if}
+        </div>
+        {#if feed.loading && !firstLoad}
+          <div class="shimmer-band"></div>
         {/if}
+        <LoadBar progress={feed.loadProgress} labelledby="page-title" />
       </div>
 
       <aside
@@ -375,16 +490,26 @@
   </div>
 </div>
 
-{#if route.item}
-  {#key `${route.item.kind}:${route.item.id}`}
-    <Player
-      item={route.item}
+{#snippet inlinePlayer()}
+  {#if inlineItem}
+    {@const playing = inlineItem}
+    <PlayerFrame
+      item={playing}
       {feed}
-      onclose={() => router.close()}
-      onopenchannel={(channelId) =>
-        router.open({ channel: channelId, item: null })}
+      focusPlayer
+      onended={() => inlineEnded(playing.id)}
     />
-  {/key}
+  {/if}
+{/snippet}
+
+{#if route.item}
+  {@const playing = route.item}
+  <Player
+    item={playing}
+    {feed}
+    onclose={() => router.close()}
+    onended={() => overlayEnded(playing.id)}
+  />
 {/if}
 
 <style>
@@ -505,6 +630,13 @@
     overflow: hidden;
   }
 
+  .pane {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+  }
+
   .content {
     flex: 1;
     min-width: 0;
@@ -533,6 +665,7 @@
   .right-panel {
     width: 320px;
     height: 100%;
+    padding-bottom: 24px;
     overflow-y: auto;
     border-left: 1px solid var(--border);
     background: var(--page);
@@ -573,7 +706,6 @@
     gap: 16px;
   }
 
-  /* the cards dim, not the grid, so the shimmer over them stays at full strength */
   main.stale > :global(.card) {
     opacity: 0.4;
     transition: opacity 0.2s;
@@ -585,6 +717,12 @@
     margin: 0;
     padding: 32px 16px;
     text-align: center;
+  }
+
+  .attribution {
+    display: flex;
+    justify-content: center;
+    padding: 16px 16px 24px;
   }
 
   /* too narrow for three columns: the filter editor lies over the grid */

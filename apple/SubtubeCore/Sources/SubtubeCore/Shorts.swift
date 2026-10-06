@@ -15,6 +15,17 @@ public func isShortsCandidate(_ video: Video) -> Bool {
   return duration > 0 && duration <= shortsMaxSeconds
 }
 
+/// One channel's uploads when its Shorts list isn't read, because nothing
+/// filters on Shorts: a video that can't be a Short is marked not one, and a
+/// candidate is left unjudged.
+public func withoutShortsList(_ videos: [Video]) -> [Video] {
+  videos.map { video in
+    var unjudged = video
+    unjudged.isShort = isShortsCandidate(video) ? nil : false
+    return unjudged
+  }
+}
+
 /// Set `isShort` on one channel's uploads. The verdict comes from the
 /// channel's Shorts list (`loadShortIds`, nil when the channel has none).
 /// Should that list ever stop being served, every channel would look

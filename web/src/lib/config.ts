@@ -24,6 +24,12 @@ export const extensionId: string =
 /** The privacy policy, a static page beside the app (`privacy.html`, served without the extension). */
 export const privacyUrl = `${import.meta.env.BASE_URL}privacy`;
 
+/** The terms of service, a static page beside the app (`terms.html`), like the privacy policy. */
+export const termsUrl = `${import.meta.env.BASE_URL}terms`;
+
+/** Where the "Videos from YouTube" attribution links. */
+export const youtubeUrl = "https://www.youtube.com/";
+
 /** The extension's Chrome Web Store page; the listing isn't published yet. */
 export const chromeWebStoreUrl =
   "https://chromewebstore.google.com/detail/gobcnmccpjhlgpnohehgkahhknkfbmfo";

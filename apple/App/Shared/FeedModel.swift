@@ -8,50 +8,91 @@ let appLog = Logger(subsystem: "cc.hafa.subtube", category: "app")
 
 /// The feed for one account.
 ///
-/// What is shown is every fetched item that passes the filters, newest first.
-/// With watched hidden, a card marked watched stays, dimmed, until a full
-/// load finishes, a filter is edited or Hide Watched is toggled; moving
-/// between the feed and channel pages keeps it. While a load runs the
+/// What is shown is every fetched item that passes the filters, the watched
+/// chip and the time and topic chips, in the chosen order. An item that
+/// becomes watched or unwatched while on screen stays until a full load
+/// finishes, a filter is edited, or the watched, time or topic chip changes;
+/// moving between the feed and channel pages keeps it. While a load runs the
 /// previous feed stays.
 @MainActor @Observable
 final class FeedModel {
   /// Returning to the app after this long away loads the feed again.
   private static let staleAfter: TimeInterval = 15 * 60
-  /// How many of a channel's items a filter preview lists.
-  private static let previewLength = 20
 
   let account: ChannelSummary
   private let auth: GoogleAuth
   private let store: SyncStore
   private let probe = ShortsProbe()
+  /// Everything asked of the store about watched entries and settings, in
+  /// the order asked.
+  @ObservationIgnored private let storeCalls:
+    AsyncStream<@Sendable (SyncStore) async -> Void>.Continuation
 
   /// The channels with their filters, in sidebar order; edits apply here at
   /// once and sync through Drive.
   private(set) var channels: [ChannelFilter] = [] {
     didSet {
       compiled = Dictionary(channels.map { ($0.channelId, compileFilter($0)) }) { first, _ in first }
+      modes = Dictionary(channels.map { ($0.channelId, $0.contentMode) }) { first, _ in first }
+      holdChannels()
     }
   }
+  /// The channel lists' rows as last worked out; edits neither move nor
+  /// remove them.
+  private var heldOrder = HeldChannelOrder()
   private var compiled: [String: CompiledFilter] = [:]
+  /// Whether each channel shows uploads or playlists.
+  private var modes: [String: ContentMode] = [:]
   /// The channels the account subscribes to on YouTube.
   private(set) var subscribedIds = Set<String>()
   /// Every item fetched, for the feed or a channel page.
   private var items: [String: FeedItem] = [:]
-  /// The channels whose items in a kind are all in `items`.
-  private var fetched = Set<ChannelKind>()
+  /// What each channel's items have been fetched as.
+  private var fetched: [String: Set<FetchMark>] = [:]
+  /// The loaded items' watched entries, as last read from the store or
+  /// edited here.
+  private var entries: [String: WatchedEntry] = [:]
+  private var editSerial = 0
+  /// The `editSerial` of each entry's last edit here.
+  private var editedAt: [String: Int] = [:]
+  /// The loaded items that are watched.
   private(set) var watched = Set<String>()
-  /// The ids on screen, in the order shown.
-  private(set) var order: [String] = []
-  /// Marked watched since the list was last rebuilt for good; these stay on
-  /// screen while watched is hidden.
-  private var justWatched = Set<String>()
+  /// How full each loaded video's progress bar is, from 0 to 1; a video with
+  /// no bar is absent.
+  private(set) var bars: [String: Double] = [:]
+  /// The items on screen, in the order shown.
+  private(set) var shown: [FeedItem] = []
+  /// The topic chips to show, as category ids in row order.
+  private(set) var topicChips: [String] = []
+  /// The channel lists' topic chips, as category ids in row order.
+  private(set) var channelTopicChips: [String] = []
+  /// The channels the channel lists' chips keep; nil while they keep all.
+  private var chipChannels: Set<String>?
+  /// Whether a full load has been shown.
+  private var fullLoadShown = false
+  /// Each on channel's unwatched items that pass its filter, counted;
+  /// channels with none are absent.
+  private(set) var unwatchedByChannel: [String: Int] = [:]
+  /// Became watched or unwatched here since the list was last rebuilt for
+  /// good; these stay on screen whatever the watched chip lists.
+  private var staying = Set<String>()
+
+  /// The synced settings, as of the last load plus changes made here since.
+  private(set) var settings = SyncedSettings()
+  private var settingEdits = 0
+  /// Which of watched and unwatched items the page lists; kept for the visit.
+  private(set) var watchedMode = WatchedMode.unwatched
+  /// Fixes the random order until the next full load.
+  private var shuffleSeed = newShuffleSeed()
+  /// The time the time chips count back from.
+  private var chipClock = epochMilliseconds()
 
   /// The channel page shown, or nil for the whole feed.
-  var selectedChannel: String? { didSet { viewChanged() } }
-  var hideWatched = true {
+  var selectedChannel: String? {
     didSet {
-      justWatched = []
-      rebuild()
+      if selectedChannel != oldValue {
+        viewChanged()
+      }
     }
   }
 
@@ -59,18 +100,24 @@ final class FeedModel {
   private var fetching = Set<ChannelKind>()
   private var activeFetches = 0
   private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
+  /// Goes up when YouTube's daily limit refuses a fetch; fetches that waited
+  /// through it aren't sent.
+  private var refusals = 0
   /// Filters edited while a load ran; the load's own copy is older.
   private var editsDuringLoad: [String: ChannelFilter] = [:]
   /// Channels to fetch once the running load ends.
   private var fetchAfterLoad = Set<String>()
   /// Whether a single channel is being fetched.
   var channelLoading: Bool { !fetching.isEmpty }
-  /// Channels whose filter preview couldn't be fetched.
-  private(set) var previewFailed: Set<String> = []
+  /// The items of the channels left on in the first run, on their way since
+  /// "Choose channels"; the next full load takes it.
+  private var setupPrefetch: Prefetch?
+  /// The last call telling `setupPrefetch` which channels to have.
+  private var prefetchCall: Task<Void, Never>?
 
   private(set) var loading = false
-  /// Whether a full load has finished since sign-in.
-  private(set) var hasLoaded = false
+  /// How far the running full load is, from 0 to 1; nil when none runs.
+  private(set) var loadProgress: Double?
   /// Whether the channels are known: a full or a channels-only load finished.
   private(set) var channelsLoaded = false
   /// The demo feed: nothing loads or syncs.
@@ -79,7 +126,15 @@ final class FeedModel {
   /// Whether only an interactive sign-in can fix `error`.
   private(set) var needsReconnect = false
   var notice: String?
-  var player: PlayerSession?
+  /// What is playing; one item at a time. Replacing it saves the old one's
+  /// position.
+  var player: PlayerSession? {
+    didSet {
+      if oldValue !== player {
+        oldValue?.close()
+      }
+    }
+  }
   /// The Google account's name and address, once asked.
   private(set) var user: DriveUser?
   private(set) var lastSyncedAt: Date?
@@ -91,31 +146,109 @@ final class FeedModel {
     self.account = account
     self.auth = auth
     let directory = URL.applicationSupportDirectory.appendingPathComponent("subtube")
-    store = SyncStore(
+    let store = SyncStore(
       accountId: account.channelId, tokens: auth, directory: directory, deviceId: deviceId())
-  }
-
-  /// The items on screen, in order.
-  var shown: [FeedItem] {
-    let source = passing()
-    return order.compactMap { source[$0] }
-  }
-
-  /// Unwatched items the whole feed would show.
-  var unwatchedCount: Int {
-    items.values.count { item in
-      guard let filter = compiled[item.channelId], filter.enabled, matchesMode(item) else {
-        return false
+    self.store = store
+    let (calls, continuation) = AsyncStream.makeStream(
+      of: (@Sendable (SyncStore) async -> Void).self)
+    storeCalls = continuation
+    Task.detached {
+      for await call in calls {
+        await call(store)
       }
-      return !watched.contains(item.id) && itemPassesFilter(item, filter)
+    }
+    Task { [weak self] in
+      // what this device last knew, until the first load has Drive's
+      let kept = await store.settings()
+      if let self, self.settingEdits == 0, !self.channelsLoaded {
+        self.settings = kept
+        self.rebuild()
+        self.reorderChannels()
+      }
     }
   }
 
-  /// The channels in the order every channel list shows them.
+  deinit {
+    storeCalls.finish()
+  }
+
+  /// Change the store after every earlier change; nothing in the demo feed.
+  private func write(_ change: @escaping @Sendable (SyncStore) async -> Void) {
+    if !offline {
+      storeCalls.yield(change)
+    }
+  }
+
+  /// Read the store once every earlier change has reached it.
+  private func read<Value: Sendable>(_ value: @escaping @Sendable (SyncStore) async -> Value)
+    async -> Value
+  {
+    await withCheckedContinuation { continuation in
+      storeCalls.yield { store in continuation.resume(returning: await value(store)) }
+    }
+  }
+
+  /// Unwatched items the whole feed would show, whatever page is open or
+  /// chip selected.
+  var unwatchedCount: Int {
+    unwatchedByChannel.values.reduce(0, +)
+  }
+
+  /// Whether the page shows stand-in cards: nothing to show yet, and a load
+  /// running.
+  var showsSkeletons: Bool {
+    shown.isEmpty && (loading || channelLoading)
+  }
+
+  /// What an empty page says.
+  var emptyText: String {
+    if emptiedBySelection(
+      mode: watchedMode, timeChip: settings.timeChip, topicChips: settings.topicChips)
+    {
+      Strings.noVideosForFilter
+    } else {
+      Strings.noMatches
+    }
+  }
+
+  /// The channels every channel list shows, in order: those its chips kept
+  /// at the last ``reorderChannels()``, with channels kept since then at the
+  /// end.
   var orderedChannels: [ChannelFilter] {
+    let byId = Dictionary(channels.map { ($0.channelId, $0) }) { first, _ in first }
+    return heldOrder.ids.compactMap { byId[$0] }
+  }
+
+  /// Whether a channel list that is empty says so: a full load has been
+  /// shown and its time chip or a topic chip is chosen.
+  var explainsNoChannels: Bool {
+    fullLoadShown && chipChannels != nil
+  }
+
+  /// Work the channel lists' rows and order out again. A list asks when it
+  /// appears and when its search changes; a full load and a change of a
+  /// channel list chip do it themselves.
+  func reorderChannels() {
+    var order = heldOrder
+    order.recompute(freshChannelOrder(), kept: chipChannels)
+    if order != heldOrder {
+      heldOrder = order
+    }
+  }
+
+  /// Keep the channel lists' rows in place, adding channels kept since.
+  private func holdChannels() {
+    var order = heldOrder
+    order.hold(freshChannelOrder(), kept: chipChannels)
+    if order != heldOrder {
+      heldOrder = order
+    }
+  }
+
+  /// The channel ids in the order their sort gives them now.
+  private func freshChannelOrder() -> [String] {
     var newest: [String: String] = [:]
-    for item in items.values where matchesMode(item) {
-      guard let filter = compiled[item.channelId], itemPassesFilter(item, filter) else { continue }
+    for item in items.values {
       if let known = newest[item.channelId],
         !known.utf8.lexicographicallyPrecedes(item.publishedAt.utf8)
       {
@@ -123,14 +256,13 @@ final class FeedModel {
       }
       newest[item.channelId] = item.publishedAt
     }
-    let ids = channelOrder(
+    return channelOrder(
       channels.map { channel in
         ChannelOrderEntry(
           id: channel.channelId, title: channel.title, enabled: channel.enabled,
-          newestPassing: newest[channel.channelId])
-      })
-    let byId = Dictionary(channels.map { ($0.channelId, $0) }) { first, _ in first }
-    return ids.compactMap { byId[$0] }
+          newest: newest[channel.channelId],
+          unwatched: unwatchedByChannel[channel.channelId] ?? 0)
+      }, sort: settings.channelSort)
   }
 
   func channel(_ channelId: String) -> ChannelFilter? {
@@ -142,15 +274,17 @@ final class FeedModel {
     !subscribedIds.contains(channelId) && channel(channelId)?.followed == true
   }
 
-  private func mode(_ channelId: String) -> ContentMode {
-    channel(channelId)?.contentMode ?? .videos
+  /// Everything fetched for a channel, whatever its filter keeps.
+  func channelFetched(_ channelId: String) -> [FeedItem] {
+    items.values.filter { $0.channelId == channelId }
   }
 
   /// Whether an item is the kind its channel currently shows.
   private func matchesMode(_ item: FeedItem) -> Bool {
+    let mode = modes[item.channelId] ?? .videos
     switch item {
-    case .video: mode(item.channelId) == .videos
-    case .playlist: mode(item.channelId) == .playlists
+    case .video: return mode == .videos
+    case .playlist: return mode == .playlists
     }
   }
 
@@ -158,46 +292,59 @@ final class FeedModel {
     channel(channelId)?.enabled != true
   }
 
-  /// Everything the current view could show, watched or not, by id.
-  private func passing() -> [String: FeedItem] {
-    let source: [FeedItem]
-    if let selectedChannel {
-      source = channelItems(selectedChannel) ?? []
-    } else {
-      source = Array(items.values)
-    }
-    var shown: [String: FeedItem] = [:]
-    for item in source where matchesMode(item) {
+  /// Everything the current view could show, watched or not.
+  private func passing() -> [FeedItem] {
+    items.values.filter { item in
+      guard selectedChannel == nil || item.channelId == selectedChannel, matchesMode(item)
+      else { return false }
       let filter = compiled[item.channelId]
       if selectedChannel == nil && filter?.enabled != true {
-        continue
+        return false
+      } else if let filter {
+        return itemPassesFilter(item, filter)
+      } else {
+        return true
       }
-      if let filter, !itemPassesFilter(item, filter) {
-        continue
-      }
-      shown[item.id] = item
     }
-    return shown
   }
 
-  /// A channel's items of the kind it shows, or nil if they weren't fetched.
-  private func channelItems(_ channelId: String) -> [FeedItem]? {
-    guard fetched.contains(ChannelKind(channelId: channelId, mode: mode(channelId))) else {
-      return nil
-    }
-    return items.values.filter { $0.channelId == channelId && matchesMode($0) }
-  }
-
-  /// Show what passes now, newest first.
+  /// Work out what the page shows, both rows' topic chips, the unwatched
+  /// counts and the channels the channel lists' chips keep.
   private func rebuild() {
-    order = feedOrder(
-      passing().values, watched: watched, hideWatched: hideWatched, justWatched: justWatched)
+    let beforeChips = modeFiltered(
+      passing(), mode: watchedMode, watched: watched, staying: staying)
+    topicChips = chipRow(beforeChips, selected: settings.topicChips)
+    shown = sortFeed(
+      chipFiltered(
+        beforeChips, timeChip: settings.timeChip, topicChips: settings.topicChips, now: chipClock),
+      by: settings.feedSort, seed: shuffleSeed)
+    let listed = listedItems(items.values, filters: compiled, modes: modes)
+    var counts: [String: Int] = [:]
+    for item in listed where !watched.contains(item.id) {
+      counts[item.channelId, default: 0] += 1
+    }
+    unwatchedByChannel = counts
+    channelTopicChips = chipRow(listed, selected: settings.channelTopicChips)
+    chipChannels = chipKeptChannels(
+      listed, timeChip: settings.channelTimeChip, topicChips: settings.channelTopicChips,
+      now: chipClock)
+    holdChannels()
+    #if os(iOS)
+      // a card that left the list stops playing
+      if let playing = player?.item.id, !shown.contains(where: { $0.id == playing }) {
+        player = nil
+      }
+    #endif
   }
 
   private func viewChanged() {
+    #if os(iOS)
+      // a card plays in its list; another page is another list
+      player = nil
+    #endif
     rebuild()
-    if let selectedChannel, isOnDemand(selectedChannel) {
-      Task { await loadChannel(selectedChannel) }
+    if let selectedChannel {
+      fetchIfMissing(selectedChannel)
     }
   }
 
@@ -219,15 +366,55 @@ final class FeedModel {
     Task { await load() }
   }
 
-  private func applyWatched(_ batch: [FeedItem]) async {
-    let marked = await store.watchedAmong(batch.map(\.id))
-    for item in batch {
-      if marked.contains(item.id) {
-        watched.insert(item.id)
-      } else {
-        watched.remove(item.id)
-      }
+  /// Put what `entries` holds for one item into `watched` and `bars`; says
+  /// whether it is watched.
+  @discardableResult
+  private func readEntry(_ id: String, durationSeconds: Double) -> Bool {
+    let entry = entries[id]
+    let isWatchedNow = isWatched(entry, durationSeconds: durationSeconds)
+    if isWatchedNow {
+      watched.insert(id)
+    } else {
+      watched.remove(id)
     }
+    bars[id] = progressFraction(entry, durationSeconds: durationSeconds)
+    return isWatchedNow
+  }
+
+  /// Read the synced watched state of a batch of items. An entry edited
+  /// here while the store was asked keeps the edit.
+  private func applyEntries(_ batch: [FeedItem]) async {
+    let asked = editSerial
+    let ids = batch.map(\.id)
+    let stored = offline ? entries : await read { await $0.watchedEntries(ids) }
+    for item in batch {
+      if (editedAt[item.id] ?? 0) <= asked {
+        entries[item.id] = stored[item.id]
+      }
+      readEntry(item.id, durationSeconds: Double(item.durationSeconds))
+    }
+  }
+
+  private func edit(_ id: String, _ change: (WatchedEntry?, Int64) -> WatchedEntry) {
+    editSerial += 1
+    editedAt[id] = editSerial
+    entries[id] = change(entries[id], epochMilliseconds())
+  }
+
+  /// Show an item's entry as just saved; one that changed sides stays on
+  /// screen.
+  private func entryChanged(_ id: String, durationSeconds: Double) {
+    let wasWatched = watched.contains(id)
+    if readEntry(id, durationSeconds: durationSeconds) != wasWatched {
+      staying.insert(id)
+      rebuild()
+    }
+  }
+
+  /// The length of a loaded video, in seconds; 0 when it isn't loaded or has
+  /// none.
+  private func length(of id: String) -> Double {
+    Double(items[id]?.durationSeconds ?? 0)
   }
 
   /// Load everything: channels, filters, watched marks and every enabled
@@ -242,40 +429,102 @@ final class FeedModel {
     await load(items: false)
   }
 
+  /// Fetch the items of the channels that are on, and of no others, ahead of
+  /// the first full load. What an earlier call fetched or is fetching for a
+  /// channel still on is kept, with the Shorts list added when its filter
+  /// has come to need it.
+  func prefetchEnabled() {
+    guard !offline else { return }
+    let prefetch =
+      setupPrefetch
+      ?? Prefetch(
+        fetchAll: { [weak self] channel in
+          guard let self else { throw CancellationError() }
+          return try await self.fetchItems(channel)
+        },
+        addShorts: { [weak self] channel, have in
+          guard let self else { throw CancellationError() }
+          return try await self.addShorts(channel, have)
+        })
+    setupPrefetch = prefetch
+    let wanted = channels.filter(\.enabled)
+    prefetchCall = Task { [earlier = prefetchCall] in
+      await earlier?.value
+      await prefetch.fetchOnly(wanted)
+    }
+  }
+
   private func load(items wantsItems: Bool) async {
     guard !loading, !offline else { return }
     loading = true
+    loadProgress = wantsItems ? loadFraction(finished: 0, total: nil) : nil
     error = nil
     defer {
       loading = false
+      loadProgress = nil
       editsDuringLoad = [:]
       if wantsItems {
         lastLoadedAt = Date()
       }
     }
-    let sink = FeedLoadSink(channels: { [weak self] loaded in await self?.receiveChannels(loaded) })
+    let sink = FeedLoadSink(
+      channels: { [weak self] loaded in await self?.receiveChannels(loaded) },
+      progress: { [weak self] finished, total in
+        await self?.receiveProgress(finished: finished, total: total)
+      })
+    let prefetched = wantsItems ? setupPrefetch : nil
+    if wantsItems {
+      setupPrefetch = nil
+      await prefetchCall?.value
+      prefetchCall = nil
+    }
     do {
       let result = try await loadFeed(
-        tokens: auth, store: store, probe: probe.function, sink: sink, items: wantsItems)
-      await applyWatched(result.items)
+        tokens: auth, store: store, probe: probe.function, sink: sink, items: wantsItems,
+        prefetched: prefetched)
+      let fresh = result.fetched.values.flatMap(\.items)
+      let settingsAsked = settingEdits
+      let synced = await read { await $0.settings() }
+      if settingEdits == settingsAsked {
+        settings = synced
+      }
+      await applyEntries(fresh)
+      subscribedIds = Set(result.subscriptions.map(\.channelId))
+      channels = keepingEdits(result.channels, edits: editsDuringLoad)
       if wantsItems {
-        let loadedIds = Set(result.fetched.map(\.channelId))
         // what the load didn't fetch (channels off, failed or added meanwhile) stays
-        var kept = items.filter { !loadedIds.contains($0.value.channelId) }
-        for item in result.items {
+        var kept = items.filter { result.fetched[$0.value.channelId] == nil }
+        for item in fresh {
           kept[item.id] = item
         }
         items = kept
-        fetched = fetched.filter { !loadedIds.contains($0.channelId) }
-          .union(result.fetched.map { ChannelKind(channelId: $0.channelId, mode: $0.contentMode) })
-        notice = result.failed.isEmpty ? nil : Strings.partialLoad
-        justWatched = []
+        for (channelId, got) in result.fetched {
+          fetched[channelId] = nil
+          markFetched(channelId, got)
+        }
+        for channelId in result.failed {
+          // so an edit to it fetches it again
+          fetched[channelId] = nil
+        }
+        if result.dailyLimit {
+          notice = GoogleAPIError.dailyLimit.localizedDescription
+        } else {
+          notice = result.failed.isEmpty ? nil : Strings.partialLoad
+        }
+        shuffleSeed = newShuffleSeed()
+        chipClock = epochMilliseconds()
+        markBeforeStart(fresh)
+        let loadedIds = fresh.map(\.id)
+        write { await $0.noteLoaded(loadedIds) }
+        staying = []
       }
-      subscribedIds = Set(result.subscriptions.map(\.channelId))
-      channels = keepingEdits(result.channels, edits: editsDuringLoad)
       rebuild()
+      if wantsItems {
+        fullLoadShown = true
+        reorderChannels()
+      }
       await refreshSyncTime()
-      if wantsItems, let selectedChannel, isOnDemand(selectedChannel) {
+      if wantsItems, !result.dailyLimit, let selectedChannel, isOnDemand(selectedChannel) {
         // the page of a channel that is off isn't part of the load
         try? await fetchChannel(selectedChannel, again: true)
       }
@@ -285,18 +534,38 @@ final class FeedModel {
     } catch {
       fail(error)
     }
-    if wantsItems {
-      hasLoaded = true
-    }
     let waiting = fetchAfterLoad
     fetchAfterLoad = []
     for channelId in waiting {
-      Task { await loadChannel(channelId) }
+      fetchIfMissing(channelId)
     }
+  }
+
+  /// After setup, mark what was fetched from before its starting point
+  /// watched, as one edit.
+  private func markBeforeStart(_ fresh: [FeedItem]) {
+    let now = epochMilliseconds()
+    let ids = startMarks(
+      fresh, start: takePendingStart(accountId: account.channelId), now: now
+    ).filter { entries[$0]?.watched != true }
+    guard !ids.isEmpty else { return }
+    for id in ids {
+      edit(id) { prior, at in markedEntry(prior, now: at, watched: true) }
+      readEntry(id, durationSeconds: length(of: id))
+    }
+    write { await $0.setWatched(ids, watched: true) }
   }
 
   private func receiveChannels(_ loaded: [ChannelFilter]) {
     channels = keepingEdits(loaded, edits: editsDuringLoad)
+  }
+
+  /// Move the load's bar on; reports arrive out of order, and from the start
+  /// again when the load is retried, so it never moves back.
+  private func receiveProgress(finished: Int, total: Int) {
+    if let shown = loadProgress {
+      loadProgress = max(shown, loadFraction(finished: finished, total: total))
+    }
   }
 
   private func fail(_ caught: Error) {
@@ -324,10 +593,21 @@ final class FeedModel {
     }
   }
 
-  private func fetchItems(_ channel: ChannelFilter) async throws -> [FeedItem] {
+  private func fetchItems(_ channel: ChannelFilter) async throws -> ChannelItems {
     let probe = probe.function
     return try await withToken { token in
       try await fetchChannelItems(channel, client: YouTubeClient(accessToken: token), probe: probe)
+    }
+  }
+
+  private func addShorts(_ channel: ChannelFilter, _ have: ChannelItems) async throws
+    -> ChannelItems
+  {
+    let probe = probe.function
+    return try await withToken { token in
+      try await addShortsMarks(
+        channelId: channel.channelId, to: have, client: YouTubeClient(accessToken: token),
+        probe: probe)
     }
   }
 
@@ -335,6 +615,11 @@ final class FeedModel {
     do {
       try await fetchChannel(channelId)
     } catch {
+      if case GoogleAPIError.dailyLimit = error {
+        // every waiting channel would be refused too
+        refusals += 1
+        fetchAfterLoad = []
+      }
       fail(error)
     }
   }
@@ -357,97 +642,99 @@ final class FeedModel {
     return try await work()
   }
 
-  /// Fetch one channel's items of the kind it shows, unless they're here or
-  /// on their way; `again` fetches them even so.
+  private func markFetched(_ channelId: String, _ got: ChannelItems) {
+    var marks = fetched[channelId] ?? []
+    switch got.mode {
+    case .playlists:
+      marks.insert(.playlists)
+    case .videos:
+      marks.insert(.videos)
+      if got.shorts {
+        marks.insert(.shorts)
+      } else {
+        marks.remove(.shorts)
+      }
+    }
+    fetched[channelId] = marks
+  }
+
+  /// Whether a filter needs something not fetched for its channel: its
+  /// mode's items, or the Shorts list.
+  private func isMissing(_ filter: ChannelFilter) -> Bool {
+    let marks = fetched[filter.channelId] ?? []
+    return !marks.contains(filter.contentMode == .playlists ? .playlists : .videos)
+      || (needsShorts(filter) && !marks.contains(.shorts))
+  }
+
+  /// The uploads held for a channel, as fetched; nil when it has none.
+  private func fetchedUploads(_ channelId: String) -> ChannelItems? {
+    guard let marks = fetched[channelId], marks.contains(.videos) else { return nil }
+    return ChannelItems(
+      mode: .videos, shorts: marks.contains(.shorts),
+      items: items.values.filter { item in
+        if case .video = item { item.channelId == channelId } else { false }
+      })
+  }
+
+  /// Fetch what a channel's filter lacks, unless it's on its way: nothing,
+  /// only the Shorts list, or its items; `again` fetches the items even so.
   private func fetchChannel(_ channelId: String, again: Bool = false) async throws {
     guard !offline else { return }
     let target =
       channel(channelId) ?? ChannelFilter(channelId: channelId, title: channelId, thumbnail: "")
     let kind = ChannelKind(channelId: channelId, mode: target.contentMode)
-    guard again || !fetched.contains(kind), !fetching.contains(kind) else { return }
+    guard again || isMissing(target), !fetching.contains(kind) else { return }
     fetching.insert(kind)
     defer { fetching.remove(kind) }
-    let batch = try await withFetchSlot { try await fetchItems(target) }
-    await applyWatched(batch)
-    let fresh = Set(batch.map(\.id))
+    let refusalsBefore = refusals
+    let got: ChannelItems? = try await withFetchSlot {
+      if refusals != refusalsBefore {
+        return nil
+      } else {
+        return try await completeItems(
+          target, have: again ? nil : fetchedUploads(channelId),
+          fetchAll: { [weak self] channel in
+            guard let self else { throw CancellationError() }
+            return try await self.fetchItems(channel)
+          },
+          addShorts: { [weak self] channel, have in
+            guard let self else { throw CancellationError() }
+            return try await self.addShorts(channel, have)
+          })
+      }
+    }
+    guard let got else { return }
+    await applyEntries(got.items)
+    let fresh = Set(got.items.map(\.id))
     for (id, item) in items where item.channelId == channelId && !fresh.contains(id) {
       let sameKind: Bool
       switch item {
-      case .video: sameKind = target.contentMode == .videos
-      case .playlist: sameKind = target.contentMode == .playlists
+      case .video: sameKind = got.mode == .videos
+      case .playlist: sameKind = got.mode == .playlists
       }
       if sameKind {
         items[id] = nil
       }
     }
-    for item in batch {
+    for item in got.items {
       items[item.id] = item
     }
-    fetched.insert(kind)
+    markFetched(channelId, got)
     rebuild()
+    // the filter may have come to need more while this ran
+    fetchIfMissing(channelId)
   }
 
-  /// Fetch a channel that is shown but whose items are missing; while a load
-  /// runs, once it ends.
+  /// Fetch a channel that is shown but lacks something its filter needs;
+  /// while a load runs, once it ends.
   private func fetchIfMissing(_ channelId: String) {
     guard let filter = channel(channelId), filter.enabled || selectedChannel == channelId,
-      channelItems(channelId) == nil
+      isMissing(filter)
     else { return }
     if loading {
       fetchAfterLoad.insert(channelId)
     } else {
       Task { await loadChannel(channelId) }
-    }
-  }
-
-  /// A channel's newest items for a filter preview, newest first; nil until
-  /// they're fetched with ``loadPreview(_:)``.
-  func previewItems(_ channelId: String) -> [FeedItem]? {
-    channelItems(channelId).map { Array($0.sorted(by: byNewest).prefix(Self.previewLength)) }
-  }
-
-  /// The channels the first run can try a filter on: on, uploads, and not
-  /// keeping only what a pattern matches.
-  var exampleCandidates: [ChannelFilter] {
-    orderedChannels.filter { channel in
-      channel.enabled && channel.contentMode == .videos
-        && (channel.regex.isEmpty || channel.mode == .exclude)
-    }
-  }
-
-  /// The first run's example channel: the candidate with the most Shorts
-  /// among its fetched videos, then the one with the newest upload, then the
-  /// lower channel id.
-  func exampleChannel() -> String? {
-    let ranked = exampleCandidates.map { channel in
-      let fetched = channelItems(channel.channelId) ?? []
-      let shorts = fetched.count {
-        if case .video(let video) = $0 { video.isShort == true } else { false }
-      }
-      let newest = fetched.map(\.publishedAt).max() ?? ""
-      return (channelId: channel.channelId, shorts: shorts, newest: newest)
-    }
-    let best = ranked.max { left, right in
-      if left.shorts != right.shorts {
-        return left.shorts < right.shorts
-      } else if left.newest != right.newest {
-        return left.newest.utf8.lexicographicallyPrecedes(right.newest.utf8)
-      } else {
-        return right.channelId.utf8.lexicographicallyPrecedes(left.channelId.utf8)
-      }
-    }
-    return best?.channelId
-  }
-
-  /// Make sure ``previewItems(_:)`` has something for the channel.
-  func loadPreview(_ channelId: String) async {
-    guard previewItems(channelId) == nil else { return }
-    previewFailed.remove(channelId)
-    do {
-      try await fetchChannel(channelId)
-    } catch {
-      appLog.error("filter preview failed: \(String(describing: error), privacy: .public)")
-      previewFailed.insert(channelId)
     }
   }
 
@@ -459,14 +746,14 @@ final class FeedModel {
     if loading {
       editsDuringLoad[filter.channelId] = filter
     }
-    Task { await store.setFilter(filter) }
-    justWatched = []
+    write { await $0.setFilter(filter) }
+    staying = []
     rebuild()
     fetchIfMissing(filter.channelId)
   }
 
   /// Save several filters as one edit, fetching nothing; the first run
-  /// follows it with a full load.
+  /// fetches through ``prefetchEnabled()``.
   func saveFilters(_ filters: [ChannelFilter]) {
     guard !filters.isEmpty else { return }
     let edited = Dictionary(filters.map { ($0.channelId, $0) }) { _, last in last }
@@ -474,77 +761,155 @@ final class FeedModel {
     if loading {
       editsDuringLoad.merge(edited) { _, new in new }
     }
-    Task { await store.setFilters(filters) }
-    justWatched = []
+    write { await $0.setFilters(filters) }
+    staying = []
     rebuild()
   }
 
-  func toggleWatched(_ item: FeedItem) {
-    setWatched(item.id, !watched.contains(item.id))
+  private func saveSetting(_ name: SettingName, _ value: JSONValue) {
+    settingEdits += 1
+    chipClock = epochMilliseconds()
+    write { await $0.setSetting(name, value: value) }
+    rebuild()
   }
 
-  /// The player marks each video as you leave it.
+  /// Order the feed, here at once and on every device through Drive.
+  func setFeedSort(_ sort: FeedSort) {
+    settings.feedSort = sort
+    saveSetting(.feedSort, .string(sort.rawValue))
+  }
+
+  /// Order the channel lists.
+  func setChannelSort(_ sort: ChannelSort) {
+    settings.channelSort = sort
+    saveSetting(.channelSort, .string(sort.rawValue))
+    reorderChannels()
+  }
+
+  /// Turn auto-play on or off.
+  func setAutoplay(_ isOn: Bool) {
+    settings.autoplay = isOn
+    saveSetting(.autoplay, .bool(isOn))
+  }
+
+  /// Choose how far back the feed reaches.
+  func setTimeChip(_ timeChip: TimeChip) {
+    settings.timeChip = timeChip
+    staying = []
+    saveSetting(.timeChip, .string(timeChip.rawValue))
+  }
+
+  /// `selected` with a category id taken out, or added at the end.
+  private func toggled(_ categoryId: String, in selected: [String]) -> [String] {
+    if selected.contains(categoryId) {
+      return selected.filter { $0 != categoryId }
+    } else {
+      return selected + [categoryId]
+    }
+  }
+
+  private func setTopicChips(_ categoryIds: [String]) {
+    settings.topicChips = categoryIds
+    staying = []
+    saveSetting(.topicChips, .array(categoryIds.map(JSONValue.string)))
+  }
+
+  /// Select a topic chip by its category id, or deselect it.
+  func toggleTopicChip(_ categoryId: String) {
+    setTopicChips(toggled(categoryId, in: settings.topicChips))
+  }
+
+  /// Deselect every topic chip.
+  func clearTopicChips() {
+    setTopicChips([])
+  }
+
+  /// Choose how far back the channel lists reach.
+  func setChannelTimeChip(_ timeChip: TimeChip) {
+    settings.channelTimeChip = timeChip
+    saveSetting(.channelTimeChip, .string(timeChip.rawValue))
+    reorderChannels()
+  }
+
+  private func setChannelTopicChips(_ categoryIds: [String]) {
+    settings.channelTopicChips = categoryIds
+    saveSetting(.channelTopicChips, .array(categoryIds.map(JSONValue.string)))
+    reorderChannels()
+  }
+
+  /// Select one of the channel lists' topic chips by its category id, or
+  /// deselect it.
+  func toggleChannelTopicChip(_ categoryId: String) {
+    setChannelTopicChips(toggled(categoryId, in: settings.channelTopicChips))
+  }
+
+  /// Deselect every one of the channel lists' topic chips.
+  func clearChannelTopicChips() {
+    setChannelTopicChips([])
+  }
+
+  /// List unwatched items, watched ones, or both.
+  func setWatchedMode(_ mode: WatchedMode) {
+    watchedMode = mode
+    staying = []
+    rebuild()
+  }
+
+  /// Mark a video or playlist watched, keeping a video's position.
   func markWatched(_ id: String) {
-    if !watched.contains(id) {
-      setWatched(id, true)
-    }
+    edit(id) { prior, at in markedEntry(prior, now: at, watched: true) }
+    write { await $0.setWatched([id], watched: true) }
+    entryChanged(id, durationSeconds: length(of: id))
   }
 
-  /// Take a watched mark off.
-  func unmarkWatched(_ id: String) {
-    if watched.contains(id) {
-      setWatched(id, false)
-    }
-  }
-
-  private func setWatched(_ id: String, _ isWatched: Bool) {
-    if isWatched {
-      watched.insert(id)
-      justWatched.insert(id)
-    } else {
-      watched.remove(id)
-    }
-    Task { await store.setWatched(id, watched: isWatched) }
-  }
-
-  /// The cards the channel's page shows, or would show if it were open.
-  private func shownFor(_ channelId: String) -> [FeedItem] {
-    if selectedChannel == channelId {
-      return shown
-    } else {
-      guard let filter = compiled[channelId] else { return [] }
-      return (channelItems(channelId) ?? []).filter {
-        itemPassesFilter($0, filter) && (!hideWatched || !watched.contains($0.id))
+  /// Save how far a video has been played: `position` of `playerDuration`
+  /// seconds, and whether the player reported the end. It is always kept on
+  /// this device; `upload` says when Drive gets it.
+  func recordProgress(
+    _ id: String, position: Double, playerDuration: Double, ended: Bool, upload: ProgressUpload
+  ) {
+    let whole = position.isFinite ? max(0, Int(position.rounded(.down))) : 0
+    edit(id) { prior, at in playedEntry(prior, now: at, position: whole, ended: ended) }
+    write { store in
+      await store.setProgress(id, position: whole, ended: ended, upload: upload != .later)
+      if upload == .now {
+        try? await store.flush()
       }
     }
+    let known = length(of: id)
+    entryChanged(id, durationSeconds: known > 0 ? known : playerDuration)
   }
 
-  /// What the channel's "mark all" button would do now.
-  func markAllChoice(_ channelId: String) -> MarkAll {
-    markAll(shown: shownFor(channelId), watched: watched)
+  /// Where a video starts when opened, in seconds.
+  func resumeAt(_ id: String) -> Double {
+    resumePosition(entries[id], durationSeconds: length(of: id))
   }
 
-  /// Mark the channel's shown cards watched, or unwatched when all of them
-  /// already are. Like a single mark, the cards stay where they are.
-  func applyMarkAll(_ channelId: String) {
-    switch markAllChoice(channelId) {
-    case .watched(let ids):
-      watched.formUnion(ids)
-      justWatched.formUnion(ids)
-      Task { await store.setWatched(ids, watched: true) }
-    case .unwatched(let ids):
-      watched.subtract(ids)
-      Task { await store.setWatched(ids, watched: false) }
+  /// What auto-play plays after `endedId` on this page; nil when it doesn't
+  /// move on.
+  func autoplayNext(after endedId: String) -> FeedItem? {
+    if settings.autoplay && autoplayAdvances(watchedMode) {
+      nextUnwatched(shown, after: endedId, watched: watched)
+    } else {
+      nil
     }
   }
 
-  /// The item with this id, if the feed or a channel page has it.
-  func item(_ id: String) -> FeedItem? {
-    items[id]
+  /// Play a card; whatever was playing stops and saves its position.
+  func open(_ item: FeedItem) {
+    player = PlayerSession(item, feed: self, startAt: resumeAt(item.id))
   }
 
-  func open(_ item: FeedItem) {
-    player = PlayerSession(item, feed: self)
+  /// The playing item is over: auto-play's next item takes its place.
+  func playbackEnded(_ session: PlayerSession) {
+    guard player === session else { return }
+    if let next = autoplayNext(after: session.item.id) {
+      open(next)
+    } else {
+      #if os(iOS)
+        player = nil
+      #endif
+    }
   }
 
   /// Ask Google for the account's name and address, once.
@@ -570,7 +935,14 @@ final class FeedModel {
 
   /// Upload edits still waiting out the pause.
   func flush() async {
-    try? await store.flush()
+    guard !offline else { return }
+    await read { _ = try? await $0.flush() }
+  }
+
+  /// The app is leaving the foreground: save what is playing and upload.
+  func leftForeground() async {
+    player?.save(upload: .now)
+    await flush()
   }
 }
 
@@ -578,6 +950,14 @@ final class FeedModel {
 private struct ChannelKind: Hashable {
   let channelId: String
   let mode: ContentMode
+}
+
+/// What a channel's items have been fetched as.
+private enum FetchMark {
+  case videos
+  case playlists
+  /// The Shorts list was read for the uploads.
+  case shorts
 }
 
 #if DEBUG
@@ -595,7 +975,8 @@ private struct ChannelKind: Hashable {
           channelId: "UC\(name)", title: "Channel \(name)", thumbnail: "")
         switch name {
         case "One":
-          channel.regex = #"Episode \d+"#
+          channel.regex = phrasesToPattern(["Episode", "Q&A"])
+          channel.topics = ["26"]
         case "Two": channel.shortsFilter = .normal
         case "Four": channel.contentMode = .playlists
         case "Five": channel.minDurationSeconds = 60
@@ -607,23 +988,26 @@ private struct ChannelKind: Hashable {
         return channel
       }
       feed.subscribedIds = Set(names.filter { $0 != "Eight" }.map { "UC\($0)" })
-      let rows: [(String, String, Int, Int, Bool, String)] = [
-        ("Woodworking Basics — Episode 12", "One", 1122, 24, true, ""),
-        ("Weekly Q&A, September (replay)", "Two", 3735, 25, true, ""),
-        ("Building a Shop Cart", "Three", 1450, 26, false, ""),
-        ("Woodworking Basics — Episode 13", "One", 1267, 27, false, ""),
-        ("Garden Projects 2026", "Four", 14, 28, false, "playlist"),
-        ("Sharpening Without a Jig", "Five", 598, 29, false, ""),
-        ("Quick tip: clamping odd shapes", "Two", 48, 30, false, "short"),
-        ("Kitchen Remodel, Part 4", "Six", 1964, 31, false, ""),
-        ("Trip Notes: Lake Day", "Three", 920, 32, false, ""),
-        ("Woodworking Basics — Episode 14", "One", 1195, 33, false, ""),
-        ("Tool Review: Block Planes", "Five", 1651, 34, false, ""),
-        ("Night Sky, October", "Seven", 668, 35, false, ""),
-        ("Shop update and Q&A", "One", 4360, 20, false, ""),
+      // title, channel, seconds (or a playlist's video count), day counted
+      // from 1 September 2026, watched, kind, category id, seconds played;
+      // the same entries as Android's demo, so screenshots compare
+      let rows: [(String, String, Int, Int, Bool, String, String, Int)] = [
+        ("Woodworking Basics — Episode 12", "One", 1122, 24, true, "", "26", 0),
+        ("Weekly Q&A, September (replay)", "Two", 3735, 25, true, "", "26", 0),
+        ("Building a Shop Cart", "Three", 1450, 26, false, "", "26", 1100),
+        ("Woodworking Basics — Episode 13", "One", 1267, 27, false, "", "26", 0),
+        ("Garden Projects 2026", "Four", 14, 28, false, "playlist", "", 0),
+        ("Sharpening Without a Jig", "Five", 598, 29, false, "", "27", 0),
+        ("Quick tip: clamping odd shapes", "Two", 48, 30, false, "short", "26", 0),
+        ("Kitchen Remodel, Part 4", "Six", 1964, 31, false, "", "26", 0),
+        ("Trip Notes: Lake Day", "Three", 920, 32, false, "", "19", 0),
+        ("Woodworking Basics — Episode 14", "One", 1195, 33, false, "", "26", 420),
+        ("Tool Review: Block Planes", "Five", 1651, 34, false, "", "28", 200),
+        ("Night Sky, October", "Seven", 668, 35, false, "", "28", 0),
+        ("Shop update and Q&A", "One", 4360, 20, false, "", "26", 0),
       ]
       for (index, row) in rows.enumerated() {
-        let (title, channel, seconds, day, watched, kind) = row
+        let (title, channel, seconds, day, watched, kind, category, played) = row
         let date = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: day))!
         let publishedAt = date.formatted(.iso8601)
         let id = "demo\(index)"
@@ -639,30 +1023,66 @@ private struct ChannelKind: Hashable {
             Video(
               videoId: id, channelId: "UC\(channel)", channelTitle: "Channel \(channel)",
               title: title, description: "", publishedAt: publishedAt, thumbnail: "",
-              durationSeconds: seconds, liveStatus: .normal, isShort: kind == "short"))
+              durationSeconds: seconds, liveStatus: .normal, isShort: kind == "short",
+              categoryId: category))
         }
         feed.items[id] = item
         if watched {
-          feed.watched.insert(id)
+          feed.entries[id] = WatchedEntry(at: 0, watched: true)
+        } else if played > 0 {
+          feed.entries[id] = playedEntry(nil, now: 0, position: played, ended: false)
         }
+        feed.readEntry(id, durationSeconds: Double(item.durationSeconds))
       }
-      feed.hideWatched = false
-      feed.fetched = Set(
-        feed.channels.map { ChannelKind(channelId: $0.channelId, mode: $0.contentMode) })
-      feed.hasLoaded = true
+      feed.watchedMode = CommandLine.arguments.contains("-unwatched") ? .unwatched : .all
+      for channel in feed.channels {
+        feed.fetched[channel.channelId] =
+          channel.contentMode == .playlists ? [.playlists] : [.videos, .shorts]
+      }
       if CommandLine.arguments.contains("-empty") {
         feed.items = [:]
       }
+      if let span = debugArgument("channelTime").flatMap(TimeChip.init(rawValue:)) {
+        feed.settings.channelTimeChip = span
+      }
+      if let topics = debugArgument("channelTopics") {
+        feed.settings.channelTopicChips = topics.split(separator: ",").map(String.init)
+      }
       feed.rebuild()
+      feed.fullLoadShown = true
+      feed.reorderChannels()
       feed.loading = CommandLine.arguments.contains("-loading")
+      if feed.loading {
+        feed.loadProgress = loadFraction(finished: 3, total: feed.channels.count)
+      }
       return feed
     }
 
-    /// Open the player on the demo feed's first unwatched card.
-    func demoPlay() {
-      if let first = shown.first(where: { !watched.contains($0.id) }) {
+    /// Open the player on the demo feed's first unwatched video; with
+    /// `videoId` that card plays the real video of that id.
+    func demoPlay(videoId: String? = nil) {
+      let unwatched = shown.filter { !watched.contains($0.id) }
+      if let videoId, let card = unwatched.first(where: { $0.durationSeconds > 60 }),
+        case .video(var video) = card
+      {
+        items[card.id] = nil
+        entries[card.id] = nil
+        video.videoId = videoId
+        items[videoId] = .video(video)
+        rebuild()
+        open(.video(video))
+      } else if let first = unwatched.first {
         open(first)
       }
+    }
+  }
+
+  /// The value of a `-name:value` launch argument. Values ride in the same
+  /// argument because macOS opens any bare argument as a file, which keeps
+  /// the main window from opening.
+  func debugArgument(_ name: String) -> String? {
+    CommandLine.arguments.first { $0.hasPrefix("-\(name):") }.map {
+      String($0.dropFirst(name.count + 2))
     }
   }
 #endif
