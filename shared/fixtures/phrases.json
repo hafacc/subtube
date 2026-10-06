@@ -1,0 +1,797 @@
+{
+  "description": "Turning the phrases a user types into a filter pattern, and a saved pattern back into phrases. The saved filter still holds only `regex` (shared/patterns/README.md); this is how an editor fills it. `op` `build`: `phrases` as typed give `pattern`. Each phrase: (1) cut whitespace from both ends, where whitespace is exactly the pattern language's `\\s` set (U+0009-U+000D, U+0020, U+0085, U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000), and drop the phrase if nothing is left; (2) read it code point by code point: every run of whitespace becomes `\\s+`, each of `\\ ^ $ . | ? * + ( ) [ ] { }` gets a `\\` before it, and every other character stands for itself; (3) put `\\b` before it when its first character is a word character (`A-Z a-z 0-9 _`, the pattern language's `\\w`) and `\\b` after it when its last one is, so a phrase is found only as whole words while one that begins or ends with anything else (`C++`, `#shorts`, `café`) still matches. Drop a phrase whose result equals an earlier one's (so phrases differing only in their whitespace are one, and phrases differing in case are two), then join the results with `|`; no phrases give the empty pattern. Every result is a valid pattern. `canonical` is what `pattern` reads back as, and `matches` what it finds, as in shared/fixtures/patterns.json (shared/tools/cross-engine.ts runs these through all three engines too). `op` `parse`: `pattern` read back into `expected`, a list of phrases, or null when it is not phrases. Reading succeeds exactly for the patterns building can produce: split at each `|` that is not escaped, take off a leading and a trailing `\\b`, turn each `\\s+` into one space (U+0020) and each `\\` + one of the fourteen characters above into that character, and accept the list only if building it again gives the very same pattern; anything else (other escapes, an unescaped special character, a missing or extra `\\b`, a literal whitespace character, an empty alternative, a repeat) is not phrases, and an editor shows that pattern whole. Building what was read back gives the same pattern again.",
+  "cases": [
+    {
+      "name": "build: one word is found as a whole word",
+      "op": "build",
+      "phrases": [
+        "trailer"
+      ],
+      "pattern": "\\btrailer\\b",
+      "canonical": [
+        "trailer"
+      ],
+      "matches": [
+        {
+          "text": "Official Trailer",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "Official Trailer",
+          "caseSensitive": true,
+          "matches": false
+        },
+        {
+          "text": "trailers",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "subtrailer",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "re-trailer!",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "build: whitespace at the ends is cut",
+      "op": "build",
+      "phrases": [
+        "  live stream \t"
+      ],
+      "pattern": "\\blive\\s+stream\\b",
+      "canonical": [
+        "live stream"
+      ],
+      "matches": [
+        {
+          "text": "Live Stream tonight",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "live   stream",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "live\tstream",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "live stream",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "livestream",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "live streams",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: a run of any whitespace inside is one \\s+",
+      "op": "build",
+      "phrases": [
+        "live \t  stream"
+      ],
+      "pattern": "\\blive\\s+stream\\b",
+      "canonical": [
+        "live stream"
+      ],
+      "matches": [
+        {
+          "text": "LIVE STREAM",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "LIVE STREAM",
+          "caseSensitive": true,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: no-break and ideographic spaces at the ends are cut",
+      "op": "build",
+      "phrases": [
+        " deal　"
+      ],
+      "pattern": "\\bdeal\\b",
+      "canonical": [
+        "deal"
+      ],
+      "matches": [
+        {
+          "text": "Big deal.",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "ideal",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: a zero-width space is not whitespace",
+      "op": "build",
+      "phrases": [
+        "a​b"
+      ],
+      "pattern": "\\ba​b\\b",
+      "canonical": [
+        "a​b"
+      ],
+      "matches": [
+        {
+          "text": "a​b",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "a b",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "ab",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: no \\b after an end that is not a word character",
+      "op": "build",
+      "phrases": [
+        "C++"
+      ],
+      "pattern": "\\bC\\+\\+",
+      "canonical": [
+        "C++"
+      ],
+      "matches": [
+        {
+          "text": "Learn C++ fast",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "c++20",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "ABC++",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "C+",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: no \\b before a start that is not a word character",
+      "op": "build",
+      "phrases": [
+        "#shorts"
+      ],
+      "pattern": "#shorts\\b",
+      "canonical": [
+        "#shorts"
+      ],
+      "matches": [
+        {
+          "text": "Fun #Shorts",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "my#shorts",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "#shortsy",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: neither end a word character",
+      "op": "build",
+      "phrases": [
+        "(live)"
+      ],
+      "pattern": "\\(live\\)",
+      "canonical": [
+        "(live)"
+      ],
+      "matches": [
+        {
+          "text": "Concert (LIVE)",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "x(live)y",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "live",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: every special character is escaped",
+      "op": "build",
+      "phrases": [
+        "\\^$.|?*+()[]{}"
+      ],
+      "pattern": "\\\\\\^\\$\\.\\|\\?\\*\\+\\(\\)\\[\\]\\{\\}",
+      "canonical": [
+        "\\^$.|?*+()[]{}"
+      ],
+      "matches": [
+        {
+          "text": "x\\^$.|?*+()[]{}x",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "^$.|?*+()[]{}",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: special characters inside a word",
+      "op": "build",
+      "phrases": [
+        "a.b|c"
+      ],
+      "pattern": "\\ba\\.b\\|c\\b",
+      "canonical": [
+        "a.b|c"
+      ],
+      "matches": [
+        {
+          "text": "A.B|C",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "axb|c",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "a.b",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "c",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: other punctuation stands for itself",
+      "op": "build",
+      "phrases": [
+        "/r/videos",
+        "Q&A",
+        "-",
+        "50% off!"
+      ],
+      "pattern": "/r/videos\\b|\\bQ&A\\b|-|\\b50%\\s+off!",
+      "canonical": [
+        "/r/videos",
+        "Q&A",
+        "-",
+        "50% off!"
+      ],
+      "matches": [
+        {
+          "text": "see /r/videos",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "q&a time",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "Q&As",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "a-b",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "50%  OFF!!",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "150% off!",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "plain",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: digits and underscores are word characters",
+      "op": "build",
+      "phrases": [
+        "snake_case",
+        "v2"
+      ],
+      "pattern": "\\bsnake_case\\b|\\bv2\\b",
+      "canonical": [
+        "snake_case",
+        "v2"
+      ],
+      "matches": [
+        {
+          "text": "V2 is out",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "v20",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "my_snake_case",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "snake_case!",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "build: a non-ASCII letter at an end gets no \\b",
+      "op": "build",
+      "phrases": [
+        "café"
+      ],
+      "pattern": "\\bcafé",
+      "canonical": [
+        "café"
+      ],
+      "matches": [
+        {
+          "text": "Café society",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "cafés",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "CAFÉ",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "mycafé",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: a phrase with no word characters",
+      "op": "build",
+      "phrases": [
+        "日本語",
+        "😀 fun"
+      ],
+      "pattern": "日本語|😀\\s+fun\\b",
+      "canonical": [
+        "日本語",
+        "😀 fun"
+      ],
+      "matches": [
+        {
+          "text": "これは日本語です",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "😀  Fun",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "😀 funny",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: several phrases are alternatives, in order",
+      "op": "build",
+      "phrases": [
+        "trailer",
+        "teaser",
+        "behind the scenes"
+      ],
+      "pattern": "\\btrailer\\b|\\bteaser\\b|\\bbehind\\s+the\\s+scenes\\b",
+      "canonical": [
+        "trailer",
+        "teaser",
+        "behind the scenes"
+      ],
+      "matches": [
+        {
+          "text": "Teaser #2",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "Behind  the Scenes",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "behind the scene",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "Full episode",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: empty phrases and repeats are dropped, the first of each kept",
+      "op": "build",
+      "phrases": [
+        "",
+        "  ",
+        "foo",
+        "foo",
+        " foo ",
+        "Foo",
+        "a  b",
+        "a b",
+        "\t"
+      ],
+      "pattern": "\\bfoo\\b|\\bFoo\\b|\\ba\\s+b\\b",
+      "canonical": [
+        "foo",
+        "Foo",
+        "a b"
+      ],
+      "matches": [
+        {
+          "text": "FOO",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "a\nb",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "ab",
+          "caseSensitive": false,
+          "matches": false
+        }
+      ]
+    },
+    {
+      "name": "build: no phrases give the empty pattern",
+      "op": "build",
+      "phrases": [],
+      "pattern": "",
+      "canonical": [],
+      "matches": [
+        {
+          "text": "anything",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "build: only empty phrases give the empty pattern",
+      "op": "build",
+      "phrases": [
+        "",
+        "   "
+      ],
+      "pattern": "",
+      "canonical": [],
+      "matches": []
+    },
+    {
+      "name": "build: a phrase ending in a backslash before another phrase",
+      "op": "build",
+      "phrases": [
+        "a\\",
+        "b"
+      ],
+      "pattern": "\\ba\\\\|\\bb\\b",
+      "canonical": [
+        "a\\",
+        "b"
+      ],
+      "matches": [
+        {
+          "text": "A\\",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "b",
+          "caseSensitive": false,
+          "matches": true
+        },
+        {
+          "text": "a",
+          "caseSensitive": false,
+          "matches": false
+        },
+        {
+          "text": "a|b",
+          "caseSensitive": false,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "name": "parse: the empty pattern is no phrases",
+      "op": "parse",
+      "pattern": "",
+      "expected": []
+    },
+    {
+      "name": "parse: phrases differing in case are two",
+      "op": "parse",
+      "pattern": "\\bFoo\\b|\\bfoo\\b",
+      "expected": [
+        "Foo",
+        "foo"
+      ]
+    },
+    {
+      "name": "parse: an escaped | is part of a phrase",
+      "op": "parse",
+      "pattern": "\\ba\\|b\\b",
+      "expected": [
+        "a|b"
+      ]
+    },
+    {
+      "name": "parse: \\s+ reads as one space",
+      "op": "parse",
+      "pattern": "\\bnew\\s+york\\s+city\\b",
+      "expected": [
+        "new york city"
+      ]
+    },
+    {
+      "name": "parse: a word without its \\b is not phrases",
+      "op": "parse",
+      "pattern": "trailer",
+      "expected": null
+    },
+    {
+      "name": "parse: a missing trailing \\b",
+      "op": "parse",
+      "pattern": "\\btrailer",
+      "expected": null
+    },
+    {
+      "name": "parse: a missing leading \\b",
+      "op": "parse",
+      "pattern": "trailer\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a \\b beside a character that is not a word character",
+      "op": "parse",
+      "pattern": "\\bC\\+\\+\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a \\b in the middle",
+      "op": "parse",
+      "pattern": "\\bfoo\\bbar\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a doubled \\b",
+      "op": "parse",
+      "pattern": "\\b\\bfoo\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: \\B",
+      "op": "parse",
+      "pattern": "\\Bfoo\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a literal space",
+      "op": "parse",
+      "pattern": "\\blive stream\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: \\s without +",
+      "op": "parse",
+      "pattern": "\\blive\\sstream\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: \\s with another quantifier",
+      "op": "parse",
+      "pattern": "\\blive\\s*stream\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a lazy \\s+",
+      "op": "parse",
+      "pattern": "\\blive\\s+?stream\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: \\s+ twice in a row",
+      "op": "parse",
+      "pattern": "\\bfoo\\s+\\s+bar\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: \\s+ at the start",
+      "op": "parse",
+      "pattern": "\\s+foo\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: \\s+ at the end",
+      "op": "parse",
+      "pattern": "\\bfoo\\s+",
+      "expected": null
+    },
+    {
+      "name": "parse: a repeated phrase",
+      "op": "parse",
+      "pattern": "\\bfoo\\b|\\bfoo\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: an empty alternative at the end",
+      "op": "parse",
+      "pattern": "\\bfoo\\b|",
+      "expected": null
+    },
+    {
+      "name": "parse: an empty alternative at the start",
+      "op": "parse",
+      "pattern": "|\\bfoo\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: only a |",
+      "op": "parse",
+      "pattern": "|",
+      "expected": null
+    },
+    {
+      "name": "parse: a group",
+      "op": "parse",
+      "pattern": "(ep|episode) ?\\d+",
+      "expected": null
+    },
+    {
+      "name": "parse: a set",
+      "op": "parse",
+      "pattern": "\\bgr[ae]y\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: an unescaped dot",
+      "op": "parse",
+      "pattern": "\\bfoo.bar\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a quantifier",
+      "op": "parse",
+      "pattern": "\\bfoo+\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: an anchor",
+      "op": "parse",
+      "pattern": "^\\bfoo\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: an end anchor",
+      "op": "parse",
+      "pattern": "\\bfoo\\b$",
+      "expected": null
+    },
+    {
+      "name": "parse: an escape building never writes",
+      "op": "parse",
+      "pattern": "\\bfoo\\/bar\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a shorthand class",
+      "op": "parse",
+      "pattern": "\\bep\\d\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: an escaped tab",
+      "op": "parse",
+      "pattern": "\\bfoo\\tbar\\b",
+      "expected": null
+    },
+    {
+      "name": "parse: a pattern that is not valid at all",
+      "op": "parse",
+      "pattern": "\\bfoo(",
+      "expected": null
+    },
+    {
+      "name": "parse: a trailing backslash",
+      "op": "parse",
+      "pattern": "\\bfoo\\",
+      "expected": null
+    }
+  ]
+}

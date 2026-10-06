@@ -25,7 +25,7 @@
   --shadow: rgba(31, 26, 16, 0.18);
   --error: #a3261b;
   --shimmer: rgba(255, 255, 255, 0.65);
-  --shimmer-over-cards: rgba(31, 26, 16, 0.14);
+  --shimmer-over-cards: rgba(0, 0, 0, 0.16);
   --mark-on-surface: var(--gold);
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -52,7 +52,7 @@
     --shadow: rgba(0, 0, 0, 0.5);
     --error: #ff8a7a;
     --shimmer: rgba(255, 255, 255, 0.09);
-    --shimmer-over-cards: rgba(255, 255, 255, 0.14);
+    --shimmer-over-cards: rgba(255, 255, 255, 0.22);
   }
 }
 
@@ -76,7 +76,7 @@
   --shadow: rgba(0, 0, 0, 0.5);
   --error: #ff8a7a;
   --shimmer: rgba(255, 255, 255, 0.09);
-  --shimmer-over-cards: rgba(255, 255, 255, 0.14);
+  --shimmer-over-cards: rgba(255, 255, 255, 0.22);
 }
 
 *,
@@ -136,6 +136,7 @@ button:disabled {
   align-items: center;
   gap: 6px;
   font-size: 18px;
+  line-height: 22px;
   font-weight: 700;
 }
 
@@ -190,24 +191,6 @@ button:disabled {
   background: var(--surface);
 }
 
-.button-outline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--page);
-  color: var(--text);
-  font-size: 14px;
-  text-decoration: none;
-}
-
-.button-outline:hover {
-  color: var(--text);
-  background: var(--surface);
-}
-
 .button-small {
   display: flex;
   align-items: center;
@@ -245,6 +228,37 @@ button:disabled {
   font-size: 14px;
   color: var(--text);
   outline: none;
+}
+
+/* a chip: a toggle, a cycling choice or a removable phrase; the same box in every state */
+.chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--page);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.chip:hover {
+  background: var(--surface);
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--sunflower);
+  border-color: var(--sunflower);
+  color: var(--ink);
+}
+
+/* inset, so the focus ring isn't clipped by a scrolling row */
+.chip:focus-visible {
+  outline-offset: -2px;
 }
 
 /* one card of related filter controls, in the filter editor and in setup */
@@ -308,8 +322,8 @@ button:disabled {
 }
 
 /*
- * Loading: a lighter band sweeps across whatever is inside, skeletons or the
- * greyed previous content. Still when the system asks for reduced motion.
+ * Loading: a lighter band sweeps across the skeletons inside. Still when the
+ * system asks for reduced motion.
  */
 .shimmer {
   position: relative;
@@ -331,14 +345,34 @@ button:disabled {
   pointer-events: none;
 }
 
-/* over real cards that are dimmed, where a lighter band wouldn't show on a light page */
-.shimmer.over-cards::after {
+/*
+ * Loading over real cards that are dimmed: a band, darker on a light page and
+ * lighter on a dark one, sweeps this overlay. It goes over the visible part
+ * of a scrolling list, not inside it: a band stretched over the list's whole
+ * height is off screen for most of a long list.
+ */
+.shimmer-band {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.shimmer-band::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
   background: linear-gradient(
-    100deg,
-    transparent 35%,
-    var(--shimmer-over-cards) 50%,
-    transparent 65%
+    90deg,
+    transparent,
+    var(--shimmer-over-cards),
+    transparent
   );
+  transform: translateX(-100%);
+  animation: shimmer-band 1.4s linear infinite;
 }
 
 @keyframes shimmer {
@@ -347,8 +381,16 @@ button:disabled {
   }
 }
 
+/* the band is 40% of the overlay wide, so 250% of itself is the far edge */
+@keyframes shimmer-band {
+  to {
+    transform: translateX(250%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .shimmer::after {
+  .shimmer::after,
+  .shimmer-band {
     display: none;
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fixture from "../../../shared/fixtures/shorts.json";
-import { classifyShorts } from "./shorts";
+import { classifyShorts, withoutShortsList } from "./shorts";
 import type { Video } from "./types";
 
 function video(videoId: string, durationSeconds: number): Video {
@@ -93,4 +93,17 @@ describe("shared Shorts fixtures", () => {
       expect(probes.sort()).toEqual([...testCase.probes].sort());
     });
   }
+});
+
+describe("withoutShortsList", () => {
+  test("marks what can't be a Short and leaves candidates unjudged", () => {
+    const [long, clip, unknown] = withoutShortsList([
+      video("long", 600),
+      video("clip", 90),
+      video("unknown", 0),
+    ]);
+    expect(long.isShort).toBe(false);
+    expect(clip.isShort).toBeUndefined();
+    expect(unknown.isShort).toBe(false);
+  });
 });

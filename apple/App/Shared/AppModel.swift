@@ -59,11 +59,8 @@ final class AppModel {
           if let channelId = arguments.first(where: { $0.hasPrefix("-select:") }) {
             feed.selectedChannel = String(channelId.dropFirst("-select:".count))
           }
-          if arguments.contains("-hideWatched") {
-            feed.hideWatched = true
-          }
           if arguments.contains("-play") {
-            feed.demoPlay()
+            feed.demoPlay(videoId: debugArgument("video"))
           }
         }
         return
@@ -177,7 +174,8 @@ final class AppModel {
 
   func signOut() async {
     if let feed {
-      // upload unsaved marks while the token still works
+      // save what is playing and upload unsaved edits while the token still works
+      feed.player = nil
       await feed.flush()
     }
     await auth.signOut()

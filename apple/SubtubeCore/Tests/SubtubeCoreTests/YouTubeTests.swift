@@ -43,6 +43,67 @@ import Testing
   }
 }
 
+@Suite struct VideoCategoryTests {
+  @Test func asksForNoTopicDetailsAndKeepsTheSnippet() {
+    let parts = videoDetailParts.split(separator: ",").map(String.init)
+    #expect(!parts.contains("topicDetails"))
+    #expect(parts.contains("snippet"))
+  }
+
+  @Test func decodesTheCategoryId() throws {
+    let json = """
+      {"items": [
+        {"id": "music", "snippet": {"liveBroadcastContent": "none", "categoryId": "10"},
+          "contentDetails": {"duration": "PT3M"},
+          "topicDetails": {"topicCategories": ["https://en.wikipedia.org/wiki/Rock_music"]}},
+        {"id": "none", "snippet": {"liveBroadcastContent": "none"},
+          "contentDetails": {"duration": "PT3M"}}]}
+      """
+    let response = try JSONDecoder().decode(VideoListResponse.self, from: Data(json.utf8))
+    #expect(response.items.map(\.snippet.categoryId) == ["10", nil])
+  }
+}
+
+@Suite struct DailyLimitTests {
+  private func body(_ reason: String) -> Data {
+    Data(#"{"error": {"code": 403, "errors": [{"domain": "youtube.quota", "reason": "\#(reason)"}]}}"#.utf8)
+  }
+
+  @Test func isA403WhoseReasonIsTheDailyQuota() {
+    #expect(isDailyLimit(status: 403, body: body("quotaExceeded")))
+    #expect(isDailyLimit(status: 403, body: body("dailyLimitExceeded")))
+    #expect(!isDailyLimit(status: 403, body: body("rateLimitExceeded")))
+    #expect(!isDailyLimit(status: 403, body: body("forbidden")))
+    #expect(!isDailyLimit(status: 429, body: body("quotaExceeded")))
+    #expect(!isDailyLimit(status: 403, body: Data("quotaExceeded".utf8)))
+    #expect(!isDailyLimit(status: 403, body: Data(#"{"error": {"errors": "quotaExceeded"}}"#.utf8)))
+  }
+
+  @Test func saysExactlyWhatTheOtherClientsSay() {
+    #expect(
+      GoogleAPIError.dailyLimit.localizedDescription
+        == "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.")
+  }
+
+  private func response(_ status: Int) throws -> HTTPURLResponse {
+    let url = try #require(URL(string: "https://example.com"))
+    return try #require(
+      HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil))
+  }
+
+  @Test func onlyAYouTubeAnswerIsReadForIt() throws {
+    #expect(throws: GoogleAPIError.dailyLimit) {
+      try checkGoogleResponse(try response(403), body: body("quotaExceeded"), youTube: true)
+    }
+    #expect(throws: GoogleAPIError.http(status: 403, body: String(decoding: body("quotaExceeded"), as: UTF8.self))) {
+      try checkGoogleResponse(try response(403), body: body("quotaExceeded"))
+    }
+    #expect(throws: GoogleAPIError.http(status: 403, body: String(decoding: body("rateLimitExceeded"), as: UTF8.self))) {
+      try checkGoogleResponse(try response(403), body: body("rateLimitExceeded"), youTube: true)
+    }
+  }
+}
+
 @Suite struct HTMLEntitiesTests {
   @Test func decodesNamedAndNumericEntities() {
     #expect(decodeHTMLEntities("Tom &amp; Jerry") == "Tom & Jerry")

@@ -101,12 +101,44 @@ struct DeleteProfileFootnote: View {
   }
 }
 
-/// Opens the privacy policy in the browser.
-struct PrivacyPolicyLink: View {
-  private static let address = URL(string: "https://subtube.hafa.cc/privacy")!
+/// The pages the apps link to, all opened in the browser.
+enum Links {
+  static let privacyPolicy = URL(string: "https://subtube.hafa.cc/privacy")!
+  static let terms = URL(string: "https://subtube.hafa.cc/terms")!
+  static let youTube = URL(string: "https://www.youtube.com/")!
+}
 
+/// "Privacy Policy" and "Terms" side by side, each opening its page.
+struct LegalLinks: View {
   var body: some View {
-    Link(Strings.privacyPolicy, destination: Self.address)
+    HStack(spacing: 16) {
+      Link(Strings.privacyPolicy, destination: Links.privacyPolicy)
+      Link(Strings.terms, destination: Links.terms)
+    }
+    // each link takes its own taps in a list row
+    .buttonStyle(.borderless)
+  }
+}
+
+/// What signing in agrees to, for directly under a sign-in button.
+struct SignInAgreement: View {
+  var body: some View {
+    Text(Strings.signInAgreement)
+      .font(.footnote)
+      .foregroundStyle(.secondary)
+      .tint(Color.gold)
+  }
+}
+
+/// "Videos from YouTube", small and muted, as a link to YouTube.
+struct YouTubeAttribution: View {
+  var body: some View {
+    Link(destination: Links.youTube) {
+      Text(Strings.videosFromYouTube)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+    .buttonStyle(.plain)
   }
 }
 

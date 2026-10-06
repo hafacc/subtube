@@ -4,132 +4,139 @@ import SubtubeCore
 import SwiftUI
 import WebKit
 
-/// One opening of the player: what it plays, where it is, and what leaving
-/// each video marks watched.
+/// One item playing: the web view with YouTube's player, and what its
+/// reports save.
+///
+/// The session owns its web view, so the views that show it can come and go
+/// (a list row scrolled away and back) without restarting playback. A video
+/// starts where it was left; its position is saved as `Playback` says, and
+/// ``close()`` saves it one last time.
 @MainActor @Observable
 final class PlayerSession: Identifiable {
   let id = UUID()
   let content: PlayerContent
   /// The card being played.
   let item: FeedItem
-  private var tracker: PlayerTracker
-
-  private(set) var currentVideoId: String?
-  /// What the player itself reports about the current video, for videos
-  /// inside a playlist that the feed has no card for.
-  private(set) var reportedTitle: String?
-  private(set) var reportedDuration: Int?
   private(set) var loadFailed = false
 
+  @ObservationIgnored private var playback: Playback
   @ObservationIgnored private weak var feed: FeedModel?
-  @ObservationIgnored weak var webView: WKWebView?
+  @ObservationIgnored private var page: WKWebView?
+  @ObservationIgnored private let startAt: Double
+  @ObservationIgnored private var closed = false
 
-  /// Play one card: a video, or a real playlist marked when it ends.
-  init(_ item: FeedItem, feed: FeedModel) {
+  /// Play one card, a video `startAt` seconds in.
+  init(_ item: FeedItem, feed: FeedModel, startAt: Double) {
     switch item {
-    case .video(let video):
-      content = .video(video.videoId)
-      currentVideoId = video.videoId
-    case .playlist(let playlist):
-      content = .playlist(playlist.playlistId)
+    case .video(let video): content = .video(video.videoId)
+    case .playlist(let playlist): content = .playlist(playlist.playlistId)
     }
     self.item = item
-    tracker = PlayerTracker(content: content)
     self.feed = feed
+    self.startAt = startAt
+    playback = Playback(content: content, isLive: item.isLive)
   }
 
-  var title: String {
-    if case .video(let video) = item {
-      return video.title
+  /// The web view playing the item, made on first use.
+  var webView: WKWebView {
+    if let page {
+      return page
     } else {
-      return reportedTitle ?? item.title
+      let configuration = WKWebViewConfiguration()
+      configuration.userContentController.add(
+        PlayerMessages(session: self), name: PlayerPage.messageHandler)
+      configuration.mediaTypesRequiringUserActionForPlayback = []
+      configuration.preferences.isElementFullscreenEnabled = true
+      #if os(iOS)
+        configuration.allowsInlineMediaPlayback = true
+      #endif
+      let made = WKWebView(frame: .zero, configuration: configuration)
+      #if os(macOS)
+        made.setValue(false, forKey: "drawsBackground")
+      #else
+        made.isOpaque = false
+        made.backgroundColor = .black
+        made.scrollView.isScrollEnabled = false
+      #endif
+      made.loadHTMLString(
+        PlayerPage.html(for: content, startAt: startAt), baseURL: PlayerPage.identity)
+      page = made
+      return made
     }
   }
 
-  var publishedDate: Date? {
-    if case .video = item {
-      return item.publishedDate
-    } else {
-      return nil
+  private func perform(_ actions: [PlaybackAction]) {
+    for action in actions {
+      switch action {
+      case .saveProgress(let position, let duration, let ended, let upload):
+        feed?.recordProgress(
+          item.id, position: position, playerDuration: duration, ended: ended, upload: upload)
+      case .markWatched:
+        feed?.markWatched(item.id)
+      case .ended:
+        feed?.playbackEnded(self)
+      }
     }
   }
 
-  var durationSeconds: Int? {
-    if case .video(let video) = item, let duration = video.durationSeconds, duration > 0 {
-      return duration
-    } else {
-      return reportedDuration
+  fileprivate func received(_ message: [String: Any]) {
+    guard !closed, let event = message["event"] as? String else { return }
+    let position = message["time"] as? Double ?? 0
+    let duration = message["duration"] as? Double ?? 0
+    switch event {
+    case "loadFailed":
+      loadFailed = true
+    case "time":
+      perform(
+        playback.timeReported(
+          position: position, duration: duration, clock: ProcessInfo.processInfo.systemUptime))
+    case "state":
+      if let state = message["state"] as? Int {
+        perform(
+          playback.stateChanged(
+            state: state, position: position, duration: duration,
+            playlistIndex: message["playlistIndex"] as? Int,
+            playlistLength: message["playlistLength"] as? Int))
+      }
+    default:
+      break
     }
   }
 
-  /// Marks taken off by hand in this player.
-  private var unmarked: Set<String> = []
+  /// Save where the video is, as last reported.
+  func save(upload: ProgressUpload) {
+    perform(playback.save(upload: upload))
+  }
 
-  /// What "Mark Watched" marks: the card being played.
-  var markTarget: String { item.id }
-
-  /// Whether there is a next video to skip to.
-  var hasNext: Bool {
-    switch content {
-    case .playlist: true
-    case .video: false
+  /// Stop playing for good, saving where the video is.
+  func close() {
+    guard !closed else { return }
+    closed = true
+    save(upload: .soon)
+    if let page {
+      page.configuration.userContentController.removeScriptMessageHandler(
+        forName: PlayerPage.messageHandler)
+      page.loadHTMLString("", baseURL: nil)
+      page.removeFromSuperview()
     }
+    page = nil
+  }
+}
+
+/// Hands the page's player events to the session, without keeping it alive.
+@MainActor
+private final class PlayerMessages: NSObject, WKScriptMessageHandler {
+  private weak var session: PlayerSession?
+
+  init(session: PlayerSession) {
+    self.session = session
   }
 
-  /// The current video on youtube.com.
-  var youTubeURL: URL? {
-    youTubePage(for: content)
-  }
-
-  func next() {
-    webView?.evaluateJavaScript("player && player.nextVideo()")
-  }
-
-  func markCurrentWatched() {
-    unmarked.remove(markTarget)
-    feed?.markWatched(markTarget)
-  }
-
-  /// Mark the card being played watched, or take its mark off; a mark taken
-  /// off here isn't put back when the video is left.
-  func toggleCurrentWatched() {
-    guard let feed else { return }
-    if feed.watched.contains(markTarget) {
-      unmarked.insert(markTarget)
-      feed.unmarkWatched(markTarget)
-    } else {
-      markCurrentWatched()
-    }
-  }
-
-  fileprivate func stateChanged(
-    state: Int, videoId: String?, playlistIndex: Int?, playlistLength: Int?, title: String?,
-    duration: Double?
+  func userContentController(
+    _ userContentController: WKUserContentController, didReceive message: WKScriptMessage
   ) {
-    let marks = tracker.stateChanged(
-      state: state, videoId: videoId, playlistIndex: playlistIndex, playlistLength: playlistLength)
-    for mark in marks where !unmarked.contains(mark) {
-      feed?.markWatched(mark)
-    }
-    if let videoId, !videoId.isEmpty {
-      currentVideoId = videoId
-    }
-    if let title, !title.isEmpty {
-      reportedTitle = title
-    }
-    if let duration, duration > 0 {
-      reportedDuration = Int(duration.rounded())
-    }
-  }
-
-  fileprivate func failedToLoad() {
-    loadFailed = true
-  }
-
-  /// The player is going away: mark whatever was playing.
-  fileprivate func closed() {
-    if let mark = tracker.closed(), !unmarked.contains(mark) {
-      feed?.markWatched(mark)
+    if let body = message.body as? [String: Any] {
+      session?.received(body)
     }
   }
 }
@@ -137,15 +144,21 @@ final class PlayerSession: Identifiable {
 /// Builds the page the web view loads. Its base URL gives YouTube the referrer
 /// the embed requires; without one it refuses to play (error 153).
 enum PlayerPage {
-  static let baseURL = URL(string: "https://subtube.hafa.cc")!
+  /// `https://<bundle id>`: YouTube asks a native app's embed to name the
+  /// app, not a website, as its origin and referrer.
+  static let identity = Bundle.main.bundleIdentifier.flatMap {
+    URL(string: "https://\($0.lowercased())")
+  }
   static let messageHandler = "subtube"
 
-  static func html(for content: PlayerContent) -> String {
-    let config: [String: Any]
+  static func html(for content: PlayerContent, startAt: Double) -> String {
+    var config: [String: Any]
     switch content {
-    case .video(let videoId): config = ["kind": "videos", "videoIds": [videoId]]
+    case .video(let videoId):
+      config = ["kind": "videos", "videoIds": [videoId], "start": startAt]
     case .playlist(let playlistId): config = ["kind": "playlist", "playlistId": playlistId]
     }
+    config["identity"] = identity?.absoluteString ?? ""
     let json =
       (try? JSONSerialization.data(withJSONObject: config)).map {
         String(decoding: $0, as: UTF8.self)
@@ -160,16 +173,31 @@ enum PlayerPage {
       const config = \(json);
       let player = null;
       const post = (message) => window.webkit.messageHandlers.\(messageHandler).postMessage(message);
+      const report = (event, state) => {
+        const playlist = player.getPlaylist ? player.getPlaylist() : null;
+        post({
+          event,
+          state,
+          time: player.getCurrentTime ? player.getCurrentTime() : 0,
+          duration: player.getDuration ? player.getDuration() : 0,
+          playlistIndex: player.getPlaylistIndex ? player.getPlaylistIndex() : null,
+          playlistLength: playlist ? playlist.length : null,
+        });
+      };
       const tag = document.createElement("script");
       tag.src = "https://www.youtube.com/iframe_api";
       tag.onerror = () => post({ event: "loadFailed" });
       document.head.appendChild(tag);
       function onYouTubeIframeAPIReady() {
-        // a video list is loaded from its ids in onReady: passing videoId with the
+        // a video is loaded from its id in onReady: passing videoId with the
         // playlist param unreliably drops the first id
         const playerVars = config.kind === "playlist"
           ? { autoplay: 1, rel: 0, playsinline: 1, fs: 1, listType: "playlist", list: config.playlistId }
           : { rel: 0, playsinline: 1, fs: 1 };
+        if (config.identity) {
+          playerVars.origin = config.identity;
+          playerVars.widget_referrer = config.identity;
+        }
         player = new YT.Player("player", {
           width: "100%",
           height: "100%",
@@ -177,25 +205,19 @@ enum PlayerPage {
           events: {
             onReady: (event) => {
               if (config.kind === "videos") {
-                event.target.loadPlaylist(config.videoIds, 0);
+                event.target.loadPlaylist(config.videoIds, 0, config.start);
               }
             },
-            onStateChange: (event) => {
-              const target = event.target;
-              const playlist = target.getPlaylist ? target.getPlaylist() : null;
-              const data = target.getVideoData ? target.getVideoData() : {};
-              post({
-                event: "state",
-                state: event.data,
-                videoId: data.video_id || null,
-                title: data.title || null,
-                duration: target.getDuration ? target.getDuration() : null,
-                playlistIndex: target.getPlaylistIndex ? target.getPlaylistIndex() : null,
-                playlistLength: playlist ? playlist.length : null,
-              });
-            },
+            onStateChange: (event) => report("state", event.data),
           },
         });
+        // read when the frame's page loads, so it must be set before then
+        player.getIframe().allowFullscreen = true;
+        setInterval(() => {
+          if (player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING) {
+            report("time", null);
+          }
+        }, 1000);
       }
       </script>
       </body></html>
@@ -203,66 +225,8 @@ enum PlayerPage {
   }
 }
 
-/// Receives the page's player events and hands them to the session.
-@MainActor
-final class PlayerCoordinator: NSObject, WKScriptMessageHandler {
-  let session: PlayerSession
-
-  init(session: PlayerSession) {
-    self.session = session
-  }
-
-  func makeWebView() -> WKWebView {
-    let configuration = WKWebViewConfiguration()
-    configuration.userContentController.add(self, name: PlayerPage.messageHandler)
-    configuration.mediaTypesRequiringUserActionForPlayback = []
-    configuration.preferences.isElementFullscreenEnabled = true
-    #if os(iOS)
-      configuration.allowsInlineMediaPlayback = true
-    #endif
-    let webView = WKWebView(frame: .zero, configuration: configuration)
-    #if os(macOS)
-      webView.setValue(false, forKey: "drawsBackground")
-    #else
-      webView.isOpaque = false
-      webView.backgroundColor = .black
-      webView.scrollView.isScrollEnabled = false
-    #endif
-    webView.loadHTMLString(PlayerPage.html(for: session.content), baseURL: PlayerPage.baseURL)
-    session.webView = webView
-    return webView
-  }
-
-  func userContentController(
-    _ userContentController: WKUserContentController, didReceive message: WKScriptMessage
-  ) {
-    guard let body = message.body as? [String: Any], let event = body["event"] as? String else {
-      return
-    }
-    if event == "loadFailed" {
-      session.failedToLoad()
-    } else if event == "state", let state = body["state"] as? Int {
-      session.stateChanged(
-        state: state,
-        videoId: body["videoId"] as? String,
-        playlistIndex: body["playlistIndex"] as? Int,
-        playlistLength: body["playlistLength"] as? Int,
-        title: body["title"] as? String,
-        duration: body["duration"] as? Double
-      )
-    }
-  }
-
-  func close(_ webView: WKWebView) {
-    webView.configuration.userContentController.removeScriptMessageHandler(
-      forName: PlayerPage.messageHandler)
-    webView.loadHTMLString("", baseURL: nil)
-    session.closed()
-  }
-}
-
-/// The official YouTube IFrame player (so ads serve and views count) in a web
-/// view, with YouTube's full-screen button allowed.
+/// The official YouTube IFrame player (so ads serve and views count) in a
+/// 16:9 box, with nothing around it; YouTube's own button goes full screen.
 struct YouTubePlayerView: View {
   let session: PlayerSession
 
@@ -275,101 +239,64 @@ struct YouTubePlayerView: View {
           .multilineTextAlignment(.center)
           .padding()
       } else {
-        YouTubeWebView(session: session)
+        PlayerWebView(session: session)
       }
     }
     .aspectRatio(16 / 9, contentMode: .fit)
+    .id(session.id)
   }
 }
 
 #if os(macOS)
-  private struct YouTubeWebView: NSViewRepresentable {
-    let session: PlayerSession
-
-    func makeCoordinator() -> PlayerCoordinator { PlayerCoordinator(session: session) }
-
-    func makeNSView(context: Context) -> WKWebView { context.coordinator.makeWebView() }
-
-    func updateNSView(_ webView: WKWebView, context: Context) {}
-
-    static func dismantleNSView(_ webView: WKWebView, coordinator: PlayerCoordinator) {
-      coordinator.close(webView)
-    }
-  }
+  private typealias PlatformView = NSView
+  private typealias PlatformViewRepresentable = NSViewRepresentable
 #else
-  private struct YouTubeWebView: UIViewRepresentable {
-    let session: PlayerSession
-
-    func makeCoordinator() -> PlayerCoordinator { PlayerCoordinator(session: session) }
-
-    func makeUIView(context: Context) -> WKWebView { context.coordinator.makeWebView() }
-
-    func updateUIView(_ webView: WKWebView, context: Context) {}
-
-    static func dismantleUIView(_ webView: WKWebView, coordinator: PlayerCoordinator) {
-      coordinator.close(webView)
-    }
-  }
+  private typealias PlatformView = UIView
+  private typealias PlatformViewRepresentable = UIViewRepresentable
 #endif
 
-/// "Channel · Sep 26, 2026 · 24:10" under the playing video's title.
-struct PlayerMetaLine: View {
+/// Shows a session's web view. The view handed to SwiftUI is only a holder,
+/// so dropping it doesn't end the session's playback.
+private struct PlayerWebView: PlatformViewRepresentable {
   let session: PlayerSession
-  let onOpenChannel: (String) -> Void
-  var fullDate = true
 
-  var body: some View {
-    HStack(spacing: 4) {
-      Button(session.item.channelTitle) { onOpenChannel(session.item.channelId) }
-        .buttonStyle(.plain)
-        .foregroundStyle(Color.gold)
-      if let date = session.publishedDate {
-        Text("·")
-        Text(fullDate ? date.formatted(.dateTime.month(.abbreviated).day().year()) : date.shortFeedDate)
-      }
-      if case .playlist(let playlist) = session.item {
-        Text("·")
-        Text(Strings.videoCount(playlist.itemCount))
-      } else if let duration = session.durationSeconds {
-        Text("·")
-        Text(formatDuration(duration))
-      }
-    }
-    .foregroundStyle(.secondary)
-  }
-}
-
-/// Mark Watched, Open on YouTube and Next under the player.
-struct PlayerActions: View {
-  let session: PlayerSession
-  let feed: FeedModel
-  @Environment(\.openURL) private var openURL
-
-  private var isWatched: Bool {
-    feed.watched.contains(session.markTarget)
+  private func hold(_ holder: PlatformView, always: Bool) {
+    let webView = session.webView
+    // of two holders alive at once (a page pushed over a list), the one on screen keeps it
+    let heldOffScreen = webView.superview?.window == nil && holder.window != nil
+    guard webView.superview !== holder, always || webView.superview == nil || heldOffScreen
+    else { return }
+    webView.removeFromSuperview()
+    webView.frame = holder.bounds
+    #if os(macOS)
+      webView.autoresizingMask = [.width, .height]
+    #else
+      webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    #endif
+    holder.addSubview(webView)
   }
 
-  var body: some View {
-    Button {
-      session.toggleCurrentWatched()
-    } label: {
-      Label(
-        isWatched ? Strings.markAsUnwatched : Strings.markAsWatched,
-        systemImage: isWatched ? "checkmark.circle.fill" : "checkmark")
+  #if os(macOS)
+    func makeNSView(context: Context) -> NSView {
+      let holder = NSView()
+      hold(holder, always: true)
+      return holder
     }
-    Button {
-      if let url = session.youTubeURL {
-        openURL(url)
-      }
-    } label: {
-      Label(Strings.openOnYouTube, systemImage: "arrow.up.right.square")
+
+    func updateNSView(_ holder: NSView, context: Context) {
+      hold(holder, always: false)
     }
-    if session.hasNext {
-      Button(action: session.next) {
-        Label(Strings.next, systemImage: "forward.end")
-      }
+  #else
+    func makeUIView(context: Context) -> UIView {
+      let holder = UIView()
+      hold(holder, always: true)
+      return holder
     }
-  }
+
+    func updateUIView(_ holder: UIView, context: Context) {
+      hold(holder, always: false)
+    }
+  #endif
 }
 
 /// The duration chip, or the playlist icon with its video count.

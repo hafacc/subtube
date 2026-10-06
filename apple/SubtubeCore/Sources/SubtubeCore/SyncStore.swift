@@ -30,8 +30,8 @@ public enum SyncError: Error, Sendable {
   case ownFileUnreadable
 }
 
-/// The channel filters and watched marks, synced through the Drive app
-/// folder. Each device writes only its own file and reads everyone's, so two
+/// The channel filters, watched marks and settings, synced through the Drive
+/// app folder. Each device writes only its own file and reads everyone's, so two
 /// devices never write the same file. Edits apply in memory at once, are kept
 /// on disk until uploaded, and go up after a short pause.
 public actor SyncStore {
@@ -205,6 +205,9 @@ public actor SyncStore {
             DeviceFileSource(deviceId: "~local", file: own),
           ])
           combined.extra = file.extra.merging(own.extra) { _, local in local }
+          if file.settings == nil && own.settings == nil {
+            combined.settings = nil
+          }
           own = combined
           unsent = needsUpload(local: own, remote: file)
         }
@@ -250,13 +253,14 @@ public actor SyncStore {
     }
   }
 
-  public func isWatched(_ id: String) -> Bool {
-    merged.watched[id]?.watched ?? false
-  }
-
-  /// The ids among `ids` that are marked watched.
-  public func watchedAmong(_ ids: some Sequence<String>) -> Set<String> {
-    Set(ids.filter { merged.watched[$0]?.watched ?? false })
+  /// The watched entries of `ids` as last saved on any device; an id
+  /// without one is absent.
+  public func watchedEntries(_ ids: some Sequence<String>) -> [String: WatchedEntry] {
+    var entries: [String: WatchedEntry] = [:]
+    for id in ids {
+      entries[id] = merged.watched[id]
+    }
+    return entries
   }
 
   public func setFilter(_ filter: ChannelFilter) {
@@ -276,18 +280,63 @@ public actor SyncStore {
     changed()
   }
 
-  public func setWatched(_ id: String, watched: Bool) {
-    setWatched([id], watched: watched)
-  }
-
   /// Mark or unmark several ids as one edit, so they go up in one upload.
+  /// An unmark also forgets the position.
   public func setWatched(_ ids: [String], watched: Bool) {
     guard !ids.isEmpty else { return }
     let now = epochMilliseconds()
     for id in ids {
-      own.watched[id] = WatchedEntry(
-        at: now, watched: watched, extra: own.watched[id]?.extra ?? [:])
+      own.watched[id] = markedEntry(own.watched[id], now: now, watched: watched)
     }
+    changed()
+  }
+
+  /// Save how far a video has been played; `ended` when its player reported
+  /// the end. It is kept on this device at once and goes to Drive with the
+  /// next upload, which this starts only when `upload` is set.
+  public func setProgress(_ id: String, position: Int, ended: Bool, upload: Bool) {
+    guard !deleted else { return }
+    own.watched[id] = playedEntry(
+      own.watched[id], now: epochMilliseconds(), position: position, ended: ended)
+    remerge()
+    writeLocal()
+    unsent = true
+    if upload {
+      scheduleSave()
+    }
+  }
+
+  /// Note the videos and playlists a full load just returned: this device's
+  /// entries for them are kept another 30 days, and its entries past that
+  /// are dropped, here and in Drive. Nothing is uploaded when neither
+  /// changes anything.
+  public func noteLoaded(_ ids: some Sequence<String>) {
+    let now = epochMilliseconds()
+    let kept = pruneDeviceFile(refreshSeen(own, loaded: Set(ids), now: now), now: now)
+    if kept != own {
+      own = kept
+      changed()
+    }
+  }
+
+  /// Every synced setting as last saved on any device, by name;
+  /// ``SyncedSettings`` gives them meaning.
+  public func settingEntries() -> [String: SettingEntry] {
+    merged.settings ?? [:]
+  }
+
+  /// The synced settings the app acts on.
+  public func settings() -> SyncedSettings {
+    SyncedSettings(settingEntries())
+  }
+
+  /// Save a synced setting, keeping the unknown fields its entry had in this
+  /// device's own file.
+  public func setSetting(_ name: SettingName, value: JSONValue) {
+    var settings = own.settings ?? [:]
+    settings[name.rawValue] = editedSetting(
+      settings[name.rawValue], value: value, now: epochMilliseconds())
+    own.settings = settings
     changed()
   }
 

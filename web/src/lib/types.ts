@@ -54,6 +54,8 @@ export interface ChannelFilter {
   shortsFilter?: ShortsFilter;
   /** whether the channel shows its uploads or its playlists; default videos */
   contentMode?: ContentMode;
+  /** YouTube category ids; with any, only videos in one of them are kept */
+  topics?: string[];
   /** added in subtube rather than subscribed to on YouTube; listed while true */
   followed?: boolean;
   /** fields from a newer client, kept as they were */
@@ -90,6 +92,8 @@ export interface Video {
   liveStatus?: LiveStatus;
   /** whether it is a Short; absent means unknown */
   isShort?: boolean;
+  /** YouTube's category id, as written; absent when it has none */
+  categoryId?: string;
 }
 
 /** One of a channel's playlists, shown as a single feed entry. */

@@ -45,11 +45,4 @@
       }
     }
   }
-
-  /// The value of a `-name:value` launch argument. Values ride in the same
-  /// argument because macOS opens any bare argument as a file, which keeps
-  /// the main window from opening.
-  func debugArgument(_ name: String) -> String? {
-    CommandLine.arguments.first { $0.hasPrefix("-\(name):") }.map { String($0.dropFirst(name.count + 2)) }
-  }
 #endif

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://subtube.hafa.cc/schema/device-file.schema.json",
   "title": "subtube device file, version 1",
-  "description": "One device's channel filters and watched marks, kept as device-<deviceId>.json in the user's Google Drive app folder (<deviceId> matches ^[A-Za-z0-9_-]+$). Each device writes only its own file and reads every device's file. This schema says what a writer must write. Readers are more forgiving (shared/fixtures/merge.json) and must keep fields they don't know: an object read from a file and written back, or a filter edited and saved, keeps every unknown field unchanged, so a newer client's additions survive an older client's saves. Adding an optional field keeps version 1; any change an older reader would misread bumps `version`, and a reader skips files whose version it doesn't know.",
+  "description": "One device's channel filters, watched marks and settings, kept as device-<deviceId>.json in the user's Google Drive app folder (<deviceId> matches ^[A-Za-z0-9_-]+$). Each device writes only its own file and reads every device's file. This schema says what a writer must write. Readers are more forgiving (shared/fixtures/merge.json) and must keep fields they don't know: an object read from a file and written back, or a filter edited and saved, keeps every unknown field unchanged, so a newer client's additions survive an older client's saves. Adding an optional field keeps version 1; any change an older reader would misread bumps `version`, and a reader skips files whose version it doesn't know.",
   "type": "object",
   "required": [
     "version",
@@ -25,13 +25,23 @@
       }
     },
     "watched": {
-      "description": "The last watched mark this device made for each video or playlist, keyed by its YouTube id. Marks older than a year are dropped when the device writes (shared/fixtures/prune.json).",
+      "description": "The last watched mark this device made for each video or playlist, keyed by its YouTube id, with how far a video has been played. An entry is dropped when the device writes once both its `at` and its `seen` are 30 days old or more (shared/fixtures/prune.json).",
       "type": "object",
       "propertyNames": {
         "minLength": 1
       },
       "additionalProperties": {
         "$ref": "#/$defs/watchedEntry"
+      }
+    },
+    "settings": {
+      "description": "The last value this device saved for each synced setting, keyed by setting name. Optional: a file without it has saved no setting. Names and values this schema doesn't list are allowed and kept; shared/fixtures/settings.json says how the known ones are read: feedSort (newest, shortest, title, random), channelSort (newest, name, unwatched), autoplay (boolean), timeChip (none, day, week, month), topicChips (array of YouTube video category ids, as strings), channelTimeChip (as timeChip), channelTopicChips (as topicChips).",
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/settingEntry"
       }
     }
   },
@@ -68,8 +78,37 @@
           "maximum": 9007199254740991
         },
         "watched": {
-          "description": "Whether the item is marked watched; false is an explicit unmark.",
+          "description": "true: the item is watched whatever else the entry holds — a mark made without playing (setup's starting point), a playlist whose last video ended, or a video whose player reported the end. false: an explicit unmark, or a video being played, which is then watched or not by its `position` (shared/fixtures/watch-progress.json).",
           "type": "boolean"
+        },
+        "position": {
+          "description": "How far the video has been played, in seconds from its start; may be fractional. Optional: an entry without it has no position, and a playlist never has one. A reader works out from it and the video's length whether the video is watched, where it resumes and how full its progress bar is (shared/fixtures/watch-progress.json).",
+          "type": "number",
+          "minimum": 0
+        },
+        "seen": {
+          "description": "When this device last had the item among the items of a full load, in milliseconds since the Unix epoch (UTC). Optional: an entry without it has not been in a load since it was saved. Set after a load, at most once a day per entry, without changing `at`; it takes no part in merging, where `at` alone orders entries (shared/fixtures/merge.json). It keeps the entry from being dropped (shared/fixtures/prune.json).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "settingEntry": {
+      "type": "object",
+      "required": [
+        "at",
+        "value"
+      ],
+      "properties": {
+        "at": {
+          "description": "When the entry was saved, in milliseconds since the Unix epoch (UTC).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "value": {
+          "description": "The setting's value: any JSON value. A reader that doesn't recognize it uses the setting's default and still keeps the entry."
         }
       }
     },
@@ -141,6 +180,15 @@
         "followed": {
           "description": "Added in subtube rather than subscribed to on YouTube; listed while true. Default false.",
           "type": "boolean"
+        },
+        "topics": {
+          "description": "YouTube video category ids (strings, e.g. \"10\" for Music; the table is in shared/fixtures/feed-chips.json). With any listed, only the channel's videos in a listed category are kept; empty or absent keeps every category. Default [].",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
         },
         "channelId": false,
         "title": false,

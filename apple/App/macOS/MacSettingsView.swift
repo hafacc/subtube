@@ -20,6 +20,8 @@ struct MacSettingsView: View {
     }
     .frame(width: 520)
     .fixedSize(horizontal: false, vertical: true)
+    .onAppear { app.feed?.reorderChannels() }
+    .onDisappear { app.feed?.reorderChannels() }
   }
 }
 
@@ -54,10 +56,13 @@ private struct MacAccountPane: View {
           }
         }
       } else {
-        GoogleSignInButton(model: app)
+        VStack(alignment: .leading, spacing: 6) {
+          GoogleSignInButton(model: app)
+          SignInAgreement()
+        }
       }
       Section {
-        PrivacyPolicyLink()
+        LegalLinks()
       }
     }
     .formStyle(.grouped)

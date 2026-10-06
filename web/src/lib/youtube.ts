@@ -1,5 +1,5 @@
 import { decodeHtmlEntities } from "./html";
-import { classifyShorts } from "./shorts";
+import { classifyShorts, withoutShortsList } from "./shorts";
 import type { ChannelInfo, LiveStatus, Playlist, Video } from "./types";
 
 const API_BASE = "https://www.googleapis.com/youtube/v3";
@@ -30,6 +30,43 @@ export class InsufficientScopeError extends Error {
       "SubTube needs both permissions Google asks for. Sign in again and allow them.",
     );
     this.name = "InsufficientScopeError";
+  }
+}
+
+/** What the app says when YouTube's daily limit is used up. */
+export const DAILY_LIMIT_MESSAGE =
+  "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.";
+
+/** YouTube refused a request because the app's daily quota is used up; asking again today can't work. */
+export class DailyLimitError extends Error {
+  constructor() {
+    super(DAILY_LIMIT_MESSAGE);
+    this.name = "DailyLimitError";
+  }
+}
+
+const DAILY_LIMIT_REASONS: readonly unknown[] = [
+  "quotaExceeded",
+  "dailyLimitExceeded",
+];
+
+/**
+ * Whether an answer says the daily quota is used up: status 403 with a JSON
+ * body whose `error.errors` holds a `reason` of `quotaExceeded` or
+ * `dailyLimitExceeded`. The per-minute `rateLimitExceeded` is not it.
+ */
+export function isDailyLimit(status: number, body: string): boolean {
+  if (status !== 403) {
+    return false;
+  }
+  try {
+    const errors: unknown = JSON.parse(body)?.error?.errors;
+    return (
+      Array.isArray(errors) &&
+      errors.some((entry) => DAILY_LIMIT_REASONS.includes(entry?.reason))
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -65,6 +102,9 @@ async function apiGet<Response>(
         body.includes("insufficientPermissions"))
     ) {
       throw new InsufficientScopeError();
+    }
+    if (isDailyLimit(response.status, body)) {
+      throw new DailyLimitError();
     }
     if (response.status === 404 && body.includes("playlistNotFound")) {
       throw new PlaylistNotFoundError(params.playlistId ?? "");
@@ -163,7 +203,10 @@ const HIDDEN_TITLES = new Set(["Private video", "Deleted video"]);
 interface VideoListResponse {
   items: Array<{
     id: string;
-    snippet: { liveBroadcastContent: "none" | "live" | "upcoming" };
+    snippet: {
+      liveBroadcastContent: "none" | "live" | "upcoming";
+      categoryId?: string;
+    };
     contentDetails: { duration: string };
     // Present only if the video was ever a live stream or premiere.
     liveStreamingDetails?: { actualEndTime?: string };
@@ -176,6 +219,8 @@ export interface VideoDetails {
   durationSeconds: number;
   /** broadcast kind */
   liveStatus: LiveStatus;
+  /** YouTube's category id; absent when it has none */
+  categoryId?: string;
 }
 
 /**
@@ -213,7 +258,7 @@ export function parseIsoDuration(iso: string): number {
 }
 
 /**
- * playlistItems doesn't expose duration or broadcast kind, so fetch those from
+ * playlistItems doesn't expose duration, broadcast kind or category, so fetch those from
  * videos.list separately (50 ids per call, flat 1 unit regardless of parts) and
  * key by video id.
  */
@@ -236,6 +281,7 @@ export async function fetchVideoDetails(
       details.set(item.id, {
         durationSeconds: parseIsoDuration(item.contentDetails.duration),
         liveStatus: classifyLiveStatus(item),
+        categoryId: item.snippet.categoryId,
       });
     }
   }
@@ -243,8 +289,10 @@ export async function fetchVideoDetails(
 }
 
 /**
- * A channel's newest uploads, each with its duration, broadcast kind and
- * Short-ness. `probe` asks /shorts/{id} directly, where the platform can.
+ * A channel's newest uploads, each with its duration and broadcast kind, and
+ * with `judgeShorts` whether it is a Short; without, the Shorts list is not
+ * fetched and a video that could be a Short is left unjudged. `probe` asks
+ * /shorts/{id} directly, where the platform can.
  */
 export async function fetchUploads(
   channelId: string,
@@ -252,6 +300,7 @@ export async function fetchUploads(
   token: string,
   maxResults = 15,
   probe?: (videoId: string) => Promise<boolean | null>,
+  judgeShorts = true,
 ): Promise<Video[]> {
   const data = await apiGet<PlaylistItemsResponse>(
     "/playlistItems",
@@ -291,10 +340,29 @@ export async function fetchUploads(
       ...video,
       durationSeconds: detail?.durationSeconds ?? 0,
       liveStatus: detail?.liveStatus ?? "normal",
+      categoryId: detail?.categoryId,
     };
   });
+  if (judgeShorts) {
+    return markShorts(detailed, channelId, token, maxResults, probe);
+  } else {
+    return withoutShortsList(detailed);
+  }
+}
+
+/**
+ * Say which of a channel's already fetched uploads are Shorts, from its
+ * Shorts list; `maxResults` is the size of the uploads page they came from.
+ */
+export function markShorts(
+  videos: Video[],
+  channelId: string,
+  token: string,
+  maxResults: number,
+  probe?: (videoId: string) => Promise<boolean | null>,
+): Promise<Video[]> {
   return classifyShorts(
-    detailed,
+    videos,
     () => fetchShortIds(channelId, token, maxResults),
     probe,
   );

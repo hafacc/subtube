@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "channels": {},
+  "watched": {},
+  "settings": {
+    "feedSort": {
+      "at": 1759500000000,
+      "value": "random"
+    },
+    "channelSort": {
+      "at": 1759500000001,
+      "value": "unwatched"
+    },
+    "autoplay": {
+      "at": 1759500000002,
+      "value": true
+    },
+    "timeChip": {
+      "at": 1759500000003,
+      "value": "week"
+    },
+    "topicChips": {
+      "at": 1759500000004,
+      "value": [
+        "Music",
+        "Rock music"
+      ]
+    },
+    "playbackSpeed": {
+      "at": 1759500000005,
+      "value": 1.5,
+      "setOn": "tv"
+    }
+  }
+}

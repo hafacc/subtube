@@ -4,6 +4,7 @@
     macAppStoreUrl,
     playStoreUrl,
     privacyUrl,
+    termsUrl,
   } from "../lib/config";
   import Logo from "./Logo.svelte";
 
@@ -67,7 +68,7 @@
 
 <div class="page">
   <div class="body">
-    <div class="wordmark"><Logo size={40} /> SubTube</div>
+    <div class="wordmark"><Logo hull={36} /> SubTube</div>
     <h1>{offer.heading}</h1>
     <p class="lead">{offer.body}</p>
     {#if offer.url}
@@ -87,6 +88,7 @@
     <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
       >Privacy policy</a
     >
+    <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
   </p>
 </div>
 
@@ -112,6 +114,7 @@
     align-items: center;
     gap: 10px;
     font-size: 30px;
+    line-height: 36px;
     font-weight: 700;
   }
 

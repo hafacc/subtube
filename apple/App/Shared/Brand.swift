@@ -213,15 +213,43 @@ struct ThumbnailBadge<Content: View>: View {
   }
 }
 
-/// The logo.
+/// The logo, sized by its hull: in the square drawing the hull is 0.518 of
+/// the height and 0.74 of the width, centred. Only the hull's box takes
+/// layout room, so the tower rises over the line without making it taller.
 struct LogoMark: View {
-  var size: CGFloat
+  /// The hull's height.
+  var hull: CGFloat
+
+  private static let hullHeight = 0.518
+  private static let hullWidth = 0.74
 
   var body: some View {
+    let side = hull / Self.hullHeight
     Image("Logo")
       .resizable()
-      .frame(width: size, height: size)
+      .frame(width: side, height: side)
+      .frame(width: side * Self.hullWidth, height: hull)
       .accessibilityHidden(true)
+  }
+}
+
+/// The logo beside the app's name, its hull as tall as the name's line.
+struct Wordmark: View {
+  let font: Font
+  @State private var lineHeight: CGFloat = 0
+
+  var body: some View {
+    HStack(spacing: lineHeight * 0.3) {
+      LogoMark(hull: lineHeight)
+      Text(Strings.appName)
+        .font(font)
+        .lineLimit(1)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+          proxy.size.height
+        } action: { height in
+          lineHeight = height
+        }
+    }
   }
 }
 

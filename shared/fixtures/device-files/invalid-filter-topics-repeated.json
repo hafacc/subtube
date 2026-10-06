@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "channels": {
+    "UCuAXFkgsw1L7xaCfnd5JJOw": {
+      "at": 1759500000000,
+      "filter": {
+        "enabled": true,
+        "regex": "",
+        "mode": "include",
+        "topics": [
+          "10",
+          "10"
+        ]
+      }
+    }
+  },
+  "watched": {}
+}

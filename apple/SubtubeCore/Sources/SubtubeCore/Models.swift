@@ -80,7 +80,8 @@ public struct ChannelFilter: Sendable, Hashable {
   public var thumbnail: String
   /// Whether the main feed loads the channel.
   public var enabled = true
-  /// A pattern in the shared pattern language; empty is no pattern.
+  /// The pattern built from the filter's phrases (``phrasesToPattern(_:)``);
+  /// empty is no pattern. A stored pattern that isn't phrases reads as empty.
   public var regex = ""
   /// Whether the pattern keeps or drops what it finds.
   public var mode = FilterMode.include
@@ -96,6 +97,8 @@ public struct ChannelFilter: Sendable, Hashable {
   public var shortsFilter = ShortsFilter.all
   /// Uploads or playlists.
   public var contentMode = ContentMode.videos
+  /// The category ids videos are kept in; empty keeps every category.
+  public var topics: [String] = []
   /// Added in subtube rather than subscribed to on YouTube; listed while true.
   public var followed = false
   /// The filter object as read from Drive.
@@ -123,6 +126,7 @@ public struct ChannelFilter: Sendable, Hashable {
     liveFilter = parsed.liveFilter
     shortsFilter = parsed.shortsFilter
     contentMode = parsed.contentMode
+    topics = parsed.topics
     followed = parsed.followed
   }
 
@@ -136,6 +140,7 @@ public struct ChannelFilter: Sendable, Hashable {
     var liveFilter = LiveFilter.all
     var shortsFilter = ShortsFilter.all
     var contentMode = ContentMode.videos
+    var topics: [String] = []
     var followed = false
   }
 
@@ -146,7 +151,7 @@ public struct ChannelFilter: Sendable, Hashable {
     }
     var fields = Fields()
     fields.enabled = object["enabled"]?.boolValue ?? true
-    fields.regex = object["regex"]?.stringValue ?? ""
+    fields.regex = phrasePatternOnly(object["regex"]?.stringValue ?? "")
     fields.mode = choice("mode", FilterMode.include)
     fields.caseSensitive = object["caseSensitive"]?.boolValue ?? false
     fields.searchScope = choice("searchScope", FilterScope.title)
@@ -155,13 +160,18 @@ public struct ChannelFilter: Sendable, Hashable {
     fields.liveFilter = choice("liveFilter", LiveFilter.all)
     fields.shortsFilter = choice("shortsFilter", ShortsFilter.all)
     fields.contentMode = choice("contentMode", ContentMode.videos)
+    if case .array(let listed) = object["topics"] {
+      let ids = listed.compactMap(\.stringValue)
+      fields.topics = ids.count == listed.count ? knownTopics(ids) : []
+    }
     fields.followed = object["followed"]?.boolValue ?? false
     return fields
   }
 
   /// The filter object to save: `stored` with every field the user changed
   /// written over it. Required fields are always present; an optional field
-  /// set back to its default is left out.
+  /// set back to its default is left out. A stored pattern that isn't
+  /// phrases is written as empty.
   public var storedFilter: JSONObject {
     var object = stored
     let read = Self.parse(stored)
@@ -179,7 +189,7 @@ public struct ChannelFilter: Sendable, Hashable {
       }
     }
     required("enabled", .bool(enabled), changed: enabled != read.enabled)
-    required("regex", .string(regex), changed: regex != read.regex)
+    object["regex"] = .string(phrasePatternOnly(regex))
     required("mode", .string(mode.rawValue), changed: mode != read.mode)
     optional(
       "caseSensitive", .bool(caseSensitive), isDefault: !caseSensitive,
@@ -199,6 +209,9 @@ public struct ChannelFilter: Sendable, Hashable {
     optional(
       "contentMode", .string(contentMode.rawValue), isDefault: contentMode == .videos,
       changed: contentMode != read.contentMode)
+    optional(
+      "topics", .array(topics.map(JSONValue.string)), isDefault: topics.isEmpty,
+      changed: topics != read.topics)
     optional(
       "followed", .bool(followed), isDefault: !followed, changed: followed != read.followed)
     return object
@@ -222,6 +235,8 @@ public struct Video: Codable, Sendable, Hashable {
   public var liveStatus: LiveStatus?
   /// Whether this is a Short; nil means not yet classified.
   public var isShort: Bool?
+  /// YouTube's category id, as written; nil when it has none.
+  public var categoryId: String?
 
   public init(
     videoId: String,
@@ -233,7 +248,8 @@ public struct Video: Codable, Sendable, Hashable {
     thumbnail: String,
     durationSeconds: Int? = nil,
     liveStatus: LiveStatus? = nil,
-    isShort: Bool? = nil
+    isShort: Bool? = nil,
+    categoryId: String? = nil
   ) {
     self.videoId = videoId
     self.channelId = channelId
@@ -245,6 +261,7 @@ public struct Video: Codable, Sendable, Hashable {
     self.durationSeconds = durationSeconds
     self.liveStatus = liveStatus
     self.isShort = isShort
+    self.categoryId = categoryId
   }
 }
 
@@ -335,6 +352,31 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
     switch self {
     case .video(let video): video.thumbnail
     case .playlist(let playlist): playlist.thumbnail
+    }
+  }
+
+  /// The item's topic: its category id when that is one of the fifteen; a
+  /// playlist has none.
+  public var topic: String? {
+    switch self {
+    case .video(let video): video.categoryId.flatMap { topicLabel($0) == nil ? nil : $0 }
+    case .playlist: nil
+    }
+  }
+
+  /// A video's length in seconds; 0 for a playlist or a video without one.
+  public var durationSeconds: Int {
+    switch self {
+    case .video(let video): video.durationSeconds ?? 0
+    case .playlist: 0
+    }
+  }
+
+  /// Whether this is a broadcast that is live now.
+  public var isLive: Bool {
+    switch self {
+    case .video(let video): video.liveStatus == .live
+    case .playlist: false
     }
   }
 

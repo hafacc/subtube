@@ -1,14 +1,23 @@
 <script lang="ts">
-  import { orderChannels } from "../lib/channel-order";
-  import { privacyUrl } from "../lib/config";
+  import {
+    CHANNEL_SORT_OPTIONS,
+    HeldChannelOrder,
+    orderChannels,
+  } from "../lib/channel-order";
+  import { TIME_CHIP_OPTIONS } from "../lib/chips";
+  import { privacyUrl, termsUrl } from "../lib/config";
   import type { FeedController } from "../lib/feed.svelte";
   import Avatar from "./Avatar.svelte";
+  import ChipRow from "./ChipRow.svelte";
+  import CycleChip from "./CycleChip.svelte";
   import Icon from "./Icon.svelte";
   import Logo from "./Logo.svelte";
+  import YouTubeAttribution from "./YouTubeAttribution.svelte";
 
   let {
     feed,
     selected,
+    whereabouts,
     onselect,
     onhome,
     collapsed,
@@ -18,6 +27,8 @@
     feed: FeedController;
     /** the channel whose page is open, or null for the feed */
     selected: string | null;
+    /** where the user is in the app; the list is put in order again when it changes */
+    whereabouts: string;
     /** a row was clicked: the feed (null) or a channel; the current one again refreshes */
     onselect: (channelId: string | null) => void;
     /** the logo was clicked: show the feed and refresh it */
@@ -28,8 +39,24 @@
     ontoggle: () => void;
   } = $props();
 
+  const held = new HeldChannelOrder();
   const channels = $derived(
-    orderChannels(Array.from(feed.channels.values()), feed.items),
+    held.arrange(
+      orderChannels(
+        Array.from(feed.channels.values()),
+        feed.items,
+        feed.settings.channelSort,
+        feed.unwatchedByChannel,
+      ),
+      JSON.stringify([
+        whereabouts,
+        feed.loadCount,
+        feed.settings.channelSort,
+        feed.settings.channelTimeChip,
+        feed.settings.channelTopicChips,
+      ]),
+      feed.chipChannels,
+    ),
   );
 </script>
 
@@ -74,8 +101,39 @@
       {/if}
     </button>
     <h2>Channels</h2>
+    <div class="channel-chips wide-only">
+      <ChipRow
+        topics={feed.channelTopicChips}
+        selected={feed.settings.channelTopicChips}
+        ontopic={(categoryId) => feed.toggleChannelTopicChip(categoryId)}
+        onclear={() => feed.setSetting("channelTopicChips", [])}
+      >
+        {#snippet leading()}
+          <CycleChip
+            options={CHANNEL_SORT_OPTIONS}
+            value={feed.settings.channelSort}
+            onchange={(channelSort) =>
+              feed.setSetting("channelSort", channelSort)}
+          />
+          <CycleChip
+            options={TIME_CHIP_OPTIONS}
+            value={feed.settings.channelTimeChip}
+            onchange={(channelTimeChip) =>
+              feed.setSetting("channelTimeChip", channelTimeChip)}
+          />
+        {/snippet}
+      </ChipRow>
+    </div>
+    {#if channels.length === 0 &&
+      feed.chipChannels !== null &&
+      feed.loadCount > 0}
+      <p class="empty secondary wide-only">No channels for selected filter</p>
+    {/if}
     {#each channels as channel (channel.channelId)}
       {@const current = channel.channelId === selected}
+      {@const unwatched = channel.filter.enabled
+        ? (feed.unwatchedByChannel.get(channel.channelId) ?? 0)
+        : 0}
       <button
         type="button"
         class="row"
@@ -86,16 +144,23 @@
       >
         <Avatar title={channel.title} thumbnail={channel.thumbnail} size={24} />
         <span class="title">{channel.title}</span>
+        {#if unwatched > 0}
+          <span class="count wide-only" aria-hidden="true">{unwatched}</span>
+          <span class="visually-hidden">{unwatched} unwatched</span>
+        {/if}
       </button>
     {/each}
-    <a
-      class="privacy wide-only"
-      href={privacyUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      Privacy policy
-    </a>
+    <div class="foot wide-only">
+      <div class="legal">
+        <a href={privacyUrl} target="_blank" rel="noopener noreferrer">
+          Privacy policy
+        </a>
+        <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
+      </div>
+      <div class="attribution">
+        <YouTubeAttribution />
+      </div>
+    </div>
   </div>
 </nav>
 
@@ -118,6 +183,13 @@
     h2 {
       visibility: hidden;
     }
+
+    /* the highlight is a box around the icon, not a row running off the rail */
+    .row {
+      align-self: flex-start;
+      width: 40px;
+      overflow: hidden;
+    }
   }
 
   .list {
@@ -131,11 +203,21 @@
     padding: 12px 8px;
   }
 
-  .privacy {
+  .foot {
     flex-shrink: 0;
     margin-top: auto;
-    padding: 16px 8px 0;
+    padding-top: 16px;
+  }
+
+  .legal {
+    display: flex;
+    gap: 12px;
+    padding: 0 8px;
     font-size: 12px;
+  }
+
+  .attribution {
+    padding: 8px 8px 0;
   }
 
   .head {
@@ -153,8 +235,23 @@
     color: var(--text);
   }
 
+  .channel-chips {
+    --chip-row-rule: 0;
+    --chip-row-padding: 4px 8px 6px;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  .empty {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 32px 16px;
+    text-align: center;
+  }
+
   h2 {
-    margin: 14px 8px 4px;
+    flex-shrink: 0;
+    margin: 14px 0 4px 8px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
