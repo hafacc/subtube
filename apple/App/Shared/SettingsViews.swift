@@ -54,8 +54,14 @@ struct SyncStatus: View {
   }
 
   private func lastSynced(now: Date) -> String {
-    guard let date = feed.lastSyncedAt else { return Strings.syncing }
-    return Strings.lastSynced(date.formatted(.relative(presentation: .named, unitsStyle: .wide)))
+    if let date = feed.lastSyncedAt {
+      // under a minute reads "now", never a count of seconds
+      let shown = now.timeIntervalSince(date) < 60 ? now : date
+      return Strings.lastSynced(
+        shown.formatted(.relative(presentation: .named, unitsStyle: .wide)))
+    } else {
+      return Strings.syncing
+    }
   }
 }
 

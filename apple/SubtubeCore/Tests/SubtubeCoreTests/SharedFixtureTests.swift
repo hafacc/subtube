@@ -234,6 +234,13 @@ private func sources(_ testCase: JSONObject) -> [DeviceFileSource] {
     #expect(hasSyncedProfile(["device-one.json", "device-two.json"]))
     #expect(deviceIdFromFileName("notes.json") == nil)
   }
+
+  @Test func thisDevicesOwnFileIsNotAnotherDevicesSetup() {
+    #expect(!setUpElsewhere([], ownName: "device-here.json"))
+    #expect(!setUpElsewhere(["device-here.json", "notes.txt"], ownName: "device-here.json"))
+    #expect(setUpElsewhere(["device-here.json", "device-there.json"], ownName: "device-here.json"))
+    #expect(setUpElsewhere(["device-there.json"], ownName: "device-here.json"))
+  }
 }
 
 @Suite struct SharedShortsTests {
@@ -254,9 +261,14 @@ private func sources(_ testCase: JSONObject) -> [DeviceFileSource] {
           title: "", description: "", publishedAt: "", thumbnail: "",
           durationSeconds: object["durationSeconds"]?.integerValue.map { Int($0) })
       }
-      let list: Set<String>? = testCase["shortsList"].flatMap { value in
-        if case .array(let ids) = value { Set(ids.compactMap(\.stringValue)) } else { nil }
+      // as `shortIds` answers: nil when the list couldn't be read, empty when there is none
+      let listed: Set<String>
+      if case .array(let ids) = testCase["shortsList"] {
+        listed = Set(ids.compactMap(\.stringValue))
+      } else {
+        listed = []
       }
+      let list: Set<String>? = testCase["shortsListFailed"] == .bool(true) ? nil : listed
       let probeAnswers = testCase["probe"]?.objectValue
       let requests = Requests()
       var probe: ShortsProbeFunction?
@@ -274,12 +286,15 @@ private func sources(_ testCase: JSONObject) -> [DeviceFileSource] {
         },
         probe: probe)
       let expected = try #require(testCase["expected"]?.objectValue)
+      #expect(Set(classified.map(\.videoId)) == Set(expected.keys), name(testCase))
+      #expect(classified.count == videos.count, name(testCase))
       for video in classified {
         #expect(video.isShort == expected[video.videoId]?.boolValue, "\(name(testCase).rawValue): \(video.videoId)")
       }
       #expect(await requests.readsList == testCase["readsShortsList"]?.boolValue, name(testCase))
-      let expectedProbes = Set(array(testCase["probes"]).compactMap(\.stringValue))
-      #expect(Set(await requests.probes) == expectedProbes, name(testCase))
+      // each asked once, in any order
+      let expectedProbes = array(testCase["probes"]).compactMap(\.stringValue).sorted()
+      #expect(await requests.probes.sorted() == expectedProbes, name(testCase))
     }
   }
 }
@@ -305,6 +320,11 @@ private func strings(_ value: JSONValue?) -> [String] {
 private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
   texts.map { Array($0.unicodeScalars) } == strings(expected).map { Array($0.unicodeScalars) }
     && strings(expected).count == array(expected).count
+}
+
+/// A case's `channelGroups`: every listed channel's groups by channel id.
+private func channelGroups(_ testCase: JSONObject) -> [String: [String]] {
+  (testCase["channelGroups"]?.objectValue ?? [:]).mapValues(strings)
 }
 
 @Suite struct SharedFeedOrderTests {
@@ -379,6 +399,8 @@ private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
         .string(read.channelTimeChip.rawValue) == expected["channelTimeChip"], name(testCase))
       #expect(
         sameTexts(read.channelTopicChips, expected["channelTopicChips"]), name(testCase))
+      #expect(sameTexts(read.groupChips, expected["groupChips"]), name(testCase))
+      #expect(sameTexts(read.channelGroupChips, expected["channelGroupChips"]), name(testCase))
       // reading never changes what is stored
       #expect(file.json.objectValue?["settings"] == testCase["settings"], name(testCase))
     }
@@ -446,6 +468,16 @@ private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
         let kept = chipFiltered(
           given, timeChip: timeChip, topicChips: strings(testCase["topicChips"]), now: now)
         #expect(sameTexts(kept.map(\.id), expected), name(testCase))
+      case "groupFilter":
+        let timeChip = try #require(
+          TimeChip(rawValue: testCase["timeChip"]?.stringValue ?? ""), name(testCase))
+        let kept = chipFiltered(
+          groupFiltered(
+            given,
+            kept: groupKeptChannels(
+              channelGroups(testCase), selected: strings(testCase["groupChips"]))),
+          timeChip: timeChip, topicChips: strings(testCase["topicChips"]), now: now)
+        #expect(sameTexts(kept.map(\.id), expected), name(testCase))
       case "editor":
         #expect(sameTexts(editorTopics(given), expected), name(testCase))
       case "start":
@@ -475,9 +507,11 @@ private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
       case "channels":
         let timeChip = try #require(
           TimeChip(rawValue: testCase["timeChip"]?.stringValue ?? ""), name(testCase))
-        let kept = chipKeptChannels(
-          given, timeChip: timeChip, topicChips: strings(testCase["topicChips"]),
-          now: testCase["now"]?.integerValue ?? 0)
+        let kept = keptByBoth(
+          groupKeptChannels(channelGroups(testCase), selected: strings(testCase["groupChips"])),
+          chipKeptChannels(
+            given, timeChip: timeChip, topicChips: strings(testCase["topicChips"]),
+            now: testCase["now"]?.integerValue ?? 0))
         var held = HeldChannelOrder()
         held.recompute(strings(testCase["channels"]), kept: kept)
         #expect(sameTexts(held.ids, expected), name(testCase))
@@ -530,18 +564,57 @@ private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
     #expect(!publishedWithin("soon", .month, now: 0))
   }
 
-  @Test func theStartingPointIsKeptOnTheDeviceUntilTaken() throws {
+  @Test func theStartingPointIsKeptOnTheDevicePerAccount() throws {
     let suite = "subtube.tests.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    #expect(takePendingStart(accountId: "UCme", defaults: defaults) == .all)
-    keepPendingStart(accountId: "UCme", start: .week, defaults: defaults)
-    #expect(takePendingStart(accountId: "UCother", defaults: defaults) == .all)
-    #expect(takePendingStart(accountId: "UCme", defaults: defaults) == .week)
-    #expect(takePendingStart(accountId: "UCme", defaults: defaults) == .all)
-    keepPendingStart(accountId: "UCme", start: .day, defaults: defaults)
-    keepPendingStart(accountId: "UCme", start: .all, defaults: defaults)
-    #expect(takePendingStart(accountId: "UCme", defaults: defaults) == .all)
+    #expect(pendingStart(accountId: "UCme", defaults: defaults) == nil)
+    let week = try #require(PendingStart(start: .week, cutoff: 1000, channels: ["UC1", "UC2"]))
+    keepPendingStart(accountId: "UCme", week, defaults: defaults)
+    #expect(pendingStart(accountId: "UCother", defaults: defaults) == nil)
+    #expect(pendingStart(accountId: "UCme", defaults: defaults) == week)
+    #expect(pendingStart(accountId: "UCme", defaults: defaults) == week)
+    keepPendingStart(accountId: "UCme", nil, defaults: defaults)
+    #expect(pendingStart(accountId: "UCme", defaults: defaults) == nil)
+  }
+
+  @Test func setupStart() throws {
+    func record(_ value: JSONValue?) -> PendingStart? {
+      value?.objectValue.flatMap { object in
+        PendingStart(
+          start: object["start"]?.stringValue.flatMap(StartFrom.init(rawValue:)) ?? .all,
+          cutoff: object["cutoff"]?.integerValue ?? 0,
+          channels: array(object["channels"]).compactMap(\.stringValue))
+      }
+    }
+    func described(_ pending: PendingStart?) -> JSONValue {
+      pending.map { kept in
+        .object([
+          "start": .string(kept.start.rawValue), "cutoff": .integer(kept.cutoff),
+          "channels": .array(kept.channels.map(JSONValue.string)),
+        ])
+      } ?? .null
+    }
+    let all = try cases("setup-start")
+    #expect(!all.isEmpty)
+    for testCase in all {
+      switch testCase["op"]?.stringValue {
+      case "keep":
+        #expect(described(record(.object(testCase))) == testCase["expected"], name(testCase))
+      case "apply":
+        let applied = applyPendingStart(
+          record(testCase["pending"]),
+          fetched: Set(array(testCase["fetched"]).compactMap(\.stringValue)),
+          items: items(testCase["items"]))
+        let expected = try #require(testCase["expected"]?.objectValue, name(testCase))
+        #expect(
+          JSONValue.array(applied.marks.map(JSONValue.string)) == expected["marks"],
+          name(testCase))
+        #expect(described(applied.remaining) == expected["pending"], name(testCase))
+      default:
+        Issue.record("unknown op in \(name(testCase).rawValue)")
+      }
+    }
   }
 }
 
@@ -573,6 +646,9 @@ private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
     #expect(emptiedBySelection(mode: .unwatched, timeChip: .day, topicChips: []))
     #expect(emptiedBySelection(mode: .watched, timeChip: .anyTime, topicChips: []))
     #expect(emptiedBySelection(mode: .all, timeChip: .anyTime, topicChips: []))
+    #expect(
+      emptiedBySelection(
+        mode: .unwatched, timeChip: .anyTime, topicChips: [], groupSelected: true))
   }
 }
 
@@ -651,7 +727,7 @@ private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
       case "bar":
         let fraction = progressFraction(given, durationSeconds: duration)
         if let wanted = number(expected), let fraction {
-          #expect(abs(fraction - wanted) < 1e-9, name(testCase))
+          #expect(fraction == wanted, name(testCase))
         } else {
           #expect(fraction == nil && expected == .null, name(testCase))
         }
@@ -720,5 +796,175 @@ private func sameTexts(_ texts: [String], _ expected: JSONValue?) -> Bool {
 
   @Test func stopsWhenTheEndedItemIsNotInTheList() {
     #expect(next("elsewhere", []) == nil)
+  }
+}
+
+@Suite struct SharedGroupTests {
+  private func selections(_ testCase: JSONObject) -> GroupSelections {
+    let settings = testCase["settings"]?.objectValue ?? [:]
+    return GroupSelections(
+      groupChips: strings(settings["groupChips"]),
+      channelGroupChips: strings(settings["channelGroupChips"]))
+  }
+
+  private func filters(_ value: JSONValue?) -> [String: JSONObject] {
+    (value?.objectValue ?? [:]).compactMapValues(\.objectValue)
+  }
+
+  private func check(_ edit: GroupEdit, _ testCase: JSONObject) {
+    let expected = testCase["expected"]?.objectValue ?? [:]
+    #expect(edit.channels == filters(expected["channels"]), name(testCase))
+    for (channelId, filter) in edit.channels {
+      #expect(
+        sameTexts(strings(filter["groups"]), expected["channels"]?.objectValue?[channelId]?.objectValue?["groups"]),
+        name(testCase))
+    }
+    let settings = expected["settings"]?.objectValue ?? [:]
+    #expect((edit.groupChips == nil) == (settings["groupChips"] == nil), name(testCase))
+    #expect(
+      (edit.channelGroupChips == nil) == (settings["channelGroupChips"] == nil), name(testCase))
+    if let groupChips = edit.groupChips {
+      #expect(sameTexts(groupChips, settings["groupChips"]), name(testCase))
+    }
+    if let channelGroupChips = edit.channelGroupChips {
+      #expect(sameTexts(channelGroupChips, settings["channelGroupChips"]), name(testCase))
+    }
+  }
+
+  @Test func groups() throws {
+    let all = try cases("groups")
+    #expect(!all.isEmpty)
+    for testCase in all {
+      let expected = testCase["expected"]
+      let saved = filters(testCase["saved"])
+      let listed = strings(testCase["listed"])
+      switch testCase["op"]?.stringValue {
+      case "name":
+        let read = groupName(testCase["text"]?.stringValue ?? "")
+        if let read {
+          #expect(sameTexts([read], .array([expected ?? .null])), name(testCase))
+        } else {
+          #expect(expected == .null, name(testCase))
+        }
+      case "groups":
+        let names = groupNames(filters(testCase["channels"]).values.map(filterGroups))
+        #expect(sameTexts(names, expected), name(testCase))
+      case "title":
+        let title = chipTitle(
+          groups: strings(testCase["groups"]), groupChips: strings(testCase["groupChips"]),
+          topics: strings(testCase["topics"]), topicChips: strings(testCase["topicChips"]))
+        #expect(sameTexts(title.names, expected?.objectValue?["names"]), name(testCase))
+        #expect(
+          title.edit.map(JSONValue.string) ?? .null == expected?.objectValue?["edit"],
+          name(testCase))
+      case "members":
+        check(
+          setMembers(
+            saved, listed: listed, selections: selections(testCase),
+            channelIds: strings(testCase["channelIds"]),
+            group: testCase["group"]?.stringValue ?? "",
+            member: testCase["member"]?.boolValue ?? false), testCase)
+      case "rename":
+        check(
+          renameGroup(
+            saved, selections: selections(testCase), from: testCase["from"]?.stringValue ?? "",
+            to: testCase["to"]?.stringValue ?? ""), testCase)
+      case "delete":
+        check(
+          deleteGroup(
+            saved, selections: selections(testCase), group: testCase["group"]?.stringValue ?? ""),
+          testCase)
+      case "save":
+        check(
+          saveGroup(
+            saved, listed: listed, selections: selections(testCase),
+            group: testCase["group"]?.stringValue, name: testCase["to"]?.stringValue ?? "",
+            members: strings(testCase["members"])), testCase)
+      default:
+        Issue.record("unknown op in \(name(testCase).rawValue)")
+      }
+    }
+  }
+
+  @Test func theGroupExamplesReadAsTheirNames() throws {
+    let valid = try #require(
+      parseDeviceFile(try load("fixtures/device-files/valid-filter-groups.json")))
+    #expect(valid.channels.values.contains { !filterGroups($0.filter).isEmpty })
+    for fileName in [
+      "invalid-filter-groups-number.json", "invalid-filter-groups-string.json",
+      "invalid-filter-groups-empty-name.json", "invalid-filter-groups-long-name.json",
+      "invalid-filter-groups-untrimmed.json", "invalid-filter-groups-untrimmed-start.json",
+      "invalid-filter-nested-group.json",
+    ] {
+      let parsed = try #require(
+        parseDeviceFile(try load("fixtures/device-files/\(fileName)")), "\(fileName)")
+      for entry in parsed.channels.values {
+        #expect(filterGroups(entry.filter).allSatisfy { groupName($0) == $0 }, "\(fileName)")
+      }
+    }
+  }
+
+  @Test func aFiltersGroupsAreWrittenOnlyWhenChangedAndAsAnEmptyListWhenNoneIsLeft() {
+    let stored: JSONObject = [
+      "enabled": .bool(true), "regex": .string(""), "mode": .string("include"),
+      "groups": .array([.string("Making"), .integer(3)]),
+    ]
+    var channel = ChannelFilter(channelId: "UC1", title: "Chan", thumbnail: "", stored: stored)
+    #expect(channel.groups.isEmpty)
+    channel.enabled = false
+    #expect(channel.storedFilter["groups"] == stored["groups"])
+    channel.groups = ["Making"]
+    #expect(channel.storedFilter["groups"] == .array([.string("Making")]))
+    var grouped = ChannelFilter(
+      channelId: "UC1", title: "Chan", thumbnail: "", stored: channel.storedFilter)
+    grouped.groups = []
+    #expect(grouped.storedFilter["groups"] == .array([]))
+    #expect(makeChannel().storedFilter["groups"] == nil)
+  }
+}
+
+@Suite struct SharedPlayerTests {
+  @Test func player() throws {
+    let all = try cases("player")
+    #expect(!all.isEmpty)
+    for testCase in all {
+      let expected = testCase["expected"]
+      switch testCase["op"]?.stringValue {
+      case "next":
+        let mode = try #require(
+          WatchedMode(rawValue: testCase["mode"]?.stringValue ?? ""), name(testCase))
+        let queue = PlayQueue(
+          items: strings(testCase["items"]).map { .video(makeVideo($0)) }, mode: mode)
+        let next = nextInQueue(
+          queue, after: testCase["ended"]?.stringValue ?? "",
+          watched: Set(strings(testCase["watched"])),
+          autoplay: testCase["autoplay"]?.boolValue ?? false)
+        #expect(next.map { JSONValue.string($0.id) } ?? .null == expected, name(testCase))
+      case "end":
+        let place = try #require(
+          PlayerPlace(rawValue: testCase["place"]?.stringValue ?? ""), name(testCase))
+        let outcome = endOutcome(
+          place: place, hasNext: testCase["next"]?.boolValue ?? false,
+          nextCardShowing: testCase["nextCardShowing"]?.boolValue ?? false)
+        let described: JSONValue
+        switch outcome {
+        case .next(let nextPlace):
+          described = .object(["kind": .string("next"), "place": .string(nextPlace.rawValue)])
+        case .stay: described = .object(["kind": .string("stay")])
+        case .close: described = .object(["kind": .string("close")])
+        }
+        #expect(described == expected, name(testCase))
+      case "minimizedSize":
+        let width = try #require(testCase["viewWidth"]?.integerValue, name(testCase))
+        let size = minimizedPlayerSize(viewWidth: Double(width))
+        #expect(
+          JSONValue.object([
+            "width": Int64(exactly: size.width).map(JSONValue.integer) ?? .double(size.width),
+            "height": Int64(exactly: size.height).map(JSONValue.integer) ?? .double(size.height),
+          ]) == expected, name(testCase))
+      default:
+        Issue.record("unknown op in \(name(testCase).rawValue)")
+      }
+    }
   }
 }

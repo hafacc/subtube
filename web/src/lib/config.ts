@@ -1,18 +1,13 @@
 /*
- * Public client config; safe to commit. A client id identifies the app to Google,
- * it grants nothing on its own, and none of these clients has a secret.
+ * Public client config; safe to commit. The OAuth client id the web app signs
+ * in with is the extension's (`OAUTH_CLIENT_ID` in extension/src/background.ts):
+ * a client id identifies the app to Google, it grants nothing on its own, and
+ * none of these clients has a secret.
  *
  * All of subtube's OAuth clients live in one Google Cloud project (subtube-dev),
  * because a Drive app folder is readable only by clients of the project that
  * wrote it, and every platform has to see the same files.
  */
-
-/**
- * The OAuth 2.0 web client, used through the Chrome extension. Authorized
- * redirect URI: the extension's https://<extension-id>.chromiumapp.org/.
- */
-export const webClientId =
-  "932619996481-qtf3mtbe40o315ptk6rm7ieuvn61akkm.apps.googleusercontent.com";
 
 /**
  * The Chrome extension's id, fixed by the `key` in its manifest. `VITE_EXTENSION_ID`

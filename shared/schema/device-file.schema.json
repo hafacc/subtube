@@ -35,7 +35,7 @@
       }
     },
     "settings": {
-      "description": "The last value this device saved for each synced setting, keyed by setting name. Optional: a file without it has saved no setting. Names and values this schema doesn't list are allowed and kept; shared/fixtures/settings.json says how the known ones are read: feedSort (newest, shortest, title, random), channelSort (newest, name, unwatched), autoplay (boolean), timeChip (none, day, week, month), topicChips (array of YouTube video category ids, as strings), channelTimeChip (as timeChip), channelTopicChips (as topicChips).",
+      "description": "The last value this device saved for each synced setting, keyed by setting name. Optional: a file without it has saved no setting. Names and values this schema doesn't list are allowed and kept; shared/fixtures/settings.json says how the known ones are read: feedSort (newest, shortest, title, random), channelSort (newest, name, unwatched), autoplay (boolean), timeChip (none, day, week, month), topicChips (array of YouTube video category ids, as strings), channelTimeChip (as timeChip), channelTopicChips (as topicChips), groupChips and channelGroupChips (arrays of group names, shared/fixtures/groups.json).",
       "type": "object",
       "propertyNames": {
         "minLength": 1
@@ -187,6 +187,17 @@
           "items": {
             "type": "string",
             "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "groups": {
+          "description": "Names of the groups the channel is in (shared/fixtures/groups.json). A group is its name: it exists while a listed channel's filter names it, and two names are one group only when identical. A name has no white space at either end and 1 to 24 code points. Empty or absent means the channel is in no group. Default [].",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "pattern": "^[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000](?:[\\s\\S]*[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000])?$"
           },
           "uniqueItems": true
         },

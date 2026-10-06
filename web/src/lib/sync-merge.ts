@@ -63,21 +63,13 @@ export function deviceIdFromName(name: string): string | null {
   return DEVICE_FILE_NAME.exec(name)?.[1] ?? null;
 }
 
-/** Whether an app folder holding these file names is an account already set up: any device's file. */
+/**
+ * Whether an app folder holding these file names is an account already set
+ * up: any device's file. A device asks this of the other devices' files only,
+ * so its own file, written part-way through setup, never counts.
+ */
 export function hasProfile(fileNames: readonly string[]): boolean {
   return fileNames.some((name) => deviceIdFromName(name) !== null);
-}
-
-/**
- * Whether the profile was deleted on another device: this device uploaded its
- * file before, and a folder listing that succeeded no longer has it.
- */
-export function deletedElsewhere(
-  uploadedBefore: boolean,
-  fileNames: readonly string[],
-  ownName: string,
-): boolean {
-  return uploadedBefore && !fileNames.includes(ownName);
 }
 
 /**
@@ -217,6 +209,75 @@ export function mergeDeviceFiles(sources: DeviceSource[]): DeviceFile {
     watched: Object.fromEntries(watched),
     settings: Object.fromEntries(settings),
   };
+}
+
+function seenAt(entry: { seen?: unknown }): number {
+  return isTime(entry.seen) ? entry.seen : 0;
+}
+
+function newerOfOwn<Entry extends { at: number; seen?: unknown }>(
+  mine: Record<string, Entry> = {},
+  other: Record<string, Entry> = {},
+): Record<string, Entry> {
+  const merged = { ...mine };
+  for (const [key, entry] of Object.entries(other)) {
+    const held = merged[key];
+    if (
+      !held ||
+      entry.at > held.at ||
+      (entry.at === held.at && seenAt(entry) > seenAt(held))
+    ) {
+      merged[key] = entry;
+    }
+  }
+  return merged;
+}
+
+/**
+ * Two copies of one device's own file as one: per key the entry saved last,
+ * and of two saved at the same time the one seen in a load last, else
+ * `mine`. Used where the same device wrote twice: another tab's copy, or a
+ * second Drive file under this device's name.
+ */
+export function mergeOwnCopies(
+  mine: DeviceFile,
+  other: DeviceFile,
+): DeviceFile {
+  const settings =
+    mine.settings === undefined && other.settings === undefined
+      ? {}
+      : { settings: newerOfOwn(mine.settings, other.settings) };
+  return {
+    ...other,
+    ...mine,
+    version: 1,
+    channels: newerOfOwn(mine.channels, other.channels),
+    watched: newerOfOwn(mine.watched, other.watched),
+    ...settings,
+  };
+}
+
+/** Whether two copies of a device's file hold the same entries, by key, time saved and time seen. */
+export function sameOwnEntries(left: DeviceFile, right: DeviceFile): boolean {
+  const same = (
+    first: Record<string, { at: number; seen?: unknown }> = {},
+    second: Record<string, { at: number; seen?: unknown }> = {},
+  ) => {
+    const keys = Object.keys(first);
+    return (
+      keys.length === Object.keys(second).length &&
+      keys.every(
+        (key) =>
+          second[key]?.at === first[key].at &&
+          seenAt(second[key]) === seenAt(first[key]),
+      )
+    );
+  };
+  return (
+    same(left.channels, right.channels) &&
+    same(left.watched, right.watched) &&
+    same(left.settings, right.settings)
+  );
 }
 
 /** When an entry was last saved or last among a load's items, whichever is later. */

@@ -18,12 +18,35 @@ enum Strings {
   static let showInspector = String(localized: "Show Details")
   static let hideInspector = String(localized: "Hide Details")
   static let shortBadge = String(localized: "Short")
-  static let watchedBadge = String(localized: "watched")
+  static let watchedBadge = String(localized: "Watched")
   static let noChannelSelected = String(localized: "Select a channel to edit its filters.")
   static let noMatches = String(localized: "Nothing new. You're caught up.")
-  static let noVideosForFilter = String(localized: "No videos for selected filter")
-  static let noChannelsForFilter = String(localized: "No channels for selected filter")
-  static let clearTopics = String(localized: "Clear topics")
+  static let noVideosForFilter = String(localized: "No videos for the selected filter.")
+  static let noChannelsForFilter = String(localized: "No channels for the selected filter.")
+  static let clear = String(localized: "Clear")
+  static let save = String(localized: "Save")
+  static let name = String(localized: "Name")
+  static let latest = String(localized: "Latest")
+  static let unwatched = String(localized: "Unwatched")
+  static let title = String(localized: "Title")
+  static let deleteGroup = String(localized: "Delete Group")
+  #if os(macOS)
+    static let newGroup = String(localized: "New Group")
+    static let editGroup = String(localized: "Edit Group")
+  #else
+    static let newGroup = String(localized: "New group")
+    static let editGroup = String(localized: "Edit group")
+  #endif
+  #if os(macOS)
+    static let markWatched = String(localized: "Mark Watched")
+    static let markUnwatched = String(localized: "Mark Unwatched")
+  #else
+    static let markWatched = String(localized: "Mark watched")
+    static let markUnwatched = String(localized: "Mark unwatched")
+  #endif
+  static let expand = String(localized: "Expand")
+  static let minimize = String(localized: "Minimize")
+  static let close = String(localized: "Close")
   static let dismiss = String(localized: "Dismiss")
 
   static func videoCount(_ count: Int) -> String {
@@ -50,9 +73,9 @@ enum Strings {
 
   static func feedSortOption(_ sort: FeedSort) -> String {
     switch sort {
-    case .newest: String(localized: "Latest")
+    case .newest: latest
     case .shortest: String(localized: "Shortest")
-    case .title: String(localized: "Title")
+    case .title: title
     case .random: String(localized: "Random")
     }
   }
@@ -72,7 +95,7 @@ enum Strings {
 
   static func watchedModeOption(_ mode: WatchedMode) -> String {
     switch mode {
-    case .unwatched: String(localized: "Unwatched")
+    case .unwatched: unwatched
     case .watched: String(localized: "Watched")
     case .all: String(localized: "All")
     }
@@ -80,9 +103,9 @@ enum Strings {
 
   static func channelSortOption(_ sort: ChannelSort) -> String {
     switch sort {
-    case .newest: String(localized: "Latest")
-    case .name: String(localized: "Name")
-    case .unwatched: String(localized: "Unwatched")
+    case .newest: latest
+    case .name: name
+    case .unwatched: unwatched
     }
   }
 
@@ -100,15 +123,14 @@ enum Strings {
   static let playlists = String(localized: "Playlists")
   static func patternHeading(_ scope: FilterScope) -> String {
     switch scope {
-    case .title: String(localized: "Title Pattern")
-    case .description: String(localized: "Description Pattern")
-    case .both: String(localized: "Text Pattern")
+    case .title: String(localized: "Title Phrases")
+    case .description: String(localized: "Description Phrases")
+    case .both: String(localized: "Text Phrases")
     }
   }
 
   static let matches = String(localized: "Matches")
-  static let matchIn = String(localized: "Match in")
-  static let scopeTitle = String(localized: "Title")
+  static let matchIn = String(localized: "Match In")
   static let scopeBoth = String(localized: "Both")
   static let scopeDescription = String(localized: "Description")
   static let caseHeading = String(localized: "Case")
@@ -122,11 +144,7 @@ enum Strings {
     localized: "Only videos with a selected topic are shown. None selected shows all.")
   static let shorts = String(localized: "Shorts")
   static let live = String(localized: "Live")
-  #if os(macOS)
-    static let hideVideosUnder = String(localized: "Hide videos under")
-  #else
-    static let hideVideosUnder = String(localized: "Hide Videos Under")
-  #endif
+  static let hideVideosUnder = String(localized: "Hide Videos Under")
   static let seconds = String(localized: "seconds")
 
   static func showChannelInFeed(_ title: String) -> String {
@@ -137,13 +155,12 @@ enum Strings {
     String(localized: "Filters for \(title)")
   }
 
-  static let choiceShow = String(localized: "Show")
   static let choiceHide = String(localized: "Hide")
   static let choiceOnly = String(localized: "Only")
 
   static func shortsOption(_ filter: ShortsFilter) -> String {
     switch filter {
-    case .all: choiceShow
+    case .all: show
     case .normal: choiceHide
     case .shorts: choiceOnly
     }
@@ -151,7 +168,7 @@ enum Strings {
 
   static func liveOption(_ filter: LiveFilter) -> String {
     switch filter {
-    case .all: choiceShow
+    case .all: show
     case .normal: choiceHide
     case .vod: choiceOnly
     }
@@ -159,7 +176,7 @@ enum Strings {
 
   static func scopeOption(_ scope: FilterScope) -> String {
     switch scope {
-    case .title: scopeTitle
+    case .title: title
     case .both: scopeBoth
     case .description: scopeDescription
     }
@@ -167,11 +184,10 @@ enum Strings {
 
   static let summaryOff = String(localized: "Off")
   static let summaryAllVideos = String(localized: "All videos")
-  static let summaryPlaylists = String(localized: "Playlists")
   static let summaryNoShorts = String(localized: "No Shorts")
   static let summaryShortsOnly = String(localized: "Shorts only")
-  static let summaryRegularOnly = String(localized: "Regular uploads only")
-  static let summaryLiveOnly = String(localized: "Live & replays only")
+  static let summaryNoLive = String(localized: "No live")
+  static let summaryLiveOnly = String(localized: "Live only")
   static let summaryFollowed = String(localized: "Followed in SubTube")
 
   static func summaryOnlyMatching(_ pattern: String, scope: FilterScope) -> String {
@@ -191,7 +207,45 @@ enum Strings {
   }
 
   static func summaryHidesUnder(_ seconds: Int) -> String {
-    String(localized: "Hides videos under \(seconds) seconds")
+    seconds == 1
+      ? String(localized: "Hides videos under 1 second")
+      : String(localized: "Hides videos under \(seconds) seconds")
+  }
+
+  static func summaryOnlyTopics(_ topics: String) -> String {
+    String(localized: "Only \(topics)")
+  }
+
+  /// One part of a channel's filter summary, as the channels list words it.
+  static func summary(_ part: FilterSummaryPart) -> String {
+    switch part {
+    case .playlists: playlists
+    case .matching(let phrases, let mode, let scope):
+      mode == .exclude
+        ? summaryHidesMatching(phrases.joined(separator: ", "), scope: scope)
+        : summaryOnlyMatching(phrases.joined(separator: ", "), scope: scope)
+    case .noShorts: summaryNoShorts
+    case .shortsOnly: summaryShortsOnly
+    case .noLive: summaryNoLive
+    case .liveOnly: summaryLiveOnly
+    case .hidesUnder(let seconds): summaryHidesUnder(seconds)
+    case .topics(let names): summaryOnlyTopics(names.joined(separator: ", "))
+    case .allVideos: summaryAllVideos
+    }
+  }
+
+  static let chipPlayback = String(localized: "Playback")
+  static let chipSort = String(localized: "Sort")
+  static let chipTime = String(localized: "Time")
+  static let chipShow = String(localized: "Show")
+
+  /// A cycling chip's name for a screen reader: what it sets, then its choice.
+  static func chipSetting(_ setting: String, value: String) -> String {
+    String(localized: "\(setting): \(value)")
+  }
+
+  static func removePhrase(_ phrase: String) -> String {
+    String(localized: "Remove \(phrase)")
   }
 
   static let general = String(localized: "General")
@@ -200,23 +254,25 @@ enum Strings {
   static let syncedWithDrive = String(localized: "Synced with Google Drive")
   static let syncExplanation = String(
     localized:
-      "Your channels, filters and watched list are kept in a hidden SubTube folder in your Drive.")
+      "Your channels, filters and what you've watched are kept in a hidden SubTube folder in your Google Drive.")
   static let syncing = String(localized: "Syncing…")
   static let appearance = String(localized: "Appearance")
   static let theme = String(localized: "Theme")
   static let signOut = String(localized: "Sign Out")
   static let signOutFootnote = String(
-    localized: "Your settings stay in your Drive. Sign back in to get them.")
+    localized:
+      "Your channels, filters and what you've watched stay in your Google Drive. Sign back in to get them."
+  )
 
   static let deleteProfile = String(localized: "Delete Profile")
   static let deleteProfileDetail = String(
     localized:
-      "Deletes your filters, followed channels and watched marks from Google Drive, on all your devices. Your YouTube account isn't changed."
+      "Deletes your filters, followed channels and what you've watched from Google Drive, on all your devices. Your YouTube account isn't changed."
   )
   static let deleteProfileTitle = String(localized: "Delete your profile?")
   static let deleteProfileMessage = String(
     localized:
-      "This deletes your filters, followed channels and watched marks from Google Drive and from this device. It can't be undone."
+      "This deletes your filters, followed channels and what you've watched from Google Drive and from this device. It can't be undone."
   )
   static let deleteProfileFailed = String(
     localized: "Couldn't delete your profile. Check your connection and try again.")
@@ -242,26 +298,29 @@ enum Strings {
     localized: "What you've watched is remembered on all your devices.")
   static let getStarted = String(localized: "Get Started")
   #if os(macOS)
-    static let signInHeading = String(localized: "Sign In with Google")
     static let chooseChannels = String(localized: "Choose Channels")
     static let youreSet = String(localized: "You're Set")
     static let doneDetail = String(
       localized:
         "Your feed starts with the latest video you haven't watched. Click one to play it.")
   #else
-    static let signInHeading = String(localized: "Sign in with Google")
     static let chooseChannels = String(localized: "Choose channels")
     static let youreSet = String(localized: "You're set")
     static let doneDetail = String(
       localized:
         "Your feed starts with the latest video you haven't watched. Tap one to play it.")
   #endif
-  static let whereToStart = String(localized: "Where to start")
+  #if os(macOS)
+    static let whereToStart = String(localized: "Where to Start")
+  #else
+    static let whereToStart = String(localized: "Where to start")
+  #endif
   static let noServer = String(
     localized:
       "SubTube has no server of its own. Your data stays in your Google account and on this device."
   )
-  static let signIn = String(localized: "Sign In with Google")
+  /// The sign-in button and the heading over it, in Google's own wording on every platform.
+  static let signIn = String(localized: "Sign in with Google")
   static let signInShort = String(localized: "Sign In")
   static let privacyPolicy = String(localized: "Privacy Policy")
   static let terms = String(localized: "Terms")
@@ -282,7 +341,7 @@ enum Strings {
   static let permissionYouTube = String(localized: "Read your YouTube subscriptions")
   static let permissionYouTubeDetail = String(
     localized: "So it knows which channels to show. It can't change anything on your YouTube account.")
-  static let permissionDrive = String(localized: "Keep its settings in your Google Drive")
+  static let permissionDrive = String(localized: "Keep your filters in your Google Drive")
   static let permissionDriveDetail = String(
     localized:
       "In a hidden folder that only SubTube can open. It holds your filters and what you've watched. SubTube can't see your other files."
@@ -319,4 +378,35 @@ enum Strings {
     localized:
       "Couldn't load the YouTube player. Check your connection or any content blockers, then try again."
   )
+  static let signInAgain = String(localized: "Sign in again to continue.")
+  static let noYouTubeChannel = String(localized: "This Google account has no YouTube channel.")
+  static let dailyLimit = String(
+    localized: "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.")
+  static let couldntReachGoogle = String(
+    localized: "Couldn't reach Google. Check your connection and try again.")
+
+  /// What a failed sign-in or load says: `signedOut` when only signing in
+  /// helps, nothing for work that was called off or a sign-in the user
+  /// closed, and for anything without a message of its own that Google
+  /// couldn't be reached.
+  static func message(for error: Error, signedOut: String) -> String? {
+    switch error {
+    case AuthError.declined: nil
+    case AuthError.signInRequired: signedOut
+    case GoogleAPIError.tokenExpired: sessionEnded
+    case GoogleAPIError.insufficientScope: needsPermissions
+    case GoogleAPIError.noChannel: noYouTubeChannel
+    case GoogleAPIError.dailyLimit: dailyLimit
+    default: isCancellation(error) ? nil : couldntReachGoogle
+    }
+  }
+
+  /// Whether signing in again is what fixes an error.
+  static func signingInFixes(_ error: Error) -> Bool {
+    switch error {
+    case AuthError.signInRequired, GoogleAPIError.tokenExpired, GoogleAPIError.insufficientScope:
+      true
+    default: false
+    }
+  }
 }

@@ -32,6 +32,7 @@ describe("shared phrase fixtures", () => {
           ).toBe(check.matches);
         }
       } else {
+        expect(testCase.op).toBe("parse");
         expect(patternToPhrases(testCase.pattern)).toEqual(
           testCase.expected ?? null,
         );

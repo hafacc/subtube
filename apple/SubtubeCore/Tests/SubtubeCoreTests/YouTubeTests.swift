@@ -79,12 +79,6 @@ import Testing
     #expect(!isDailyLimit(status: 403, body: Data(#"{"error": {"errors": "quotaExceeded"}}"#.utf8)))
   }
 
-  @Test func saysExactlyWhatTheOtherClientsSay() {
-    #expect(
-      GoogleAPIError.dailyLimit.localizedDescription
-        == "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.")
-  }
-
   private func response(_ status: Int) throws -> HTTPURLResponse {
     let url = try #require(URL(string: "https://example.com"))
     return try #require(
@@ -112,15 +106,23 @@ import Testing
   }
 }
 
-/// Answers every request with one status and counts them per playlist id.
+/// Answers every request with one status and body, or fails it, and counts
+/// them per playlist id.
 private final class StatusStub: URLProtocol, @unchecked Sendable {
+  static let serverError = #"{"error": {"status": "INTERNAL", "message": "Internal error encountered."}}"#
+  static let notFound =
+    #"{"error": {"code": 404, "errors": [{"domain": "youtube.playlistItem", "reason": "playlistNotFound"}]}}"#
+
   nonisolated(unsafe) static var status = 500
+  nonisolated(unsafe) static var body = serverError
   nonisolated(unsafe) static var counts: [String: Int] = [:]
   private static let lock = NSLock()
 
-  static func session(status: Int) -> URLSession {
+  /// A session answering `status` with `body`; a status of 0 fails every request.
+  static func session(status: Int, body: String = serverError) -> URLSession {
     lock.withLock {
       Self.status = status
+      Self.body = body
       counts = [:]
     }
     let configuration = URLSessionConfiguration.ephemeral
@@ -138,28 +140,79 @@ private final class StatusStub: URLProtocol, @unchecked Sendable {
   override func startLoading() {
     let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems
     let playlistId = items?.first { $0.name == "playlistId" }?.value ?? ""
-    let status = Self.lock.withLock {
+    let (status, body) = Self.lock.withLock {
       Self.counts[playlistId, default: 0] += 1
-      return Self.status
+      return (Self.status, Self.body)
     }
-    let response = HTTPURLResponse(
-      url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
-    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(
-      self, didLoad: Data(#"{"error": {"status": "INTERNAL", "message": "Internal error encountered."}}"#.utf8))
-    client?.urlProtocolDidFinishLoading(self)
+    if status == 0 {
+      client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+    } else {
+      let response = HTTPURLResponse(
+        url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+      client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+      client?.urlProtocol(self, didLoad: Data(body.utf8))
+      client?.urlProtocolDidFinishLoading(self)
+    }
   }
 
   override func stopLoading() {}
 }
 
+private actor ProbeCount {
+  private(set) var count = 0
+  func bump() { count += 1 }
+}
+
 @Suite(.serialized) struct ShortsListFailureTests {
   private let channelId = "UC7-E5xhZBZdW-8d7V80mzfg"
 
-  @Test func aServerErrorOnTheShortsListMeansNoList() async throws {
+  @Test func aServerErrorOnTheShortsListMeansItCouldNotBeRead() async throws {
     let client = YouTubeClient(accessToken: "token", session: StatusStub.session(status: 500))
     #expect(try await client.shortIds(channelId: channelId) == nil)
     #expect(StatusStub.count(shortsPlaylistId(channelId)) == 2)
+  }
+
+  @Test func aFailedRequestForTheShortsListMeansItCouldNotBeRead() async throws {
+    let client = YouTubeClient(accessToken: "token", session: StatusStub.session(status: 0))
+    #expect(try await client.shortIds(channelId: channelId) == nil)
+  }
+
+  @Test func aShortsListThatIsNotFoundIsAnEmptyOneSoNothingIsProbed() async throws {
+    let client = YouTubeClient(
+      accessToken: "token", session: StatusStub.session(status: 404, body: StatusStub.notFound))
+    #expect(try await client.shortIds(channelId: channelId) == [])
+    let probed = ProbeCount()
+    let marked = try await client.markShorts(
+      [makeVideo("clip", durationSeconds: 60)], channelId: channelId, maxResults: 50,
+      probe: { _ in
+        await probed.bump()
+        return true
+      })
+    #expect(marked.map(\.isShort) == [false])
+    #expect(await probed.count == 0)
+  }
+
+  @Test func anUploadsListThatIsNotFoundIsAnEmptyOne() async throws {
+    let client = YouTubeClient(
+      accessToken: "token", session: StatusStub.session(status: 404, body: StatusStub.notFound))
+    #expect(try await client.uploads(channelId: channelId, channelTitle: "Channel").isEmpty)
+    #expect(StatusStub.count(uploadsPlaylistId(channelId)) == 1)
+  }
+
+  @Test func theMissingPermissionAnswerIsToldFromOther403s() throws {
+    let url = try #require(URL(string: "https://example.com"))
+    let refused = try #require(
+      HTTPURLResponse(url: url, statusCode: 403, httpVersion: nil, headerFields: nil))
+    #expect(throws: GoogleAPIError.insufficientScope) {
+      try checkGoogleResponse(refused, body: Data(#"{"reason": "insufficientPermissions"}"#.utf8))
+    }
+    #expect(throws: GoogleAPIError.insufficientScope) {
+      try checkGoogleResponse(refused, body: Data("ACCESS_TOKEN_SCOPE_INSUFFICIENT".utf8))
+    }
+    let other = #"{"message": "insufficient storage"}"#
+    #expect(throws: GoogleAPIError.http(status: 403, body: other)) {
+      try checkGoogleResponse(refused, body: Data(other.utf8))
+    }
   }
 
   @Test func aServerErrorOnTheUploadsListIsStillAnError() async {
@@ -169,5 +222,40 @@ private final class StatusStub: URLProtocol, @unchecked Sendable {
         channelId: channelId, channelTitle: "Channel", maxResults: 50, probe: nil)
     }
     #expect(StatusStub.count(uploadsPlaylistId(channelId)) == 1)
+  }
+}
+
+@Suite struct SignInTests {
+  @Test func theChallengeIsTheVerifiersHash() {
+    // RFC 7636, appendix B
+    #expect(
+      pkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
+        == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
+  }
+
+  @Test func signInAlwaysAsksWhichAccount() throws {
+    let request = GoogleAuth().authorizationRequest()
+    let items = try #require(
+      URLComponents(url: request.url, resolvingAgainstBaseURL: false)?.queryItems)
+    func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
+    #expect(value("prompt") == "select_account")
+    #expect(value("code_challenge_method") == "S256")
+    #expect(value("response_type") == "code")
+    #expect(value("redirect_uri") == GoogleClient.redirectURI)
+    #expect(request.url.scheme == "https")
+    #expect(request.callbackScheme == GoogleClient.redirectScheme)
+  }
+
+  @Test func decliningThePermissionsIsNotAFailure() async throws {
+    let auth = GoogleAuth()
+    let request = auth.authorizationRequest()
+    let declined = try #require(URL(string: "\(GoogleClient.redirectURI)?error=access_denied"))
+    await #expect(throws: AuthError.declined) {
+      try await auth.completeSignIn(callback: declined, request: request)
+    }
+    let other = try #require(URL(string: "\(GoogleClient.redirectURI)?state=wrong&code=1"))
+    await #expect(throws: AuthError.invalidCallback("state mismatch")) {
+      try await auth.completeSignIn(callback: other, request: request)
+    }
   }
 }

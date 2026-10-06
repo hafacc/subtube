@@ -6,11 +6,11 @@
 </script>
 
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { getValidToken } from "../lib/auth";
+  import { AlertDialog, Popover } from "bits-ui";
+  import { withToken } from "../lib/auth";
   import { privacyUrl, termsUrl } from "../lib/config";
   import { fetchDriveUser } from "../lib/drive";
-  import type { ChannelSummary } from "../lib/youtube";
+  import type { Account } from "../lib/session.svelte";
   import Avatar from "./Avatar.svelte";
   import Icon from "./Icon.svelte";
 
@@ -19,18 +19,15 @@
     lastSynced,
     onsignout,
     ondelete,
-    onclose,
   }: {
     /** the signed-in account's channel */
-    account: ChannelSummary;
+    account: Account;
     /** when Drive last answered, in epoch milliseconds */
     lastSynced: number | null;
     /** sign out */
     onsignout: () => void;
     /** delete the profile everywhere; rejects when Drive can't be reached */
     ondelete: () => Promise<void>;
-    /** close the popover */
-    onclose: () => void;
   } = $props();
 
   const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -38,7 +35,6 @@
   let now = $state(Date.now());
   // svelte-ignore state_referenced_locally
   let user: DriveUser | null = $state(users.get(account.channelId) ?? null);
-  let panel: HTMLElement;
   let confirming = $state(false);
   let deleting = $state(false);
   let deleteFailed = $state(false);
@@ -69,12 +65,14 @@
     }
   }
 
-  onMount(() => {
+  /** Runs while the popover is on the page: asks who the account is and keeps "Last synced" current. */
+  function shown(): () => void {
+    now = Date.now();
     if (!user) {
       const channelId = account.channelId;
       void (async () => {
         try {
-          const found = await fetchDriveUser(await getValidToken());
+          const found = await withToken(fetchDriveUser);
           users.set(channelId, found);
           user = found;
         } catch {
@@ -85,153 +83,179 @@
     const timer = setInterval(() => {
       now = Date.now();
     }, 30_000);
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Element;
-      if (
-        !panel.contains(target) &&
-        !target.closest("[data-settings-toggle]")
-      ) {
-        onclose();
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || deleting) {
-        return;
-      } else if (confirming) {
-        confirming = false;
-      } else {
-        onclose();
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  });
+    return () => clearInterval(timer);
+  }
 </script>
 
-<section aria-label="Settings" bind:this={panel}>
-  <div class="who">
-    <Avatar
-      title={account.title}
-      thumbnail={account.thumbnail}
-      size={40}
-      tint
-    />
-    <span class="names">
-      <span class="name">{user?.displayName ?? account.title}</span>
-      {#if user?.emailAddress}
-        <span class="secondary handle">{user.emailAddress}</span>
-      {/if}
-    </span>
-  </div>
-
-  <div class="box">
-    <Icon name="cloudCheck" size={20} />
-    <div class="box-text">
-      <strong>Synced with Google Drive</strong>
-      {#if lastSynced !== null}
-        <span class="secondary">Last synced {ago(lastSynced)}</span>
-      {:else}
-        <span class="secondary">Syncing…</span>
-      {/if}
-      <span class="secondary"
-        >Your channels, filters and watched list are kept in a hidden SubTube
-        folder in your Drive.</span
-      >
-    </div>
-  </div>
-
-  <div class="box">
-    <Icon name="puzzle" size={20} />
-    <div class="box-text">
-      <strong>Chrome extension</strong>
-      <span class="secondary"
-        >Installed. Keeps you signed in and checks for Shorts.</span
-      >
-    </div>
-  </div>
-
-  <div class="sign-out">
-    <button type="button" onclick={onsignout}>
-      <Icon name="signOut" />
-      Sign out
-    </button>
-    <p class="secondary">
-      Your settings stay in your Drive. Sign back in to get them.
-    </p>
-  </div>
-
-  <div class="delete">
-    <button
-      type="button"
-      onclick={() => {
-        deleteFailed = false;
-        confirming = true;
-      }}
+<Popover.ContentStatic trapFocus={false}>
+  {#snippet child({
+    props,
+  })}
+    <section
+      {...props}
+      class="fades"
+      aria-label="Settings"
+      style:contain="none"
+      {@attach shown}
     >
-      <Icon name="trash" />
-      Delete profile
-    </button>
-    <p class="secondary">
-      Deletes your filters, followed channels and watched marks from Google
-      Drive, on all your devices. Your YouTube account isn't changed.
-    </p>
-  </div>
+      <div class="who">
+        <Avatar
+          title={account.title}
+          thumbnail={account.thumbnail}
+          size={40}
+          tint
+        />
+        <span class="names">
+          <span class="name">{user?.displayName ?? account.title}</span>
+          {#if user?.emailAddress}
+            <span class="secondary handle">{user.emailAddress}</span>
+          {/if}
+        </span>
+      </div>
 
-  <div class="legal">
-    <a href={privacyUrl} target="_blank" rel="noopener noreferrer">
-      Privacy policy
-    </a>
-    <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
-  </div>
-
-  {#if confirming}
-    <div class="backdrop">
-      <div
-        class="confirm"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="delete-title"
-        aria-describedby="delete-text"
-      >
-        <h2 id="delete-title">Delete your profile?</h2>
-        <p id="delete-text">
-          This deletes your filters, followed channels and watched marks from
-          Google Drive and from this device. It can't be undone.
-        </p>
-        {#if deleteFailed}
-          <p class="error-text" role="alert">
-            Couldn't delete your profile. Check your connection and try again.
-          </p>
-        {/if}
-        <div class="confirm-actions">
-          <button
-            type="button"
-            class="button-quiet"
-            disabled={deleting}
-            onclick={() => {
-              confirming = false;
-            }}
+      <div class="box">
+        <Icon name="cloudCheck" size={20} />
+        <div class="box-text">
+          <strong>Synced with Google Drive</strong>
+          {#if lastSynced !== null}
+            <span class="secondary">Last synced {ago(lastSynced)}</span>
+          {:else}
+            <span class="secondary">Syncing…</span>
+          {/if}
+          <span class="secondary"
+            >Your channels, filters and what you've watched are kept in a hidden
+            SubTube folder in your Google Drive.</span
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="destructive"
-            disabled={deleting}
-            onclick={() => void deleteProfile()}
-          >
-            Delete profile
-          </button>
         </div>
       </div>
-    </div>
-  {/if}
-</section>
+
+      <div class="box">
+        <Icon name="puzzle" size={20} />
+        <div class="box-text">
+          <strong>Chrome extension</strong>
+          <span class="secondary"
+            >Added. Keeps you signed in to Google and checks which videos are
+            Shorts.</span
+          >
+        </div>
+      </div>
+
+      <div class="sign-out">
+        <button type="button" onclick={onsignout}>
+          <Icon name="signOut" />
+          Sign out
+        </button>
+        <p class="secondary">
+          Your channels, filters and what you've watched stay in your Google
+          Drive. Sign back in to get them.
+        </p>
+      </div>
+
+      <AlertDialog.Root bind:open={confirming}>
+        <div class="delete">
+          <AlertDialog.Trigger
+            onclick={() => {
+              deleteFailed = false;
+            }}
+          >
+            {#snippet child({
+              props: trigger,
+            })}
+              <button {...trigger} type="button">
+                <Icon name="trash" />
+                Delete profile
+              </button>
+            {/snippet}
+          </AlertDialog.Trigger>
+          <p class="secondary">
+            Deletes your filters, followed channels and what you've watched from
+            Google Drive, on all your devices. Your YouTube account isn't
+            changed.
+          </p>
+        </div>
+
+        <div class="legal">
+          <a href={privacyUrl} target="_blank" rel="noopener noreferrer">
+            Privacy policy
+          </a>
+          <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
+        </div>
+
+        <AlertDialog.Overlay>
+          {#snippet child({
+            props: overlay,
+          })}
+            <div {...overlay} class="backdrop fades">
+              <AlertDialog.Content
+                forceMount
+                preventScroll={false}
+                escapeKeydownBehavior={deleting ? "ignore" : "close"}
+              >
+                {#snippet child({
+                  props: content,
+                })}
+                  <div {...content} class="confirm" style:contain="none">
+                    <AlertDialog.Title id="delete-title" level={2}>
+                      {#snippet child({
+                        props: title,
+                      })}
+                        <h2 {...title}>Delete your profile?</h2>
+                      {/snippet}
+                    </AlertDialog.Title>
+                    <AlertDialog.Description id="delete-text">
+                      {#snippet child({
+                        props: description,
+                      })}
+                        <p {...description}>
+                          This deletes your filters, followed channels and what
+                          you've watched from Google Drive and from this device.
+                          It can't be undone.
+                        </p>
+                      {/snippet}
+                    </AlertDialog.Description>
+                    {#if deleteFailed}
+                      <p class="error-text" role="alert">
+                        Couldn't delete your profile. Check your connection and
+                        try again.
+                      </p>
+                    {/if}
+                    <div class="confirm-actions">
+                      <AlertDialog.Cancel disabled={deleting}>
+                        {#snippet child({
+                          props: cancel,
+                        })}
+                          <button
+                            {...cancel}
+                            type="button"
+                            class="button-quiet"
+                          >
+                            Cancel
+                          </button>
+                        {/snippet}
+                      </AlertDialog.Cancel>
+                      <AlertDialog.Action
+                        disabled={deleting}
+                        onclick={() => void deleteProfile()}
+                      >
+                        {#snippet child({
+                          props: action,
+                        })}
+                          <button {...action} type="button" class="destructive">
+                            Delete profile
+                          </button>
+                        {/snippet}
+                      </AlertDialog.Action>
+                    </div>
+                  </div>
+                {/snippet}
+              </AlertDialog.Content>
+            </div>
+          {/snippet}
+        </AlertDialog.Overlay>
+      </AlertDialog.Root>
+    </section>
+  {/snippet}
+</Popover.ContentStatic>
 
 <style>
   section {

@@ -44,6 +44,7 @@ struct Chip: View {
       }
     }
     .buttonStyle(ChipButtonStyle(selected: selected == true))
+    .accessibilityLabel(removes ? Strings.removePhrase(label) : label)
     .accessibilityAddTraits(selected == true ? .isSelected : [])
   }
 }
@@ -51,9 +52,15 @@ struct Chip: View {
 /// A chip that shows the current one of a few choices and moves to the next
 /// when pressed. It is as wide as its widest label and never drawn selected.
 struct CycleChip<Value: Hashable>: View {
+  /// What the chip sets, read out before the current choice.
+  let setting: String
   let options: [(value: Value, label: String)]
   let value: Value
   let onChange: (Value) -> Void
+
+  private var current: String {
+    options.first { $0.value == value }?.label ?? ""
+  }
 
   private var next: Value {
     let index = options.firstIndex { $0.value == value } ?? -1
@@ -73,6 +80,7 @@ struct CycleChip<Value: Hashable>: View {
       }
     }
     .buttonStyle(ChipButtonStyle())
+    .accessibilityLabel(Strings.chipSetting(setting, value: current))
   }
 }
 
@@ -82,6 +90,7 @@ struct AutoplayChip: View {
 
   var body: some View {
     CycleChip(
+      setting: Strings.chipPlayback,
       options: [false, true].map { ($0, Strings.autoplayOption($0)) },
       value: feed.settings.autoplay, onChange: feed.setAutoplay)
   }
@@ -142,10 +151,9 @@ private struct SquareLayout: Layout {
   }
 }
 
-/// A round chip, as tall as the others, holding only a ×: deselects every
-/// topic of its row. Dimmed and not pressable while `enabled` is false.
-struct ClearTopicsChip: View {
-  let enabled: Bool
+/// A round chip, as tall as the others, holding only a +: opens the editor
+/// for a new group.
+struct NewGroupChip: View {
   let action: () -> Void
 
   private struct Style: ButtonStyle {
@@ -173,22 +181,35 @@ struct ClearTopicsChip: View {
       ZStack {
         // gives the chip a text chip's height
         Text(verbatim: " ")
-        Image(systemName: "xmark")
+        Image(systemName: "plus")
           .imageScale(.small)
       }
     }
     .buttonStyle(Style())
-    .disabled(!enabled)
-    .opacity(enabled ? 1 : 0.4)
-    .accessibilityLabel(Strings.clearTopics)
-    .help(Strings.clearTopics)
+    .accessibilityLabel(Strings.newGroup)
+    .help(Strings.newGroup)
   }
 }
 
-/// A row of chips: `leading`, then, when there are topics, a divider, the
-/// chip that clears them and one toggle for each. It scrolls sideways,
-/// fading out at an edge that hides chips.
+
+extension String {
+  /// A group name's identity in a list: two spellings `==` calls equal are two groups.
+  fileprivate var nameIdentity: [UInt32] {
+    codePoints(self)
+  }
+}
+
+/// A row of chips: `leading`, a divider, the "New group" chip and a toggle
+/// for each group, a divider, then a toggle for each topic. It scrolls
+/// sideways, fading out at an edge that hides chips.
 struct ChipRow<Leading: View>: View {
+  /// The group chips' names, in order.
+  var groups: [String] = []
+  /// The selected groups' names.
+  var selectedGroups: [String] = []
+  var onGroup: (String) -> Void = { _ in }
+  /// Opens the editor for a new group; the row has that chip only with this.
+  var onNewGroup: (() -> Void)?
   /// The topic chips' category ids, in order.
   let topics: [String]
   /// The selected topics' category ids.
@@ -196,19 +217,36 @@ struct ChipRow<Leading: View>: View {
   /// The space left of the first chip and right of the last.
   var inset: CGFloat = 16
   let onTopic: (String) -> Void
-  let onClear: () -> Void
   @ViewBuilder let leading: Leading
+
+  private var hasGroupChips: Bool {
+    onNewGroup != nil || !groups.isEmpty
+  }
+
+  private var divider: some View {
+    Rectangle()
+      .fill(Color.secondary.opacity(0.35))
+      .frame(width: 1, height: 20)
+      .accessibilityHidden(true)
+  }
 
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
         leading
+        if hasGroupChips {
+          divider
+          if let onNewGroup {
+            NewGroupChip(action: onNewGroup)
+          }
+          ForEach(groups, id: \.nameIdentity) { group in
+            Chip(label: group, selected: selectedGroups.contains { sameScalars($0, group) }) {
+              onGroup(group)
+            }
+          }
+        }
         if !topics.isEmpty {
-          Rectangle()
-            .fill(Color.secondary.opacity(0.35))
-            .frame(width: 1, height: 20)
-            .accessibilityHidden(true)
-          ClearTopicsChip(enabled: !knownTopics(selected).isEmpty, action: onClear)
+          divider
         }
         ForEach(topics, id: \.self) { categoryId in
           Chip(label: topicLabel(categoryId) ?? "", selected: selected.contains(categoryId)) {
@@ -224,44 +262,64 @@ struct ChipRow<Leading: View>: View {
 }
 
 /// The chips over the feed and over a channel's page: auto-play, the order,
-/// how far back, watched or not, then the topics.
+/// how far back, watched or not, then, on the feed, the groups, then the
+/// topics.
 struct FeedChipRow: View {
   let feed: FeedModel
+  /// Opens the editor for a new group.
+  let onNewGroup: () -> Void
+
+  private var showsGroups: Bool {
+    feed.selectedChannel == nil && feed.fullLoadShown
+  }
 
   var body: some View {
     ChipRow(
+      groups: showsGroups ? feed.groups : [], selectedGroups: feed.settings.groupChips,
+      onGroup: feed.toggleGroupChip, onNewGroup: showsGroups ? onNewGroup : nil,
       topics: feed.topicChips, selected: feed.settings.topicChips,
-      onTopic: feed.toggleTopicChip, onClear: feed.clearTopicChips
+      onTopic: feed.toggleTopicChip
     ) {
       AutoplayChip(feed: feed)
       CycleChip(
+        setting: Strings.chipSort,
         options: FeedSort.allCases.map { ($0, Strings.feedSortOption($0)) },
         value: feed.settings.feedSort, onChange: feed.setFeedSort)
       CycleChip(
+        setting: Strings.chipTime,
         options: TimeChip.allCases.map { ($0, Strings.timeChipOption($0)) },
         value: feed.settings.timeChip, onChange: feed.setTimeChip)
       CycleChip(
+        setting: Strings.chipShow,
         options: WatchedMode.allCases.map { ($0, Strings.watchedModeOption($0)) },
         value: feed.watchedMode, onChange: feed.setWatchedMode)
     }
   }
 }
 
-/// The chips over a channel list: its order, how far back, then the topics.
+/// The chips over a channel list: its order, how far back, the groups, then
+/// the topics.
 struct ChannelChipRow: View {
   let feed: FeedModel
   /// The space left of the first chip and right of the last.
   var inset: CGFloat = 16
+  /// Opens the editor for a new group.
+  let onNewGroup: () -> Void
 
   var body: some View {
     ChipRow(
+      groups: feed.fullLoadShown ? feed.groups : [],
+      selectedGroups: feed.settings.channelGroupChips, onGroup: feed.toggleChannelGroupChip,
+      onNewGroup: feed.fullLoadShown ? onNewGroup : nil,
       topics: feed.channelTopicChips, selected: feed.settings.channelTopicChips, inset: inset,
-      onTopic: feed.toggleChannelTopicChip, onClear: feed.clearChannelTopicChips
+      onTopic: feed.toggleChannelTopicChip
     ) {
       CycleChip(
+        setting: Strings.chipSort,
         options: ChannelSort.allCases.map { ($0, Strings.channelSortOption($0)) },
         value: feed.settings.channelSort, onChange: feed.setChannelSort)
       CycleChip(
+        setting: Strings.chipTime,
         options: TimeChip.allCases.map { ($0, Strings.timeChipOption($0)) },
         value: feed.settings.channelTimeChip, onChange: feed.setChannelTimeChip)
     }

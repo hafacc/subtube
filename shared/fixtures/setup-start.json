@@ -1,0 +1,309 @@
+{
+  "description": "Setup's starting point, applied channel by channel. When setup finishes with a starting point that marks older videos watched (`day` or `week`; `all` marks nothing), the device keeps a record, locally and per account, never in Drive: `{start, cutoff, channels}` — the choice, the moment setup finished in epoch milliseconds, and the ids of the channels that were on. `op: \"keep\"` is that step: `start`, `cutoff` and `channels` in, the record (or null: nothing is kept for `all` or with no channel on) as `expected`. `op: \"apply\"` is what happens each time items are fetched: `pending` is the record (null when there is none), `fetched` the ids of the channels whose items were just fetched in full (a channel that failed or was skipped is not among them), `items` the fetched items (`id`, `channelId`, `publishedAt`; `kind` is `video` unless given). `expected.marks` are the ids to mark watched, in the order of `items`: the items of channels that are both pending and fetched, published before `cutoff` less the span (24 hours for `day`, 7 days for `week`; an item published exactly that long before is not marked, as in shared/fixtures/feed-chips.json `start`). `expected.pending` is the record afterwards: the fetched channels are taken out, whether or not they had items, in their old order; null once none is left, and the record is then dropped. A channel that is not in the record — one turned on after setup — is never marked. A client marks only items not already marked watched, in one save.",
+  "cases": [
+    {
+      "name": "every pending channel fetched: older items marked, nothing left pending",
+      "op": "apply",
+      "pending": {
+        "start": "day",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCa",
+          "UCb"
+        ]
+      },
+      "fetched": [
+        "UCa",
+        "UCb"
+      ],
+      "items": [
+        {
+          "id": "a-old",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        },
+        {
+          "id": "a-new",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-21T14:00:00Z"
+        },
+        {
+          "id": "b-old",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "marks": [
+          "a-old",
+          "b-old"
+        ],
+        "pending": null
+      }
+    },
+    {
+      "name": "a channel that failed or was skipped stays pending and none of its items are marked",
+      "op": "apply",
+      "pending": {
+        "start": "day",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCa",
+          "UCb"
+        ]
+      },
+      "fetched": [
+        "UCa"
+      ],
+      "items": [
+        {
+          "id": "a-old",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        },
+        {
+          "id": "b-old",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "marks": [
+          "a-old"
+        ],
+        "pending": {
+          "start": "day",
+          "cutoff": 1790000000000,
+          "channels": [
+            "UCb"
+          ]
+        }
+      }
+    },
+    {
+      "name": "a later load marks the channel that was left, counting back from setup's moment, not the load's",
+      "op": "apply",
+      "pending": {
+        "start": "day",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCb"
+        ]
+      },
+      "fetched": [
+        "UCa",
+        "UCb"
+      ],
+      "items": [
+        {
+          "id": "a-old",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        },
+        {
+          "id": "b-exact",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T14:13:20Z"
+        },
+        {
+          "id": "b-second-over",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T14:13:19Z"
+        },
+        {
+          "id": "b-after-setup",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-25T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "marks": [
+          "b-second-over"
+        ],
+        "pending": null
+      }
+    },
+    {
+      "name": "a channel turned on after setup is never marked",
+      "op": "apply",
+      "pending": {
+        "start": "week",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCa"
+        ]
+      },
+      "fetched": [
+        "UCa",
+        "UClater"
+      ],
+      "items": [
+        {
+          "id": "a-old",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        },
+        {
+          "id": "later-old",
+          "channelId": "UClater",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "marks": [
+          "a-old"
+        ],
+        "pending": null
+      }
+    },
+    {
+      "name": "past week marks what is more than 7 days before setup's moment; a playlist counts by its date",
+      "op": "apply",
+      "pending": {
+        "start": "week",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCa"
+        ]
+      },
+      "fetched": [
+        "UCa"
+      ],
+      "items": [
+        {
+          "id": "day-6",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-15T14:13:20Z"
+        },
+        {
+          "id": "day-8",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-13T14:13:20Z"
+        },
+        {
+          "id": "list",
+          "channelId": "UCa",
+          "publishedAt": "2025-01-01T00:00:00Z",
+          "kind": "playlist"
+        }
+      ],
+      "expected": {
+        "marks": [
+          "day-8",
+          "list"
+        ],
+        "pending": null
+      }
+    },
+    {
+      "name": "a fetched pending channel with no items still leaves the pending channels",
+      "op": "apply",
+      "pending": {
+        "start": "day",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCa",
+          "UCb"
+        ]
+      },
+      "fetched": [
+        "UCa"
+      ],
+      "items": [],
+      "expected": {
+        "marks": [],
+        "pending": {
+          "start": "day",
+          "cutoff": 1790000000000,
+          "channels": [
+            "UCb"
+          ]
+        }
+      }
+    },
+    {
+      "name": "nothing fetched: nothing marked, the record unchanged",
+      "op": "apply",
+      "pending": {
+        "start": "day",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCa"
+        ]
+      },
+      "fetched": [],
+      "items": [
+        {
+          "id": "a-old",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "marks": [],
+        "pending": {
+          "start": "day",
+          "cutoff": 1790000000000,
+          "channels": [
+            "UCa"
+          ]
+        }
+      }
+    },
+    {
+      "name": "no record: nothing is marked",
+      "op": "apply",
+      "pending": null,
+      "fetched": [
+        "UCa"
+      ],
+      "items": [
+        {
+          "id": "a-old",
+          "channelId": "UCa",
+          "publishedAt": "2026-09-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "marks": [],
+        "pending": null
+      }
+    },
+    {
+      "name": "keep: all time keeps no record",
+      "op": "keep",
+      "start": "all",
+      "cutoff": 1790000000000,
+      "channels": [
+        "UCa"
+      ],
+      "expected": null
+    },
+    {
+      "name": "keep: no channel on keeps no record",
+      "op": "keep",
+      "start": "day",
+      "cutoff": 1790000000000,
+      "channels": [],
+      "expected": null
+    },
+    {
+      "name": "keep: a span keeps the choice, the moment and the channels that are on",
+      "op": "keep",
+      "start": "week",
+      "cutoff": 1790000000000,
+      "channels": [
+        "UCa",
+        "UCb"
+      ],
+      "expected": {
+        "start": "week",
+        "cutoff": 1790000000000,
+        "channels": [
+          "UCa",
+          "UCb"
+        ]
+      }
+    }
+  ]
+}

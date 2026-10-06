@@ -2,6 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!--
+      What this page may load: its own files, the inline theme script below (by its hash; src/lib/csp.test.ts fails when the two drift).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-VWx/62e7hhf1mz18aUvCHSiJoyXuhRYr02Xx/mQ8MLA='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SubTube privacy policy</title>
     <meta
@@ -68,7 +75,9 @@
           A copy of the same on each device, so the app opens quickly.
         </li>
         <li>
-          A watched mark is deleted 30 days after SubTube last loaded its video.
+          Each device deletes its own watched marks 30 days after it last
+          loaded the video. A device you stop using keeps its marks in your
+          Google Drive until you use Delete profile, which removes everything.
         </li>
         <li>Your Google sign-in, on the device only.</li>
       </ul>
@@ -86,7 +95,7 @@
         <li>
           Videos play in YouTube's own player, so YouTube may collect data and
           show ads as it does on any site. Google's privacy policy applies:
-          <a href="http://www.google.com/policies/privacy"
+          <a href="https://policies.google.com/privacy"
             >https://policies.google.com/privacy</a
           >. By using SubTube you also agree to the YouTube Terms of Service:
           <a href="https://www.youtube.com/t/terms"
@@ -112,7 +121,7 @@
         <li>
           You can remove SubTube's access at any time at
           <a
-            href="https://security.google.com/settings/security/permissions"
+            href="https://myaccount.google.com/permissions"
             >https://myaccount.google.com/permissions</a
           >.
         </li>

@@ -15,23 +15,23 @@
 </script>
 
 <script lang="ts">
-  import { getValidToken } from "../lib/auth";
+  import { withToken } from "../lib/auth";
   import { channelInfo } from "../lib/channel-info";
   import { mostCommonShorts, SHORTS_OPTIONS } from "../lib/channel-summary";
-  import {
-    keepPendingStart,
-    START_OPTIONS,
-    type StartFrom,
-  } from "../lib/chips";
+  import { START_OPTIONS, type StartFrom } from "../lib/chips";
   import { chromeWebStoreUrl, privacyUrl, termsUrl } from "../lib/config";
+  import { shownMessage } from "../lib/errors";
   import { handOffPrefetched, Prefetch } from "../lib/feed.svelte";
   import { recheckPlatform } from "../lib/platform";
   import type { Session } from "../lib/session.svelte";
+  import { keepPendingStart, pendingStart } from "../lib/setup-start";
   import { ProfileDeletedError } from "../lib/sync-store";
-  import type { Channel, ShortsFilter } from "../lib/types";
+  import { compareIgnoringCase, nameMatches } from "../lib/text-order";
+  import type { Channel, ChannelFilter, ShortsFilter } from "../lib/types";
   import { fetchSubscriptions } from "../lib/youtube";
   import Avatar from "./Avatar.svelte";
   import ChoiceRow from "./ChoiceRow.svelte";
+  import GoogleButton from "./GoogleButton.svelte";
   import Icon from "./Icon.svelte";
   import Logo from "./Logo.svelte";
   import Switch from "./Switch.svelte";
@@ -108,9 +108,7 @@
     channels.filter((channel) => enabled[channel.channelId]).length,
   );
   const shownChannels = $derived(
-    channels.filter((channel) =>
-      channel.title.toLowerCase().includes(query.trim().toLowerCase()),
-    ),
+    channels.filter((channel) => nameMatches(channel.title, query)),
   );
   /*
    * A page only gets to message an extension that was there when it loaded, so
@@ -184,7 +182,6 @@
     }
     loadingChannels = true;
     try {
-      const token = await getValidToken();
       try {
         await store.load();
       } catch (caught) {
@@ -200,12 +197,14 @@
         session.finishSetup();
         return;
       }
-      const subscribed = await fetchSubscriptions(token);
+      const subscribed = await withToken(fetchSubscriptions);
       const followed = store.followedIds();
       const info =
-        followed.length > 0 ? await channelInfo(followed, token) : undefined;
+        followed.length > 0
+          ? await withToken((token) => channelInfo(followed, token))
+          : undefined;
       channels = Array.from(store.channels(subscribed, info).values()).sort(
-        (left, right) => left.title.localeCompare(right.title),
+        (left, right) => compareIgnoringCase(left.title, right.title),
       );
       enabled = Object.fromEntries(
         channels.map((channel) => [channel.channelId, channel.filter.enabled]),
@@ -216,7 +215,8 @@
       shortsDefault = startingShorts;
       channelsLoaded = true;
     } catch (caught) {
-      error = (caught as Error).message;
+      console.error(caught);
+      error = shownMessage(caught);
     } finally {
       loadingChannels = false;
     }
@@ -225,17 +225,20 @@
   function saveFilters(
     change: (channel: Channel) => Partial<Channel["filter"]>,
   ): void {
-    const store = session.store;
+    const changed: Record<string, ChannelFilter> = {};
     channels = channels.map((channel) => {
       const changes = Object.entries(change(channel));
       if (changes.every(([key, value]) => channel.filter[key] === value)) {
         return channel;
       } else {
         const filter = { ...channel.filter, ...Object.fromEntries(changes) };
-        store?.setFilter(channel.channelId, filter);
+        changed[channel.channelId] = filter;
         return { ...channel, filter };
       }
     });
+    if (Object.keys(changed).length > 0) {
+      session.store?.setFilters(changed);
+    }
   }
 
   function prefetchOn(): void {
@@ -260,7 +263,16 @@
 
   function finish(): void {
     if (session.account) {
-      keepPendingStart(session.account.channelId, startFrom);
+      keepPendingStart(
+        session.account.channelId,
+        pendingStart(
+          startFrom,
+          Date.now(),
+          channels
+            .filter((channel) => channel.filter.enabled)
+            .map((channel) => channel.channelId),
+        ),
+      );
       handOffPrefetched(session.account.channelId, prefetch);
     }
     session.finishSetup();
@@ -420,7 +432,7 @@
               </div>
               <div class="permission">
                 <Icon name="folder" size={24} color="var(--gold)" />
-                <strong>Keep its settings in your Google Drive</strong>
+                <strong>Keep your filters in your Google Drive</strong>
                 <span class="secondary"
                   >In a hidden folder that only SubTube can open. It holds your
                   filters and what you've watched. SubTube can't see your other
@@ -444,15 +456,12 @@
             >
               Back
             </button>
-            <button
-              type="button"
-              class="button-primary push google"
-              disabled={session.connecting}
-              onclick={() => void signIn()}
-            >
-              <span class="g" aria-hidden="true">G</span>
-              Sign in with Google
-            </button>
+            <span class="push">
+              <GoogleButton
+                disabled={session.connecting}
+                onclick={() => void signIn()}
+              />
+            </span>
           </div>
           <p class="agree secondary small">
             By signing in, you agree to SubTube's
@@ -890,23 +899,6 @@
     margin-left: auto;
   }
 
-  .google {
-    padding: 0 24px;
-    gap: 10px;
-  }
-
-  .g {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #ffffff;
-    color: #8a6100;
-    font-size: 14px;
-    font-weight: 800;
-  }
-
   .permissions {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
@@ -958,19 +950,6 @@
     column-gap: 20px;
   }
 
-  .channel-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 44px;
-    border-bottom: 1px solid var(--border);
-    font-size: 14px;
-  }
-
-  .channel-row.off > :global(:not(.switch)) {
-    opacity: 0.45;
-  }
-
   .skeleton-avatar {
     width: 24px;
     height: 24px;
@@ -988,14 +967,6 @@
     width: 36px;
     height: 20px;
     border-radius: 10px;
-  }
-
-  .channel-title {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .count {

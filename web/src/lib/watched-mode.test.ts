@@ -75,6 +75,10 @@ describe("emptiedBySelection", () => {
     expect(emptiedBySelection("unwatched", "none", ["10"])).toBe(true);
   });
 
+  test("a group that narrows the list is a selection", () => {
+    expect(emptiedBySelection("unwatched", "none", [], true)).toBe(true);
+  });
+
   test("a topic id that is no topic selects nothing", () => {
     expect(emptiedBySelection("unwatched", "none", ["99"])).toBe(false);
   });

@@ -59,10 +59,8 @@ describe("compileFilter", () => {
     expect(compileFilter(channel()).regex).toBeNull();
   });
 
-  test("invalid regex reports an error and no regex", () => {
-    const compiled = compileFilter(channel({ regex: "(" }));
-    expect(compiled.regex).toBeNull();
-    expect(compiled.error).not.toBeNull();
+  test("an invalid pattern is no pattern", () => {
+    expect(compileFilter(channel({ regex: "(" })).regex).toBeNull();
   });
 
   test("case-insensitive by default, sensitive when set", () => {
@@ -81,7 +79,6 @@ describe("compileFilter — phrases and topics", () => {
   test("a valid pattern that is not phrases is not applied", () => {
     const compiled = compileFilter(channel({ regex: "(ep|episode) ?\\d+" }));
     expect(compiled.regex).toBeNull();
-    expect(compiled.error).not.toBeNull();
   });
 
   test("topics keep only ids that are topics", () => {

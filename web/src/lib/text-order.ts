@@ -23,3 +23,8 @@ export function compareCodePoints(left: string, right: string): number {
 export function compareIgnoringCase(left: string, right: string): number {
   return compareCodePoints(foldCase(left), foldCase(right));
 }
+
+/** Whether a name contains what was typed in a search field, ignoring case only; nothing typed finds every name. */
+export function nameMatches(name: string, typed: string): boolean {
+  return foldCase(name).includes(foldCase(typed.trim()));
+}

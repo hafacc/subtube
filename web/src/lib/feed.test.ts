@@ -13,7 +13,7 @@ import type { Router } from "./router.svelte";
 import type { Session } from "./session.svelte";
 import { defaultFilter } from "./sync-merge";
 import type { SyncStore } from "./sync-store";
-import type { Channel, FeedItem, Video } from "./types";
+import type { Channel, ChannelFilter, FeedItem, Video } from "./types";
 import { DailyLimitError, TokenExpiredError } from "./youtube";
 
 function video(id: string, day: number, channelId = "UCa"): Video {
@@ -49,6 +49,7 @@ interface Entry {
 type Save =
   | { ids: string[]; watched: boolean }
   | { id: string; position: number; ended: boolean; upload: boolean }
+  | { filters: Record<string, ChannelFilter> }
   | "flush";
 
 /** A controller over loaded items, on the feed (null) or a channel's page, with the saves it made. */
@@ -64,6 +65,7 @@ function loaded(
   entries: Map<string, Entry>;
 } {
   const saves: Save[] = [];
+  const savedFilters: Record<string, ChannelFilter> = {};
   const entries = new Map<string, Entry>(
     [...watched, ...watchedElsewhere].map((id) => [
       id,
@@ -99,6 +101,11 @@ function loaded(
     },
     flush: () => saves.push("flush"),
     setFilter: () => undefined,
+    savedFilters: () => ({ ...savedFilters }),
+    setFilters: (filters: Record<string, ChannelFilter>) => {
+      Object.assign(savedFilters, filters);
+      saves.push({ filters });
+    },
     noteLoaded: () => undefined,
     watchedEntry: (id: string) => entries.get(id),
     settings: () => ({ ...synced }),
@@ -472,6 +479,120 @@ const HIDE_SHORTS: Channel["filter"] = {
   ...defaultFilter(),
   shortsFilter: "normal",
 };
+
+describe("FeedController groups", () => {
+  test("a new group has a chip at once and is saved in one save", () => {
+    const { feed, saves } = loaded([], null);
+    expect(feed.groups).toEqual([]);
+    feed.saveGroup(null, "Making", ["UCa", "UCb"]);
+    expect(feed.groups).toEqual(["Making"]);
+    expect(saves).toEqual([
+      {
+        filters: {
+          UCa: { ...defaultFilter(), groups: ["Making"] },
+          UCb: { ...defaultFilter(), groups: ["Making"] },
+        },
+      },
+    ]);
+    expect(feed.settings.groupChips).toEqual([]);
+  });
+
+  test("a selected group keeps its channels' items, and a topic narrows them", () => {
+    const { feed, synced } = loaded([], null);
+    feed.items = [
+      { ...video("a1", 1), categoryId: "10" },
+      { ...video("a3", 3), categoryId: "20" },
+      { ...video("b5", 5, "UCb"), categoryId: "10" },
+    ];
+    feed.saveGroup(null, "Making", ["UCa"]);
+    feed.toggleGroupChip("Making");
+    expect(shown(feed)).toEqual(["a3", "a1"]);
+    expect(synced.groupChips.value).toEqual(["Making"]);
+    expect(feed.topicChips).toEqual(["10", "20"]);
+    feed.toggleTopicChip("10");
+    expect(shown(feed)).toEqual(["a1"]);
+    feed.clearChips("feed");
+    expect(shown(feed)).toEqual(["b5", "a3", "a1"]);
+    expect(feed.settings.channelGroupChips).toEqual([]);
+  });
+
+  test("a channel's page ignores the feed's groups", () => {
+    const { feed } = loaded([], "UCb");
+    feed.saveGroup(null, "Making", ["UCa"]);
+    feed.toggleGroupChip("Making");
+    expect(shown(feed)).toEqual(["b5"]);
+    expect(feed.emptiedBySelection).toBe(false);
+  });
+
+  test("a group with nothing unwatched reads as a selection, not caught up", () => {
+    const { feed } = loaded(["b5"], null);
+    feed.saveGroup(null, "Making", ["UCb"]);
+    expect(feed.emptiedBySelection).toBe(false);
+    feed.toggleGroupChip("Making");
+    expect(shown(feed)).toEqual([]);
+    expect(feed.emptiedBySelection).toBe(true);
+  });
+
+  test("a name of no group filters nothing", () => {
+    const { feed } = loaded([], null, [], {
+      groupChips: { at: 1, value: ["Gone"] },
+      channelGroupChips: { at: 1, value: ["Gone"] },
+    });
+    expect(shown(feed)).toHaveLength(4);
+    expect(feed.chipChannels).toBeNull();
+    expect(feed.emptiedBySelection).toBe(false);
+  });
+
+  test("the channel list's groups are its own and keep a channel that is off", () => {
+    const { feed } = loaded([], null);
+    feed.saveGroup(null, "Making", ["UCb"]);
+    feed.updateFilter("UCb", {
+      ...defaultFilter(),
+      enabled: false,
+      groups: ["Making"],
+    });
+    feed.toggleChannelGroupChip("Making");
+    expect(feed.chipChannels).toEqual(new Set(["UCb"]));
+    expect(shown(feed)).toEqual(["a7", "a3", "a1"]);
+    feed.toggleChannelTopicChip("10");
+    expect(feed.chipChannels).toEqual(new Set());
+  });
+
+  test("the editor's save renames and changes channels in one save", () => {
+    const { feed, saves } = loaded([], null);
+    feed.saveGroup(null, "Making", ["UCa"]);
+    feed.toggleGroupChip("Making");
+    saves.length = 0;
+    feed.saveGroup("Making", "Workshop", ["UCb"]);
+    expect(saves).toEqual([
+      {
+        filters: {
+          UCa: { ...defaultFilter(), groups: [] },
+          UCb: { ...defaultFilter(), groups: ["Workshop"] },
+        },
+      },
+    ]);
+    expect(feed.groups).toEqual(["Workshop"]);
+    expect(feed.settings.groupChips).toEqual(["Workshop"]);
+    expect(shown(feed)).toEqual(["b5"]);
+  });
+
+  test("renaming and deleting follow through to the selected chips", () => {
+    const { feed } = loaded([], null);
+    feed.saveGroup(null, "Making", ["UCa"]);
+    feed.toggleGroupChip("Making");
+    feed.toggleChannelGroupChip("Making");
+    feed.saveGroup("Making", "Workshop", ["UCa"]);
+    expect(feed.groups).toEqual(["Workshop"]);
+    expect(feed.settings.groupChips).toEqual(["Workshop"]);
+    expect(feed.settings.channelGroupChips).toEqual(["Workshop"]);
+    feed.deleteGroup("Workshop");
+    expect(feed.groups).toEqual([]);
+    expect(feed.settings.groupChips).toEqual([]);
+    expect(feed.settings.channelGroupChips).toEqual([]);
+    expect(shown(feed)).toHaveLength(4);
+  });
+});
 
 describe("needsShorts and covers", () => {
   test("only uploads with Shorts hidden or alone need the Shorts list", () => {

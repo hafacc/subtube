@@ -1,5 +1,7 @@
+import { ShownError } from "./errors";
+import { byNewest } from "./feed-order";
 import { decodeHtmlEntities } from "./html";
-import { classifyShorts, withoutShortsList } from "./shorts";
+import { classifyShorts, type ShortsList, withoutShortsList } from "./shorts";
 import type { ChannelInfo, LiveStatus, Playlist, Video } from "./types";
 
 const API_BASE = "https://www.googleapis.com/youtube/v3";
@@ -7,7 +9,7 @@ const API_BASE = "https://www.googleapis.com/youtube/v3";
 /** Google refused the token: it expired or was revoked. */
 export class TokenExpiredError extends Error {
   constructor() {
-    super("YouTube access token expired or missing");
+    super("Google access token expired or missing");
     this.name = "TokenExpiredError";
   }
 }
@@ -24,7 +26,7 @@ export class PlaylistNotFoundError extends Error {
  * The token is valid but lacks a scope subtube asked for: the user unticked
  * YouTube or Drive access on Google's consent screen. Signing in again fixes it.
  */
-export class InsufficientScopeError extends Error {
+export class InsufficientScopeError extends ShownError {
   constructor() {
     super(
       "SubTube needs both permissions Google asks for. Sign in again and allow them.",
@@ -38,7 +40,7 @@ export const DAILY_LIMIT_MESSAGE =
   "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.";
 
 /** YouTube refused a request because the app's daily quota is used up; asking again today can't work. */
-export class DailyLimitError extends Error {
+export class DailyLimitError extends ShownError {
   constructor() {
     super(DAILY_LIMIT_MESSAGE);
     this.name = "DailyLimitError";
@@ -58,16 +60,26 @@ const DAILY_LIMIT_REASONS: readonly unknown[] = [
 export function isDailyLimit(status: number, body: string): boolean {
   if (status !== 403) {
     return false;
+  } else {
+    try {
+      const errors: unknown = JSON.parse(body)?.error?.errors;
+      return (
+        Array.isArray(errors) &&
+        errors.some((entry) => DAILY_LIMIT_REASONS.includes(entry?.reason))
+      );
+    } catch {
+      return false;
+    }
   }
-  try {
-    const errors: unknown = JSON.parse(body)?.error?.errors;
-    return (
-      Array.isArray(errors) &&
-      errors.some((entry) => DAILY_LIMIT_REASONS.includes(entry?.reason))
-    );
-  } catch {
-    return false;
-  }
+}
+
+/** Whether a Google answer says the token lacks a scope: status 403 naming a missing permission. */
+export function isMissingScope(status: number, body: string): boolean {
+  return (
+    status === 403 &&
+    (body.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
+      body.includes("insufficientPermissions"))
+  );
 }
 
 /** Google answered a request with a status that has no meaning of its own here. */
@@ -93,26 +105,21 @@ async function apiGet<Response>(
   });
   if (response.status === 401) {
     throw new TokenExpiredError();
-  }
-  if (!response.ok) {
+  } else if (response.ok) {
+    return response.json() as Promise<Response>;
+  } else {
     const body = await response.text();
-    if (
-      response.status === 403 &&
-      (body.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
-        body.includes("insufficientPermissions"))
-    ) {
+    if (isMissingScope(response.status, body)) {
       throw new InsufficientScopeError();
-    }
-    if (isDailyLimit(response.status, body)) {
+    } else if (isDailyLimit(response.status, body)) {
       throw new DailyLimitError();
-    }
-    if (response.status === 404 && body.includes("playlistNotFound")) {
+    } else if (response.status === 404 && body.includes("playlistNotFound")) {
       throw new PlaylistNotFoundError(params.playlistId ?? "");
+    } else {
+      console.error(`YouTube API ${path} failed: ${response.status} ${body}`);
+      throw new GoogleRequestError(response.status);
     }
-    console.error(`YouTube API ${path} failed: ${response.status} ${body}`);
-    throw new GoogleRequestError(response.status);
   }
-  return response.json() as Promise<Response>;
 }
 
 interface SubscriptionListResponse {
@@ -208,7 +215,7 @@ interface VideoListResponse {
       categoryId?: string;
     };
     contentDetails: { duration: string };
-    // Present only if the video was ever a live stream or premiere.
+    // present only if the video was ever a live stream or premiere
     liveStreamingDetails?: { actualEndTime?: string };
   }>;
 }
@@ -233,11 +240,11 @@ function classifyLiveStatus(
 ): LiveStatus {
   if (item.snippet.liveBroadcastContent === "live") {
     return "live";
-  }
-  if (item.snippet.liveBroadcastContent === "upcoming") {
+  } else if (item.snippet.liveBroadcastContent === "upcoming") {
     return "upcoming";
+  } else {
+    return item.liveStreamingDetails?.actualEndTime ? "vod" : "normal";
   }
-  return item.liveStreamingDetails?.actualEndTime ? "vod" : "normal";
 }
 
 /**
@@ -250,11 +257,12 @@ export function parseIsoDuration(iso: string): number {
   );
   if (!match) {
     return 0;
+  } else {
+    const [days, hours, minutes, seconds] = match
+      .slice(1)
+      .map((part) => Number(part ?? 0));
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds;
   }
-  const [days, hours, minutes, seconds] = match
-    .slice(1)
-    .map((part) => Number(part ?? 0));
-  return days * 86400 + hours * 3600 + minutes * 60 + seconds;
 }
 
 /**
@@ -288,11 +296,38 @@ export async function fetchVideoDetails(
   return details;
 }
 
+/** One page of a playlist's entries; a playlist YouTube says it can't find has none. */
+async function playlistPage(
+  playlistId: string,
+  maxResults: number,
+  token: string,
+): Promise<PlaylistItemsResponse["items"]> {
+  try {
+    const data = await apiGet<PlaylistItemsResponse>(
+      "/playlistItems",
+      {
+        part: "snippet,contentDetails",
+        playlistId,
+        maxResults: String(maxResults),
+      },
+      token,
+    );
+    return data.items;
+  } catch (caught) {
+    if (caught instanceof PlaylistNotFoundError) {
+      return [];
+    } else {
+      throw caught;
+    }
+  }
+}
+
 /**
  * A channel's newest uploads, each with its duration and broadcast kind, and
  * with `judgeShorts` whether it is a Short; without, the Shorts list is not
  * fetched and a video that could be a Short is left unjudged. `probe` asks
- * /shorts/{id} directly, where the platform can.
+ * /shorts/{id} directly, where the platform can. A channel with no uploads,
+ * whose uploads list YouTube answers "not found" for, has none.
  */
 export async function fetchUploads(
   channelId: string,
@@ -302,16 +337,12 @@ export async function fetchUploads(
   probe?: (videoId: string) => Promise<boolean | null>,
   judgeShorts = true,
 ): Promise<Video[]> {
-  const data = await apiGet<PlaylistItemsResponse>(
-    "/playlistItems",
-    {
-      part: "snippet,contentDetails",
-      playlistId: uploadsPlaylistId(channelId),
-      maxResults: String(maxResults),
-    },
+  const entries = await playlistPage(
+    uploadsPlaylistId(channelId),
+    maxResults,
     token,
   );
-  const videos = data.items
+  const videos = entries
     .filter((item) => !HIDDEN_TITLES.has(item.snippet.title))
     .map((item) => ({
       kind: "video" as const,
@@ -426,23 +457,24 @@ export async function fetchPlaylists(
         "",
       itemCount: item.contentDetails.itemCount,
     }))
-    .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+    .sort(byNewest);
 }
 
 /**
- * The ids of a channel's newest Shorts, or null when it has no Shorts list.
+ * The ids of a channel's newest Shorts; null when it has no Shorts list
+ * (404 `playlistNotFound`), "failed" when the list couldn't be read.
  * Every Short among a channel's newest `max` uploads is among its newest `max`
  * Shorts, so this one page judges every video of an uploads page that size.
  *
- * A channel with no Shorts is usually answered 404 `playlistNotFound`, but for
- * some YouTube answers 500 `backendError`: a 5xx here, after one retry, also
- * reads as no list.
+ * For some channels with no Shorts YouTube answers 500 `backendError`
+ * instead of the 404: a 5xx here, after one retry, or a request that never
+ * got an answer, is "failed".
  */
 export async function fetchShortIds(
   channelId: string,
   token: string,
   max = 50,
-): Promise<Set<string> | null> {
+): Promise<ShortsList> {
   const playlistId = shortsPlaylistId(channelId);
   const request = async () => {
     const data = await apiGet<PlaylistItemsResponse>(
@@ -467,9 +499,9 @@ export async function fetchShortIds(
   } catch (caught) {
     if (caught instanceof PlaylistNotFoundError) {
       return null;
-    } else if (isServerError(caught)) {
-      console.error(`Shorts list ${playlistId} failed again; read as missing`);
-      return null;
+    } else if (isServerError(caught) || caught instanceof TypeError) {
+      console.error(`Shorts list ${playlistId} couldn't be read`);
+      return "failed";
     } else {
       throw caught;
     }
@@ -481,25 +513,14 @@ interface ChannelListResponse {
     id: string;
     snippet: {
       title: string;
-      customUrl?: string;
       thumbnails: { default?: { url: string }; medium?: { url: string } };
     };
-    statistics?: { subscriberCount?: string; hiddenSubscriberCount?: boolean };
   }>;
 }
 
-/** A channel as subtube lists it outside the feed. */
-export interface ChannelSummary extends ChannelInfo {
-  /** the @handle, when the channel has one */
-  handle?: string;
-  /** Undefined when the channel hides it. */
-  subscriberCount?: number;
-}
-
-function toSummary(
+function toInfo(
   item: NonNullable<ChannelListResponse["items"]>[number],
-): ChannelSummary {
-  const hidden = item.statistics?.hiddenSubscriberCount ?? true;
+): ChannelInfo {
   return {
     channelId: item.id,
     title: decodeHtmlEntities(item.snippet.title),
@@ -507,16 +528,19 @@ function toSummary(
       item.snippet.thumbnails.medium?.url ??
       item.snippet.thumbnails.default?.url ??
       "",
-    handle: item.snippet.customUrl,
-    subscriberCount:
-      hidden || item.statistics?.subscriberCount === undefined
-        ? undefined
-        : Number(item.statistics.subscriberCount),
   };
 }
 
+/** The signed-in Google account has no YouTube channel, which keys everything kept for an account. */
+export class NoChannelError extends ShownError {
+  constructor() {
+    super("This Google account has no YouTube channel.");
+    this.name = "NoChannelError";
+  }
+}
+
 /** The signed-in account's own channel: its id keys everything stored for the account. */
-export async function fetchMyChannel(token: string): Promise<ChannelSummary> {
+export async function fetchMyChannel(token: string): Promise<ChannelInfo> {
   const data = await apiGet<ChannelListResponse>(
     "/channels",
     { part: "snippet", mine: "true" },
@@ -524,9 +548,9 @@ export async function fetchMyChannel(token: string): Promise<ChannelSummary> {
   );
   const mine = data.items?.[0];
   if (mine) {
-    return toSummary(mine);
+    return toInfo(mine);
   } else {
-    throw new Error("This Google account has no YouTube channel.");
+    throw new NoChannelError();
   }
 }
 
@@ -534,19 +558,19 @@ export async function fetchMyChannel(token: string): Promise<ChannelSummary> {
 export async function fetchChannelsById(
   channelIds: string[],
   token: string,
-): Promise<ChannelSummary[]> {
-  const found: ChannelSummary[] = [];
+): Promise<ChannelInfo[]> {
+  const found: ChannelInfo[] = [];
   for (let start = 0; start < channelIds.length; start += 50) {
     const data = await apiGet<ChannelListResponse>(
       "/channels",
       {
-        part: "snippet,statistics",
+        part: "snippet",
         id: channelIds.slice(start, start + 50).join(","),
         maxResults: "50",
       },
       token,
     );
-    found.push(...(data.items ?? []).map(toSummary));
+    found.push(...(data.items ?? []).map(toInfo));
   }
   return found;
 }

@@ -16,14 +16,17 @@ imported at runtime; each client's tests load the fixtures and must pass them.
 | `fixtures/filters.json` | saved filter + feed item → kept or not (incl. the `topics` gate, and patterns that are not phrases) |
 | `fixtures/phrases.json` | typed phrases → filter pattern, and a pattern back to phrases or "not phrases" |
 | `fixtures/watch-progress.json` | a watched entry's `position` + the video's length → watched or not, where it resumes, how full its progress bar is; and what a client writes while playing |
-| `fixtures/merge.json` | every device's raw file → the merged view of filters, watched marks and settings (incl. tie rule, malformed input, unknown fields, and `seen` travelling with its entry without ordering it) |
+| `fixtures/merge.json` | every device's raw file → the merged view of filters, watched marks and settings (incl. tie rule, malformed input, unknown fields, `seen` travelling with its entry without ordering it, and two devices filling one group) |
 | `fixtures/settings.json` | the merged `settings` map → the synced settings a client acts on, with their defaults |
 | `fixtures/prune.json` | a device's own watched entries: `seen` set after a full load, and entries neither saved nor loaded for 30 days dropped before a write |
-| `fixtures/shorts.json` | classifying uploads as Shorts from the `UUSH` list or a probe |
+| `fixtures/shorts.json` | classifying uploads as Shorts from the `UUSH` list; a channel with no list has none, and a probe is asked only when the list couldn't be read |
+| `fixtures/setup-start.json` | setup's starting point, applied channel by channel: the record a device keeps, and what each fetch marks and leaves pending |
 | `fixtures/feed-order.json` | the feed's orders: latest (the `newest` value), shortest, title (the case-insensitive compare every list uses), and the seeded random one |
-| `fixtures/feed-chips.json` | the fifteen topics (YouTube category ids) and their labels, the chip row and what its chips cycle through, the topic chips' order, what the time and topic chips keep, the filter editor's topic order, and what setup's starting point marks watched |
+| `fixtures/feed-chips.json` | the fifteen topics (YouTube category ids) and their labels, the chip row and what its chips cycle through, the topic chips' order, what the time, topic and group chips keep, the filter editor's topic order, and what setup's starting point marks watched |
 | `fixtures/channel-order.json` | the orders of channel lists: latest (newest video first), name, unwatched (most unwatched first) |
-| `fixtures/channel-chips.json` | the channel list's chip row: the topic chips it offers and their order, and which channels its time and topic chips keep |
+| `fixtures/channel-chips.json` | the channel list's chip row: the topic chips it offers and their order, and which channels its time, topic and group chips keep |
+| `fixtures/groups.json` | groups of channels: what a name is, which groups exist and their chip order, what a row's title shows while chips are selected, the edits (add or remove a channel, rename incl. merging, delete, the selected chips following), and the editor, which writes only on "Save" |
+| `fixtures/player.json` | the one player: what plays after an item ends (the next unwatched item of the list it was started from; nothing with auto-play off or a list started in Watched), what the end does to a large, minimized or card player (play the next where it is; with nothing next the large and the minimized player stay on the ended item and the card player closes), and the minimized player's size |
 | `fixtures/device-files/` | example files; `valid-*` pass the schema, `invalid-*` fail it |
 | `tools/` | checks for this folder (Bun, plus `swift` and a JDK for the engines) |
 
@@ -58,6 +61,78 @@ device's **own** file only:
 and the winner's `seen` comes with it (`fixtures/merge.json`). A device never
 changes another device's file, so a device that is no longer used keeps its
 last file in Drive until the profile is deleted.
+
+## Setup's starting point
+
+Setup ends with "Where to start": all time, past day or past week; the last
+two mark older items watched. One load can't be trusted to do that, since a
+channel may fail or be skipped (the daily limit), so it is done channel by
+channel. `fixtures/setup-start.json` is the rule and its edges; in short:
+
+1. When setup finishes with `day` or `week`, the device keeps a record
+   locally, per account, never in Drive: `start` (the choice), `cutoff` (that
+   moment, epoch milliseconds) and `channels` (the ids of the channels that
+   were on). Nothing is kept for `all`, or with no channel on.
+2. Each time a channel's items are fetched in full, and the channel is in
+   the record, its items published before `cutoff` less the span are marked
+   watched (those not marked already, in one save), and the channel leaves
+   the record. The span counts back from `cutoff`, not from the fetch.
+3. A channel that failed or was skipped stays in the record for a later
+   fetch. A channel turned on after setup is never in it. Once the record
+   has no channel left it is dropped.
+
+## Lists YouTube can't find
+
+A channel's lists are asked for by id (`UU…` uploads, `UUSH…` Shorts).
+YouTube answers 404 `playlistNotFound` for a list that doesn't exist, which
+is how it answers for a channel with nothing in it:
+
+- the **uploads** list not found: the channel has no uploads. It is fetched,
+  with no items, and is not a failed channel;
+- the **Shorts** list not found: the channel has no Shorts, and nothing is
+  probed (`fixtures/shorts.json`). Only a Shorts list that couldn't be read —
+  a server error (5xx) again after one retry, or no answer — is probed
+  instead, where the platform has a probe.
+
+## Groups of channels
+
+A group is only a name. Each channel's saved filter may carry
+`groups: string[]`, the names of the groups that channel is in, beside its
+other fields; it is written and merged with the filter, so no channel id is
+stored anywhere new and two devices that put different channels in one group
+both do. `fixtures/groups.json` is the rule and its edges; in short:
+
+1. A name is typed text with Unicode white space removed from both ends,
+   1 to 24 code points; two names are one group only when identical.
+2. A group exists while at least one **listed** channel's filter names it
+   (on or off). A filter kept for a channel no longer listed does not make
+   a group exist, but rename and delete rewrite it too.
+3. Rename rewrites the name on every saved filter that has it, in one save,
+   and in the two selection settings; renaming to another group's name
+   merges the two. Delete removes it from all of those. Taking the last
+   listed channel out of a group deletes it.
+4. `groupChips` (the feed's row) and `channelGroupChips` (the channel
+   list's row) hold the selected names, apart from each other. A selected
+   name that is no existing group is ignored everywhere and left in the
+   setting.
+5. The feed keeps an item when its channel is in any selected group, and
+   the topic, time and watched chips apply on top
+   (`fixtures/feed-chips.json`, `groupFilter`). The channel list shows the
+   channels in any selected group, off ones too, and its time and topic
+   chips apply on top (`fixtures/channel-chips.json`). A channel's own page
+   has no group chips and is not filtered by them.
+6. While a row has an existing group or a topic selected, its title is
+   those names, with "Edit group" (one group selected) and "Clear" buttons
+   after it; the rows have no chip that clears topics any more.
+7. The group editor writes nothing until "Save" (one save for the name and
+   every channel change; disabled without a name and a channel switched
+   on; Enter in the name field does nothing); "Cancel" and leaving
+   discard. "Delete group" deletes at once. Where a platform's channel
+   list already has a search field, the editor's channel list gets the
+   same one; otherwise none.
+
+A device that was away while a group was renamed, and then puts a channel in
+it under the old name, brings the old name back with that one channel.
 
 ## Versioning
 

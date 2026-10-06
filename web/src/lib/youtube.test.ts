@@ -79,10 +79,35 @@ describe("a Shorts list that fails", () => {
       items: videoIds.map((videoId) => ({ contentDetails: { videoId } })),
     });
 
-  test("a 5xx on the Shorts list, twice, reads as no Shorts list", async () => {
+  test("a 5xx on the Shorts list, twice, is a list that couldn't be read", async () => {
     const { calls } = answer(backendError);
-    expect(await fetchShortIds("UCabc", "token")).toBeNull();
+    expect(await fetchShortIds("UCabc", "token")).toBe("failed");
     expect(calls).toEqual(["UUSHabc", "UUSHabc"]);
+  });
+
+  test("a Shorts list request that gets no answer is a list that couldn't be read", async () => {
+    answer(() => {
+      throw new TypeError("Failed to fetch");
+    });
+    expect(await fetchShortIds("UCabc", "token")).toBe("failed");
+  });
+
+  test("an uploads list YouTube can't find is a channel with no uploads", async () => {
+    const { calls } = answer(
+      () =>
+        new Response('{"error":{"errors":[{"reason":"playlistNotFound"}]}}', {
+          status: 404,
+        }),
+    );
+    expect(await fetchUploads("UCabc", "Chan", "token")).toEqual([]);
+    expect(calls).toEqual(["UUabc"]);
+  });
+
+  test("a 5xx on the uploads list is still an error", async () => {
+    answer(backendError);
+    await expect(fetchUploads("UCabc", "Chan", "token")).rejects.toBeInstanceOf(
+      GoogleRequestError,
+    );
   });
 
   test("a 5xx on the Shorts list is tried once more", async () => {

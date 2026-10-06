@@ -1,7 +1,7 @@
 # Filter patterns
 
 A channel filter's `regex` is written in one small pattern language that every
-client — JavaScript (web, extension), Swift (`NSRegularExpression`, i.e. ICU)
+client — JavaScript (web), Swift (`NSRegularExpression`, i.e. ICU)
 and Kotlin (`java.util.regex`) — reads and matches the same way. It is a subset
 of regular expressions, chosen so that:
 

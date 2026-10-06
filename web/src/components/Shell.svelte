@@ -16,14 +16,17 @@
   // the app proper needs the extension; without it setup runs, and adds it
   // svelte-ignore state_referenced_locally
   let hasExtension = $state(extension);
-  // svelte-ignore state_referenced_locally
-  const signedOutStart = extension
-    ? session.setupDone
-      ? "signin"
-      : "intro"
-    : session.setupDone || session.account || resumesAtExtension()
-      ? "extension"
-      : "intro";
+  const resumes = resumesAtExtension();
+  // signed out: a browser that was set up before opens at the step it lacks
+  const signedOutStart = $derived(
+    hasExtension
+      ? session.returning
+        ? "signin"
+        : "intro"
+      : session.returning || session.account || resumes
+        ? "extension"
+        : "intro",
+  );
 </script>
 
 {#if hasExtension && session.account && session.store && session.setupDone}

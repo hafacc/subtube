@@ -3,6 +3,7 @@ import fixture from "../../../shared/fixtures/channel-chips.json";
 import { chipKeptChannels, passingItems } from "./channel-chips";
 import { chipRow, type TimeChip } from "./chips";
 import { feedItemId } from "./feed-item";
+import { groupKeptChannels, keptByBoth } from "./groups";
 import { defaultFilter } from "./sync-merge";
 import type { Channel, ChannelFilter, FeedItem } from "./types";
 
@@ -18,6 +19,8 @@ interface FixtureCase {
   name: string;
   op: string;
   channels?: string[];
+  channelGroups?: Record<string, string[]>;
+  groupChips?: string[];
   items: FixtureItem[];
   selected?: string[];
   timeChip?: string;
@@ -52,11 +55,19 @@ function result(testCase: FixtureCase): string[] {
   if (testCase.op === "chips") {
     return chipRow(items, testCase.selected ?? []);
   } else if (testCase.op === "channels") {
-    const kept = chipKeptChannels(
-      items,
-      testCase.timeChip as TimeChip,
-      testCase.topicChips ?? [],
-      testCase.now ?? 0,
+    const filters = new Map(
+      Object.entries(testCase.channelGroups ?? {}).map(
+        ([channelId, groups]) => [channelId, { ...defaultFilter(), groups }],
+      ),
+    );
+    const kept = keptByBoth(
+      groupKeptChannels(filters, testCase.groupChips ?? []),
+      chipKeptChannels(
+        items,
+        testCase.timeChip as TimeChip,
+        testCase.topicChips ?? [],
+        testCase.now ?? 0,
+      ),
     );
     return (testCase.channels ?? []).filter(
       (channelId) => kept === null || kept.has(channelId),

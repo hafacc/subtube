@@ -1,0 +1,480 @@
+{
+  "description": "The one player's rules that need no screen: what plays after an item ends, what the end does to the player, and how big the minimized player is. `op` says what a case checks. Ids are the ids of feed items (a video's id or a playlist's id; the two are treated alike here). `next`: what plays after an item ends. When an item is started from a page, the client keeps that page's list as it was then: `items`, the ids in the order shown, and `mode`, the watched chip's choice at that moment (unwatched, watched or all, shared/fixtures/feed-chips.json). Neither changes afterwards, whatever page or chip is showing when the item ends. `ended` is the id of the item that ended, `watched` the ids that are watched at the end (the ended one usually among them), and `autoplay` the `autoplay` setting at the end (shared/fixtures/settings.json). `expected` is the id that plays next, or null for none: the first id after `ended` in `items` that is not in `watched`. It is null when `autoplay` is false, when `mode` is watched, when `ended` is last or every later id is watched, and when `ended` is not in `items`. Ids before `ended` are never gone back to, and ids of `watched` that are not in `items` change nothing. `end`: what the end of an item does to the player. `place` is where the player is drawn: large (over the dimmed app), minimized (in the window's corner) or card (in place of its card's thumbnail). `next` says whether the `next` rule gave an item. `nextCardShowing` says whether the next item's card is on the page showing now; it is read only when `place` is card and `next` is true. `expected.kind` is next (the next item plays, in `expected.place`), stay (the player stays where it is, on the ended item) or close (the player is removed); `expected.place` is present only with next. The next item plays where the player is, except that a card whose next card is not on the page showing gives it to the minimized player. With nothing next, the large and the minimized player stay, stopped on the ended item until the user closes or expands them, and the card player closes. `minimizedSize`: the size of the minimized player's video. `viewWidth` is the window's inner width, and `expected` its `width` and `height`, all in the platform's layout units (CSS pixels, points, dp). The width is 356, or the window's width less a 16 margin each side when that is smaller, and never under 200; the height is the width × 9 / 16 rounded to the nearest whole number, and never under 200. So a window 388 wide or wider gets 356 by 200, and a narrower one is narrower and still 200 high.",
+  "cases": [
+    {
+      "name": "next: the item after the ended one",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "first"
+      ],
+      "autoplay": true,
+      "ended": "first",
+      "expected": "second"
+    },
+    {
+      "name": "next: watched items after the ended one are skipped",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "first",
+        "second",
+        "third"
+      ],
+      "autoplay": true,
+      "ended": "first",
+      "expected": "fourth"
+    },
+    {
+      "name": "next: an ended item that is not watched still moves on",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [],
+      "autoplay": true,
+      "ended": "second",
+      "expected": "third"
+    },
+    {
+      "name": "next: an unwatched item before the ended one is not gone back to",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "third"
+      ],
+      "autoplay": true,
+      "ended": "third",
+      "expected": "fourth"
+    },
+    {
+      "name": "next: auto-play off plays nothing",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "first"
+      ],
+      "autoplay": false,
+      "ended": "first",
+      "expected": null
+    },
+    {
+      "name": "next: a list started in Watched plays nothing",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "watched",
+      "watched": [
+        "first",
+        "second"
+      ],
+      "autoplay": true,
+      "ended": "first",
+      "expected": null
+    },
+    {
+      "name": "next: a list started in Watched plays nothing, even with unwatched items after",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "watched",
+      "watched": [
+        "first"
+      ],
+      "autoplay": true,
+      "ended": "first",
+      "expected": null
+    },
+    {
+      "name": "next: a list started in All moves to the next unwatched item",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "all",
+      "watched": [
+        "first",
+        "second",
+        "third"
+      ],
+      "autoplay": true,
+      "ended": "first",
+      "expected": "fourth"
+    },
+    {
+      "name": "next: a list started in All with auto-play off plays nothing",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "all",
+      "watched": [
+        "first"
+      ],
+      "autoplay": false,
+      "ended": "first",
+      "expected": null
+    },
+    {
+      "name": "next: the last item has nothing after it",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "fourth"
+      ],
+      "autoplay": true,
+      "ended": "fourth",
+      "expected": null
+    },
+    {
+      "name": "next: the last item does not go back to the start",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "all",
+      "watched": [
+        "fourth"
+      ],
+      "autoplay": true,
+      "ended": "fourth",
+      "expected": null
+    },
+    {
+      "name": "next: an ended item that is not in the list plays nothing",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "elsewhere"
+      ],
+      "autoplay": true,
+      "ended": "elsewhere",
+      "expected": null
+    },
+    {
+      "name": "next: every later item watched plays nothing",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "second",
+        "third",
+        "fourth"
+      ],
+      "autoplay": true,
+      "ended": "second",
+      "expected": null
+    },
+    {
+      "name": "next: a list of one item plays nothing",
+      "op": "next",
+      "items": [
+        "only"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "only"
+      ],
+      "autoplay": true,
+      "ended": "only",
+      "expected": null
+    },
+    {
+      "name": "next: an empty list plays nothing",
+      "op": "next",
+      "items": [],
+      "mode": "unwatched",
+      "watched": [],
+      "autoplay": true,
+      "ended": "first",
+      "expected": null
+    },
+    {
+      "name": "next: watched ids that are not in the list change nothing",
+      "op": "next",
+      "items": [
+        "first",
+        "second",
+        "third",
+        "fourth"
+      ],
+      "mode": "unwatched",
+      "watched": [
+        "first",
+        "elsewhere"
+      ],
+      "autoplay": true,
+      "ended": "first",
+      "expected": "second"
+    },
+    {
+      "name": "end: large with a next item plays it large",
+      "op": "end",
+      "place": "large",
+      "next": true,
+      "nextCardShowing": true,
+      "expected": {
+        "kind": "next",
+        "place": "large"
+      }
+    },
+    {
+      "name": "end: large plays the next item large whether or not its card is showing",
+      "op": "end",
+      "place": "large",
+      "next": true,
+      "nextCardShowing": false,
+      "expected": {
+        "kind": "next",
+        "place": "large"
+      }
+    },
+    {
+      "name": "end: minimized with a next item plays it minimized",
+      "op": "end",
+      "place": "minimized",
+      "next": true,
+      "nextCardShowing": true,
+      "expected": {
+        "kind": "next",
+        "place": "minimized"
+      }
+    },
+    {
+      "name": "end: minimized plays the next item minimized whether or not its card is showing",
+      "op": "end",
+      "place": "minimized",
+      "next": true,
+      "nextCardShowing": false,
+      "expected": {
+        "kind": "next",
+        "place": "minimized"
+      }
+    },
+    {
+      "name": "end: card with the next item's card showing plays it in that card",
+      "op": "end",
+      "place": "card",
+      "next": true,
+      "nextCardShowing": true,
+      "expected": {
+        "kind": "next",
+        "place": "card"
+      }
+    },
+    {
+      "name": "end: card with the next item's card not showing plays it minimized",
+      "op": "end",
+      "place": "card",
+      "next": true,
+      "nextCardShowing": false,
+      "expected": {
+        "kind": "next",
+        "place": "minimized"
+      }
+    },
+    {
+      "name": "end: large with nothing next stays",
+      "op": "end",
+      "place": "large",
+      "next": false,
+      "nextCardShowing": false,
+      "expected": {
+        "kind": "stay"
+      }
+    },
+    {
+      "name": "end: large with nothing next stays, whatever is showing",
+      "op": "end",
+      "place": "large",
+      "next": false,
+      "nextCardShowing": true,
+      "expected": {
+        "kind": "stay"
+      }
+    },
+    {
+      "name": "end: minimized with nothing next stays",
+      "op": "end",
+      "place": "minimized",
+      "next": false,
+      "nextCardShowing": false,
+      "expected": {
+        "kind": "stay"
+      }
+    },
+    {
+      "name": "end: minimized with nothing next stays, whatever is showing",
+      "op": "end",
+      "place": "minimized",
+      "next": false,
+      "nextCardShowing": true,
+      "expected": {
+        "kind": "stay"
+      }
+    },
+    {
+      "name": "end: card with nothing next closes",
+      "op": "end",
+      "place": "card",
+      "next": false,
+      "nextCardShowing": false,
+      "expected": {
+        "kind": "close"
+      }
+    },
+    {
+      "name": "end: card with nothing next closes, whatever is showing",
+      "op": "end",
+      "place": "card",
+      "next": false,
+      "nextCardShowing": true,
+      "expected": {
+        "kind": "close"
+      }
+    },
+    {
+      "name": "minimizedSize: a wide window",
+      "op": "minimizedSize",
+      "viewWidth": 1440,
+      "expected": {
+        "width": 356,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: a window at the narrow layout's edge",
+      "op": "minimizedSize",
+      "viewWidth": 760,
+      "expected": {
+        "width": 356,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: 388 wide is the narrowest with the full size",
+      "op": "minimizedSize",
+      "viewWidth": 388,
+      "expected": {
+        "width": 356,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: 387 wide is one narrower",
+      "op": "minimizedSize",
+      "viewWidth": 387,
+      "expected": {
+        "width": 355,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: a phone's width",
+      "op": "minimizedSize",
+      "viewWidth": 360,
+      "expected": {
+        "width": 328,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: a narrow window keeps 200 high",
+      "op": "minimizedSize",
+      "viewWidth": 340,
+      "expected": {
+        "width": 308,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: 232 wide leaves exactly 200",
+      "op": "minimizedSize",
+      "viewWidth": 232,
+      "expected": {
+        "width": 200,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: narrower than 232 stays 200 wide",
+      "op": "minimizedSize",
+      "viewWidth": 231,
+      "expected": {
+        "width": 200,
+        "height": 200
+      }
+    },
+    {
+      "name": "minimizedSize: a very narrow window stays 200 wide",
+      "op": "minimizedSize",
+      "viewWidth": 200,
+      "expected": {
+        "width": 200,
+        "height": 200
+      }
+    }
+  ]
+}

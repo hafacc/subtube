@@ -2,21 +2,26 @@ import SubtubeCore
 import SwiftUI
 
 /// macOS: channels in the sidebar, the feed grid in the detail, the selected
-/// channel's filters in the inspector; the player lies over the dimmed app.
+/// channel's filters in the inspector; the player lies over the dimmed app,
+/// or minimized in the window's bottom trailing corner with the app in use
+/// behind it.
 struct PlatformMainView: View {
   let app: AppModel
   @Bindable var feed: FeedModel
   @Environment(\.scenePhase) private var scenePhase
+  /// The width the details panel takes at the trailing edge; 0 when closed.
+  @State private var panelWidth: CGFloat = 0
 
   var body: some View {
     ZStack {
-      MacFeedSplitView(app: app, feed: feed)
-        .accessibilityHidden(feed.player != nil)
+      MacFeedSplitView(app: app, feed: feed, panelWidth: $panelWidth)
+        .accessibilityHidden(feed.player?.place == .large)
       if let session = feed.player {
-        MacPlayerOverlay(session: session, feed: feed)
+        MacPlayerOverlay(session: session, feed: feed, panelWidth: panelWidth)
       }
     }
-    .onAppear(perform: feed.appeared)
+    // per feed, not per view: a feed made anew while this view stays must load too
+    .task(id: ObjectIdentifier(feed)) { feed.appeared() }
     .onChange(of: scenePhase) { _, phase in
       if phase == .active {
         feed.appeared()
@@ -27,59 +32,126 @@ struct PlatformMainView: View {
   }
 }
 
-/// Nothing but the video, as large as fits, over the dimmed app. A click on
-/// the dimmed area or Escape closes it.
+/// The one player, large or minimized.
+///
+/// Large, it is the video as big as fits over the dimmed app, with room
+/// kept above it for the frame's bar; a click on the dimmed area or Escape
+/// minimizes it. Minimized, it is 356 by 200 in the window's bottom
+/// trailing corner, beside the details panel when that is open, and the app
+/// behind it is in use. One view draws both, so the web view never moves to
+/// another parent. The frame shows while the pointer is over the video or
+/// the frame.
 private struct MacPlayerOverlay: View {
   let session: PlayerSession
   let feed: FeedModel
+  let panelWidth: CGFloat
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    ZStack {
-      Color.black.opacity(0.6)
-        .ignoresSafeArea()
-        .onTapGesture { feed.player = nil }
-      YouTubePlayerView(session: session)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .shadow(radius: 32, y: 16)
-        .padding(32)
-        .accessibilityLabel(session.item.title.isEmpty ? Strings.player : session.item.title)
+    let isLarge = session.place == .large
+    GeometryReader { proxy in
+      // sized by the whole window; the details panel only moves it over
+      let small = minimizedPlayerSize(viewWidth: proxy.size.width)
+      let size =
+        isLarge
+        ? largePlayerSize(
+          viewWidth: proxy.size.width, viewHeight: proxy.size.height,
+          barHeight: PlayerFrame.barHeight)
+        : small
+      ZStack(alignment: isLarge ? .center : .bottomTrailing) {
+        if isLarge {
+          Button(action: feed.minimize) {
+            Color.black.opacity(0.6).ignoresSafeArea()
+          }
+          .buttonStyle(.plain)
+          .keyboardShortcut(.cancelAction)
+          .accessibilityLabel(Strings.minimize)
+          .transition(.opacity)
+        }
+        YouTubePlayerView(session: session, feed: feed, onExpand: feed.enlarge)
+          .frame(width: size.width, height: size.height)
+          .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+              .fill(.black)
+              .shadow(color: .black.opacity(0.35), radius: isLarge ? 32 : 12, y: isLarge ? 16 : 4)
+          }
+          // room for the frame's bar, so the pointer over it still counts as over the player
+          .padding(.top, PlayerFrame.barHeight)
+          .onHover { session.showsFrame = $0 }
+          .padding(.trailing, isLarge ? 0 : minimizedPlayerMargin + panelWidth)
+          .padding(.bottom, isLarge ? 0 : minimizedPlayerMargin)
+      }
+      .frame(
+        maxWidth: .infinity, maxHeight: .infinity, alignment: isLarge ? .center : .bottomTrailing)
     }
-    .background {
-      // not hidden(): a hidden button's shortcut doesn't fire
-      Button(Strings.cancel) { feed.player = nil }
-        .keyboardShortcut(.cancelAction)
-        .opacity(0)
-        .accessibilityHidden(true)
-    }
+    // the one holder moves and grows: the web view stays where it is in it
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isLarge)
   }
 }
 
 private struct MacFeedSplitView: View {
   let app: AppModel
   @Bindable var feed: FeedModel
+  /// The width the details panel takes; 0 when closed.
+  @Binding var panelWidth: CGFloat
+  /// The details panel's width as last laid out.
+  @State private var inspectorWidth: CGFloat = 0
   @State private var showInspector: Bool
   @State private var columns = NavigationSplitViewVisibility.automatic
+  /// The group the details panel edits, in place of a channel's filters.
+  @State private var groupTarget: GroupTarget?
+  /// Whether the details panel was open before the group editor took it.
+  @State private var inspectorBefore = false
 
-  init(app: AppModel, feed: FeedModel) {
+  init(app: AppModel, feed: FeedModel, panelWidth: Binding<CGFloat>) {
     self.app = app
     self.feed = feed
+    _panelWidth = panelWidth
     _showInspector = State(initialValue: feed.selectedChannel != nil)
     #if DEBUG
       if CommandLine.arguments.contains("-sidebarCollapsed") {
         _columns = State(initialValue: .detailOnly)
       }
+      if CommandLine.arguments.contains("-newGroup") {
+        _groupTarget = State(initialValue: .new)
+        _showInspector = State(initialValue: true)
+      } else if let group = debugArgument("editGroup") {
+        _groupTarget = State(initialValue: .existing(group))
+        _showInspector = State(initialValue: true)
+      }
     #endif
+  }
+
+  /// Open the group editor in the details panel, in place of what it shows.
+  private func editGroup(_ target: GroupTarget) {
+    if groupTarget == nil {
+      inspectorBefore = showInspector
+    }
+    groupTarget = target
+    showInspector = true
+  }
+
+  /// Drop the group editor's draft and give the panel back.
+  private func closeGroupEditor() {
+    if groupTarget != nil {
+      groupTarget = nil
+      showInspector = inspectorBefore
+    }
   }
 
   var body: some View {
     NavigationSplitView(columnVisibility: $columns) {
-      MacSidebar(feed: feed)
+      MacSidebar(feed: feed, onGroup: editGroup)
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
     } detail: {
-      MacFeedGrid(app: app, feed: feed)
+      MacFeedGrid(app: app, feed: feed, onGroup: editGroup)
         .inspector(isPresented: $showInspector) {
           Group {
-            if let channelId = feed.selectedChannel {
+            if let groupTarget {
+              GroupEditor(feed: feed, target: groupTarget, onClose: closeGroupEditor)
+                .id(groupTarget)
+            } else if let channelId = feed.selectedChannel {
               FilterForm(feed: feed, channelId: channelId)
             } else {
               Text(Strings.noChannelSelected)
@@ -90,12 +162,26 @@ private struct MacFeedSplitView: View {
             }
           }
           .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
+          .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { inspectorWidth = $0 }
           .accessibilityLabel(
-            feed.selectedChannel.flatMap(feed.channel).map { Strings.filtersFor($0.title) }
-              ?? Strings.inspector)
+            groupTarget != nil
+              ? (groupTarget == .new ? Strings.newGroup : Strings.editGroup)
+              : feed.selectedChannel.flatMap(feed.channel).map { Strings.filtersFor($0.title) }
+                ?? Strings.inspector)
         }
         .toolbar {
-          MacFeedToolbar(feed: feed, showInspector: $showInspector)
+          MacFeedToolbar(
+            feed: feed, showInspector: $showInspector, groupTarget: $groupTarget,
+            onGroup: editGroup)
+        }
+        .onChange(of: feed.selectedChannel) { closeGroupEditor() }
+        .onChange(of: showInspector) { _, shown in
+          if !shown {
+            groupTarget = nil
+          }
+        }
+        .onChange(of: showInspector ? inspectorWidth : 0, initial: true) { _, width in
+          panelWidth = width
         }
     }
   }
@@ -104,6 +190,8 @@ private struct MacFeedSplitView: View {
 /// Feed with its unwatched count, then every channel.
 private struct MacSidebar: View {
   @Bindable var feed: FeedModel
+  /// Opens the group editor.
+  let onGroup: (GroupTarget) -> Void
 
   private enum Row: Hashable {
     case feed
@@ -145,12 +233,7 @@ private struct MacSidebar: View {
         HStack {
           Text(Strings.feed)
           Spacer()
-          let count = feed.unwatchedCount
-          if count > 0 {
-            Text("\(count)")
-              .font(.caption.weight(.semibold))
-              .accessibilityLabel(Strings.unwatchedCount(count))
-          }
+          UnwatchedBadge(count: feed.unwatchedCount)
         }
       } icon: {
         Image(systemName: "tray")
@@ -184,9 +267,20 @@ private struct MacSidebar: View {
             .padding(.vertical, 24)
         }
       } header: {
+        let title = feed.channelListTitle
         VStack(alignment: .leading, spacing: 0) {
-          Text(Strings.channels)
-          ChannelChipRow(feed: feed, inset: 0)
+          HStack(spacing: 6) {
+            Text(title.names.isEmpty ? Strings.channels : title.text)
+              .lineLimit(1)
+              .truncationMode(.tail)
+            Spacer(minLength: 0)
+            ChipTitleButtons(
+              title: title, onEdit: { onGroup(.existing($0)) }, onClear: feed.clearChannelChips
+            )
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+          }
+          ChannelChipRow(feed: feed, inset: 0, onNewGroup: { onGroup(.new) })
         }
       }
     }
@@ -205,15 +299,62 @@ private struct MacSidebar: View {
 private struct MacFeedToolbar: ToolbarContent {
   @Bindable var feed: FeedModel
   @Binding var showInspector: Bool
+  @Binding var groupTarget: GroupTarget?
+  /// Opens the group editor.
+  let onGroup: (GroupTarget) -> Void
+
+  /// Whether the panel shows what the button is for: a channel's filters.
+  private var showsFilters: Bool {
+    showInspector && groupTarget == nil
+  }
+
+  /// The names in the system title's place, over the count its subtitle
+  /// held: removing the title takes the subtitle with it.
+  private func names(_ title: ChipTitle) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text(feed.selectedChannel.flatMap(feed.channel)?.title ?? title.text)
+        .font(.headline)
+        .lineLimit(1)
+        .truncationMode(.tail)
+      if feed.selectedChannel == nil {
+        Text(Strings.videoCount(feed.shown.count))
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
+    }
+    .frame(maxWidth: 360, alignment: .leading)
+  }
 
   var body: some ToolbarContent {
+    let title = feed.feedTitle
+    if !title.names.isEmpty {
+      // ahead of the system title's place, which the names take
+      if #available(macOS 26.0, *) {
+        ToolbarItem(placement: .navigation) { names(title) }
+          .sharedBackgroundVisibility(.hidden)
+      } else {
+        ToolbarItem(placement: .navigation) { names(title) }
+      }
+      ToolbarItemGroup(placement: .navigation) {
+        ChipTitleButtons(
+          title: title, onEdit: { onGroup(.existing($0)) }, onClear: feed.clearFeedChips)
+      }
+    }
     ToolbarItem(placement: .primaryAction) {
       Button {
-        showInspector.toggle()
+        if groupTarget != nil {
+          // the filters take the panel from the group editor
+          groupTarget = nil
+        } else {
+          showInspector.toggle()
+        }
       } label: {
-        Label(showInspector ? Strings.hideInspector : Strings.showInspector, systemImage: "sidebar.right")
+        Label(
+          showsFilters ? Strings.hideInspector : Strings.showInspector,
+          systemImage: "sidebar.right")
       }
-      .help(showInspector ? Strings.hideInspector : Strings.showInspector)
+      .help(showsFilters ? Strings.hideInspector : Strings.showInspector)
     }
   }
 }
@@ -222,9 +363,14 @@ private struct MacFeedToolbar: ToolbarContent {
 private struct MacFeedGrid: View {
   let app: AppModel
   let feed: FeedModel
+  /// Opens the group editor.
+  let onGroup: (GroupTarget) -> Void
 
+  /// The window's title: the channel's name, or the feed's selected names.
   private var title: String {
-    feed.selectedChannel.flatMap(feed.channel)?.title ?? Strings.feed
+    let selected = feed.feedTitle
+    return feed.selectedChannel.flatMap(feed.channel)?.title
+      ?? (selected.names.isEmpty ? Strings.feed : selected.text)
   }
 
   private var subtitle: String {
@@ -237,7 +383,7 @@ private struct MacFeedGrid: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      FeedChipRow(feed: feed)
+      FeedChipRow(feed: feed, onNewGroup: { onGroup(.new) })
       Divider()
       ScrollView {
         VStack(spacing: 16) {
@@ -251,7 +397,7 @@ private struct MacFeedGrid: View {
                 item: item,
                 watched: feed.watched.contains(item.id),
                 progress: feed.bars[item.id],
-                onOpen: { feed.open(item) },
+                feed: feed,
                 onOpenChannel: { feed.selectedChannel = item.channelId }
               )
             }
@@ -264,11 +410,14 @@ private struct MacFeedGrid: View {
         }
         .padding(20)
       }
+      .minimizedPlayerRoom(feed)
     }
     .overlay(alignment: .top) {
       LoadProgressBar(progress: feed.loadProgress)
     }
     .navigationTitle(title)
-    .navigationSubtitle(subtitle)
+    // the toolbar item that shows the names draws the count itself
+    .navigationSubtitle(feed.feedTitle.names.isEmpty ? subtitle : "")
+    .toolbar(removing: feed.feedTitle.names.isEmpty ? nil : .title)
   }
 }

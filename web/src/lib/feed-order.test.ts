@@ -53,9 +53,11 @@ describe("shared feed order fixtures", () => {
         const sort = (
           "sort" in testCase ? testCase.sort : "newest"
         ) as FeedSort;
-        expect(
-          sortFeed(items.map(feedItem), sort, seed).map(feedItemId),
-        ).toEqual(testCase.expected as string[]);
+        for (const given of [items, items.toReversed()]) {
+          expect(
+            sortFeed(given.map(feedItem), sort, seed).map(feedItemId),
+          ).toEqual(testCase.expected as string[]);
+        }
       }
     });
   }

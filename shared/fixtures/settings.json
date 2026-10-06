@@ -1,5 +1,5 @@
 {
-  "description": "Reading the synced settings. `settings` is the merged view's `settings` map (shared/fixtures/merge.json); `expected` is what the client acts on. `feedSort`: one of newest (default), shortest, title, random (shared/fixtures/feed-order.json); oldest and longest, which older versions saved, read as the default like any other unknown value. `channelSort`: one of newest (default), name, unwatched (shared/fixtures/channel-order.json). `autoplay`: a boolean, default false. `timeChip`: one of none (default), day, week, month (shared/fixtures/feed-chips.json). `topicChips`: an array of strings, the selected topic chips' YouTube video category ids (shared/fixtures/feed-chips.json), default []; it is read as written, with no sorting or de-duplication, and ids that are in no table are kept here (the chips ignore them). `channelTimeChip` and `channelTopicChips`: the channel list's own time chip and topic chips (shared/fixtures/channel-chips.json), read exactly as `timeChip` and `topicChips` are and independent of them. A setting that is missing, or whose value is anything else (another string, another type, an array holding a non-string), reads as its default; the entry itself stays in the file untouched. Names not listed here are ignored. A change writes `{at: now, value}` under the setting's name in the device's own file, keeping any unknown fields the entry had.",
+  "description": "Reading the synced settings. `settings` is the merged view's `settings` map (shared/fixtures/merge.json); `expected` is what the client acts on. `feedSort`: one of newest (default), shortest, title, random (shared/fixtures/feed-order.json); oldest and longest, which older versions saved, read as the default like any other unknown value. `channelSort`: one of newest (default), name, unwatched (shared/fixtures/channel-order.json). `autoplay`: a boolean, default false. `timeChip`: one of none (default), day, week, month (shared/fixtures/feed-chips.json). `topicChips`: an array of strings, the selected topic chips' YouTube video category ids (shared/fixtures/feed-chips.json), default []; it is read as written, with no sorting or de-duplication, and ids that are in no table are kept here (the chips ignore them). `channelTimeChip` and `channelTopicChips`: the channel list's own time chip and topic chips (shared/fixtures/channel-chips.json), read exactly as `timeChip` and `topicChips` are and independent of them. `groupChips` and `channelGroupChips`: the selected group chips' names for the feed's row and for the channel list's row (shared/fixtures/groups.json), each an array of strings, default [], independent of each other; like the topic settings they are read as written, with no sorting, trimming or de-duplication, and names that are no existing group are kept here (the chips ignore them). A setting that is missing, or whose value is anything else (another string, another type, an array holding a non-string), reads as its default; the entry itself stays in the file untouched. Names not listed here are ignored. A change writes `{at: now, value}` under the setting's name in the device's own file, keeping any unknown fields the entry had.",
   "cases": [
     {
       "name": "no settings: every default",
@@ -11,7 +11,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -49,6 +51,19 @@
           "value": [
             "27"
           ]
+        },
+        "groupChips": {
+          "at": 1759500000000,
+          "value": [
+            "Making",
+            "Outdoors"
+          ]
+        },
+        "channelGroupChips": {
+          "at": 1759500000000,
+          "value": [
+            "Cooking"
+          ]
         }
       },
       "expected": {
@@ -63,6 +78,13 @@
         "channelTimeChip": "week",
         "channelTopicChips": [
           "27"
+        ],
+        "groupChips": [
+          "Making",
+          "Outdoors"
+        ],
+        "channelGroupChips": [
+          "Cooking"
         ]
       }
     },
@@ -81,7 +103,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -99,7 +123,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -117,7 +143,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -135,7 +163,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -153,7 +183,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -171,7 +203,9 @@
         "timeChip": "day",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -189,7 +223,9 @@
         "timeChip": "week",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -223,7 +259,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -259,7 +297,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -280,7 +320,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -308,7 +350,9 @@
           "99"
         ],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -330,7 +374,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -370,7 +416,9 @@
         "channelTopicChips": [
           "20",
           "28"
-        ]
+        ],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -396,7 +444,9 @@
           "10"
         ],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -418,7 +468,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -443,7 +495,9 @@
         "timeChip": "none",
         "topicChips": [],
         "channelTimeChip": "none",
-        "channelTopicChips": []
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
       }
     },
     {
@@ -471,6 +525,154 @@
           "10",
           "20",
           "99"
+        ],
+        "groupChips": [],
+        "channelGroupChips": []
+      }
+    },
+    {
+      "name": "the feed's group chips alone leave the channel list's empty",
+      "settings": {
+        "groupChips": {
+          "at": 1759500000000,
+          "value": [
+            "Making"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": [],
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": []
+      }
+    },
+    {
+      "name": "the channel list's group chips alone leave the feed's empty",
+      "settings": {
+        "channelGroupChips": {
+          "at": 1759500000000,
+          "value": [
+            "Making",
+            "Cooking"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": [
+          "Making",
+          "Cooking"
+        ]
+      }
+    },
+    {
+      "name": "group chips of the wrong type read as empty",
+      "settings": {
+        "groupChips": {
+          "at": 1759500000000,
+          "value": "Making"
+        },
+        "channelGroupChips": {
+          "at": 1759500000000,
+          "value": {
+            "Making": true
+          }
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
+      }
+    },
+    {
+      "name": "a group list holding anything but strings reads as empty",
+      "settings": {
+        "groupChips": {
+          "at": 1759500000000,
+          "value": [
+            "Making",
+            3
+          ]
+        },
+        "channelGroupChips": {
+          "at": 1759500000000,
+          "value": [
+            "Making",
+            null
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
+      }
+    },
+    {
+      "name": "group names are kept as they are: order, repeats, spaces and names of no group",
+      "settings": {
+        "groupChips": {
+          "at": 1759500000000,
+          "value": [
+            "Outdoors",
+            "Making",
+            "Outdoors",
+            " Making ",
+            ""
+          ]
+        },
+        "channelGroupChips": {
+          "at": 1759500000000,
+          "value": [
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": [],
+        "groupChips": [
+          "Outdoors",
+          "Making",
+          "Outdoors",
+          " Making ",
+          ""
+        ],
+        "channelGroupChips": [
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         ]
       }
     }

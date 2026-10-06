@@ -159,29 +159,3 @@ export function startMarks(
       .map(feedItemId);
   }
 }
-
-const PENDING_START_PREFIX = "subtube.startFrom.";
-
-/** Keep setup's starting point for the account's next feed load. */
-export function keepPendingStart(accountId: string, start: StartFrom): void {
-  try {
-    if (start === "all") {
-      localStorage.removeItem(PENDING_START_PREFIX + accountId);
-    } else {
-      localStorage.setItem(PENDING_START_PREFIX + accountId, start);
-    }
-  } catch {
-    // nothing is marked then
-  }
-}
-
-/** Setup's starting point for the account, handed over once. */
-export function takePendingStart(accountId: string): StartFrom {
-  try {
-    const kept = localStorage.getItem(PENDING_START_PREFIX + accountId);
-    localStorage.removeItem(PENDING_START_PREFIX + accountId);
-    return kept === "day" || kept === "week" ? kept : "all";
-  } catch {
-    return "all";
-  }
-}

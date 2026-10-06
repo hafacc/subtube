@@ -14,6 +14,12 @@ let appLog = Logger(subsystem: "cc.hafa.subtube", category: "app")
 /// finishes, a filter is edited, or the watched, time or topic chip changes;
 /// moving between the feed and channel pages keeps it. While a load runs the
 /// previous feed stays.
+/// How much a load fetches: the channels alone, or their items too.
+private enum LoadDepth: Comparable {
+  case channels
+  case items
+}
+
 @MainActor @Observable
 final class FeedModel {
   /// Returning to the app after this long away loads the feed again.
@@ -28,12 +34,17 @@ final class FeedModel {
   @ObservationIgnored private let storeCalls:
     AsyncStream<@Sendable (SyncStore) async -> Void>.Continuation
 
-  /// The channels with their filters, in sidebar order; edits apply here at
-  /// once and sync through Drive.
+  /// The channels with their filters, subscriptions first as YouTube lists
+  /// them; edits apply here at once and sync through Drive.
   private(set) var channels: [ChannelFilter] = [] {
     didSet {
       compiled = Dictionary(channels.map { ($0.channelId, compileFilter($0)) }) { first, _ in first }
       modes = Dictionary(channels.map { ($0.channelId, $0.contentMode) }) { first, _ in first }
+      channelGroups = Dictionary(channels.map { ($0.channelId, $0.groups) }) { first, _ in first }
+      let names = groupNames(channelGroups.values)
+      if !names.elementsEqual(groups, by: sameScalars) {
+        groups = names
+      }
       holdChannels()
     }
   }
@@ -41,6 +52,13 @@ final class FeedModel {
   /// remove them.
   private var heldOrder = HeldChannelOrder()
   private var compiled: [String: CompiledFilter] = [:]
+  /// Every listed channel's groups, by channel id.
+  private var channelGroups: [String: [String]] = [:]
+  /// The groups that exist, in chip order.
+  private(set) var groups: [String] = []
+  /// Every filter saved on any device as of the last load, by channel id;
+  /// the channels no longer listed are read from here.
+  private var savedFilters: [String: JSONObject] = [:]
   /// Whether each channel shows uploads or playlists.
   private var modes: [String: ContentMode] = [:]
   /// The channels the account subscribes to on YouTube.
@@ -68,8 +86,8 @@ final class FeedModel {
   private(set) var channelTopicChips: [String] = []
   /// The channels the channel lists' chips keep; nil while they keep all.
   private var chipChannels: Set<String>?
-  /// Whether a full load has been shown.
-  private var fullLoadShown = false
+  /// Whether a full load has been shown; the group chips wait for it.
+  private(set) var fullLoadShown = false
   /// Each on channel's unwatched items that pass its filter, counted;
   /// channels with none are absent.
   private(set) var unwatchedByChannel: [String: Int] = [:]
@@ -135,10 +153,16 @@ final class FeedModel {
       }
     }
   }
+  /// Counts the cards played by hand, so a view can note where each started.
+  private(set) var playStarts = 0
+  /// Counts the times the playing card is to be scrolled into view.
+  private(set) var cardScrolls = 0
   /// The Google account's name and address, once asked.
   private(set) var user: DriveUser?
   private(set) var lastSyncedAt: Date?
   private var lastLoadedAt = Date.distantPast
+  /// What a load asked for while another was running wanted.
+  private var loadAskedMeanwhile: LoadDepth?
   /// Called when a load finds the profile was deleted from another device.
   var onProfileDeleted: (() -> Void)?
 
@@ -203,7 +227,9 @@ final class FeedModel {
   /// What an empty page says.
   var emptyText: String {
     if emptiedBySelection(
-      mode: watchedMode, timeChip: settings.timeChip, topicChips: settings.topicChips)
+      mode: watchedMode, timeChip: settings.timeChip, topicChips: settings.topicChips,
+      groupSelected: selectedChannel == nil
+        && !selectedGroups(groups, selected: settings.groupChips).isEmpty)
     {
       Strings.noVideosForFilter
     } else {
@@ -219,8 +245,23 @@ final class FeedModel {
     return heldOrder.ids.compactMap { byId[$0] }
   }
 
+  /// What the feed's or a channel page's title shows while chips are
+  /// selected; a channel's page has no groups.
+  var feedTitle: ChipTitle {
+    chipTitle(
+      groups: selectedChannel == nil ? groups : [], groupChips: settings.groupChips,
+      topics: topicChips, topicChips: settings.topicChips)
+  }
+
+  /// What the channel lists' title shows while chips are selected.
+  var channelListTitle: ChipTitle {
+    chipTitle(
+      groups: groups, groupChips: settings.channelGroupChips, topics: channelTopicChips,
+      topicChips: settings.channelTopicChips)
+  }
+
   /// Whether a channel list that is empty says so: a full load has been
-  /// shown and its time chip or a topic chip is chosen.
+  /// shown and its time chip, a topic chip or a group chip is chosen.
   var explainsNoChannels: Bool {
     fullLoadShown && chipChannels != nil
   }
@@ -292,13 +333,14 @@ final class FeedModel {
     channel(channelId)?.enabled != true
   }
 
-  /// Everything the current view could show, watched or not.
-  private func passing() -> [FeedItem] {
+  /// Everything a page could show, watched or not; `page` is a channel's
+  /// id, or nil for the feed.
+  private func passing(on page: String?) -> [FeedItem] {
     items.values.filter { item in
-      guard selectedChannel == nil || item.channelId == selectedChannel, matchesMode(item)
+      guard page == nil || item.channelId == page, matchesMode(item)
       else { return false }
       let filter = compiled[item.channelId]
-      if selectedChannel == nil && filter?.enabled != true {
+      if page == nil && filter?.enabled != true {
         return false
       } else if let filter {
         return itemPassesFilter(item, filter)
@@ -308,16 +350,28 @@ final class FeedModel {
     }
   }
 
+  /// What a page lists, unordered: `beforeChips` after the filters and the
+  /// watched chip, `kept` after the group, time and topic chips too. `page`
+  /// is a channel's id, or nil for the feed.
+  private func listed(on page: String?) -> (beforeChips: [FeedItem], kept: [FeedItem]) {
+    let beforeChips = modeFiltered(
+      passing(on: page), mode: watchedMode, watched: watched, staying: staying)
+    let inGroups = groupFiltered(
+      beforeChips,
+      kept: page == nil ? groupKeptChannels(channelGroups, selected: settings.groupChips) : nil)
+    return (
+      beforeChips,
+      chipFiltered(
+        inGroups, timeChip: settings.timeChip, topicChips: settings.topicChips, now: chipClock)
+    )
+  }
+
   /// Work out what the page shows, both rows' topic chips, the unwatched
   /// counts and the channels the channel lists' chips keep.
   private func rebuild() {
-    let beforeChips = modeFiltered(
-      passing(), mode: watchedMode, watched: watched, staying: staying)
+    let (beforeChips, kept) = listed(on: selectedChannel)
     topicChips = chipRow(beforeChips, selected: settings.topicChips)
-    shown = sortFeed(
-      chipFiltered(
-        beforeChips, timeChip: settings.timeChip, topicChips: settings.topicChips, now: chipClock),
-      by: settings.feedSort, seed: shuffleSeed)
+    shown = sortFeed(kept, by: settings.feedSort, seed: shuffleSeed)
     let listed = listedItems(items.values, filters: compiled, modes: modes)
     var counts: [String: Int] = [:]
     for item in listed where !watched.contains(item.id) {
@@ -325,23 +379,20 @@ final class FeedModel {
     }
     unwatchedByChannel = counts
     channelTopicChips = chipRow(listed, selected: settings.channelTopicChips)
-    chipChannels = chipKeptChannels(
-      listed, timeChip: settings.channelTimeChip, topicChips: settings.channelTopicChips,
-      now: chipClock)
+    chipChannels = keptByBoth(
+      groupKeptChannels(channelGroups, selected: settings.channelGroupChips),
+      chipKeptChannels(
+        listed, timeChip: settings.channelTimeChip, topicChips: settings.channelTopicChips,
+        now: chipClock))
     holdChannels()
-    #if os(iOS)
-      // a card that left the list stops playing
-      if let playing = player?.item.id, !shown.contains(where: { $0.id == playing }) {
-        player = nil
-      }
-    #endif
+    if let player, player.place == .card, !shown.contains(where: { $0.id == player.item.id }) {
+      minimize()
+    }
   }
 
   private func viewChanged() {
-    #if os(iOS)
-      // a card plays in its list; another page is another list
-      player = nil
-    #endif
+    // a card plays in its list; another page is another list
+    minimizeCard()
     rebuild()
     if let selectedChannel {
       fetchIfMissing(selectedChannel)
@@ -360,10 +411,11 @@ final class FeedModel {
     Task { await load() }
   }
 
-  func reconnected() {
+  /// Signed in again: load again, the channels alone while setup shows.
+  func reconnected(items: Bool = true) {
     error = nil
     needsReconnect = false
-    Task { await load() }
+    Task { await load(items: items) }
   }
 
   /// Put what `entries` holds for one item into `watched` and `bars`; says
@@ -454,11 +506,30 @@ final class FeedModel {
     }
   }
 
+  /// Load now, or once the load that is running ends: a full load asked for
+  /// while setup's channels-only one runs must not be lost.
   private func load(items wantsItems: Bool) async {
-    guard !loading, !offline else { return }
+    appLog.notice("load asked items=\(wantsItems) loading=\(self.loading) offline=\(self.offline)")
+    guard !offline else { return }
+    if loading {
+      loadAskedMeanwhile = max(loadAskedMeanwhile ?? .channels, wantsItems ? .items : .channels)
+    } else {
+      await loadNow(items: wantsItems)
+      let next = loadAskedMeanwhile
+      loadAskedMeanwhile = nil
+      // one that asked for no more than the load just made is already answered
+      if next == .items, !wantsItems {
+        // in a task of its own: this one may be a view's, called off when the view left
+        Task { await self.load(items: true) }
+      }
+    }
+  }
+
+  private func loadNow(items wantsItems: Bool) async {
     loading = true
     loadProgress = wantsItems ? loadFraction(finished: 0, total: nil) : nil
     error = nil
+    needsReconnect = false
     defer {
       loading = false
       loadProgress = nil
@@ -483,11 +554,15 @@ final class FeedModel {
         tokens: auth, store: store, probe: probe.function, sink: sink, items: wantsItems,
         prefetched: prefetched)
       let fresh = result.fetched.values.flatMap(\.items)
+      appLog.notice(
+        "loaded items=\(wantsItems) channels=\(result.channels.count) on=\(result.channels.filter(\.enabled).count) fetched=\(result.fetched.count) failed=\(result.failed.count) videos=\(fresh.count) limit=\(result.dailyLimit)"
+      )
       let settingsAsked = settingEdits
       let synced = await read { await $0.settings() }
       if settingEdits == settingsAsked {
         settings = synced
       }
+      savedFilters = await read { await $0.savedFilters() }
       await applyEntries(fresh)
       subscribedIds = Set(result.subscriptions.map(\.channelId))
       channels = keepingEdits(result.channels, edits: editsDuringLoad)
@@ -507,13 +582,13 @@ final class FeedModel {
           fetched[channelId] = nil
         }
         if result.dailyLimit {
-          notice = GoogleAPIError.dailyLimit.localizedDescription
+          notice = Strings.dailyLimit
         } else {
           notice = result.failed.isEmpty ? nil : Strings.partialLoad
         }
         shuffleSeed = newShuffleSeed()
         chipClock = epochMilliseconds()
-        markBeforeStart(fresh)
+        markBeforeStart(Set(result.fetched.keys), fresh)
         let loadedIds = fresh.map(\.id)
         write { await $0.noteLoaded(loadedIds) }
         staying = []
@@ -530,8 +605,12 @@ final class FeedModel {
       }
       channelsLoaded = true
     } catch SyncError.profileDeleted {
+      appLog.notice("load ended: profile deleted elsewhere")
       onProfileDeleted?()
     } catch {
+      if isCancellation(error) {
+        appLog.notice("load called off")
+      }
       fail(error)
     }
     let waiting = fetchAfterLoad
@@ -541,19 +620,23 @@ final class FeedModel {
     }
   }
 
-  /// After setup, mark what was fetched from before its starting point
-  /// watched, as one edit.
-  private func markBeforeStart(_ fresh: [FeedItem]) {
-    let now = epochMilliseconds()
-    let ids = startMarks(
-      fresh, start: takePendingStart(accountId: account.channelId), now: now
-    ).filter { entries[$0]?.watched != true }
-    guard !ids.isEmpty else { return }
-    for id in ids {
-      edit(id) { prior, at in markedEntry(prior, now: at, watched: true) }
-      readEntry(id, durationSeconds: length(of: id))
+  /// After setup, mark what these channels, each fetched whole, have from
+  /// before its starting point watched, as one edit; a channel that was on
+  /// then and isn't among them keeps waiting for its first fetch.
+  private func markBeforeStart(_ fetched: Set<String>, _ fetchedItems: [FeedItem]) {
+    guard let pending = pendingStart(accountId: account.channelId) else { return }
+    let (marks, remaining) = applyPendingStart(pending, fetched: fetched, items: fetchedItems)
+    if remaining != pending {
+      keepPendingStart(accountId: account.channelId, remaining)
     }
-    write { await $0.setWatched(ids, watched: true) }
+    let ids = marks.filter { entries[$0]?.watched != true }
+    if !ids.isEmpty {
+      for id in ids {
+        edit(id) { prior, at in markedEntry(prior, now: at, watched: true) }
+        readEntry(id, durationSeconds: length(of: id))
+      }
+      write { await $0.setWatched(ids, watched: true) }
+    }
   }
 
   private func receiveChannels(_ loaded: [ChannelFilter]) {
@@ -568,19 +651,12 @@ final class FeedModel {
     }
   }
 
+  /// Show why a load failed; nothing for one that was called off.
   private func fail(_ caught: Error) {
-    switch caught {
-    case AuthError.signInRequired:
-      needsReconnect = true
-      error = Strings.reconnectToLoad
-    case GoogleAPIError.tokenExpired:
-      needsReconnect = true
-      error = Strings.sessionEnded
-    case GoogleAPIError.insufficientScope:
-      needsReconnect = true
-      error = Strings.needsPermissions
-    default:
-      error = caught.localizedDescription
+    if let message = Strings.message(for: caught, signedOut: Strings.reconnectToLoad) {
+      appLog.error("load failed: \(String(describing: caught), privacy: .public)")
+      needsReconnect = Strings.signingInFixes(caught)
+      error = message
     }
   }
 
@@ -668,12 +744,15 @@ final class FeedModel {
 
   /// The uploads held for a channel, as fetched; nil when it has none.
   private func fetchedUploads(_ channelId: String) -> ChannelItems? {
-    guard let marks = fetched[channelId], marks.contains(.videos) else { return nil }
-    return ChannelItems(
-      mode: .videos, shorts: marks.contains(.shorts),
-      items: items.values.filter { item in
-        if case .video = item { item.channelId == channelId } else { false }
-      })
+    if let marks = fetched[channelId], marks.contains(.videos) {
+      return ChannelItems(
+        mode: .videos, shorts: marks.contains(.shorts),
+        items: items.values.filter { item in
+          if case .video = item { item.channelId == channelId } else { false }
+        })
+    } else {
+      return nil
+    }
   }
 
   /// Fetch what a channel's filter lacks, unless it's on its way: nothing,
@@ -705,6 +784,7 @@ final class FeedModel {
     }
     guard let got else { return }
     await applyEntries(got.items)
+    markBeforeStart([channelId], got.items)
     let fresh = Set(got.items.map(\.id))
     for (id, item) in items where item.channelId == channelId && !fresh.contains(id) {
       let sameKind: Bool
@@ -799,12 +879,13 @@ final class FeedModel {
     saveSetting(.timeChip, .string(timeChip.rawValue))
   }
 
-  /// `selected` with a category id taken out, or added at the end.
-  private func toggled(_ categoryId: String, in selected: [String]) -> [String] {
-    if selected.contains(categoryId) {
-      return selected.filter { $0 != categoryId }
+  /// `selected` with a category id or a group's name taken out, or added at
+  /// the end; names are told apart by code point.
+  private func toggled(_ chip: String, in selected: [String]) -> [String] {
+    if selected.contains(where: { sameScalars($0, chip) }) {
+      return selected.filter { !sameScalars($0, chip) }
     } else {
-      return selected + [categoryId]
+      return selected + [chip]
     }
   }
 
@@ -819,9 +900,25 @@ final class FeedModel {
     setTopicChips(toggled(categoryId, in: settings.topicChips))
   }
 
-  /// Deselect every topic chip.
-  func clearTopicChips() {
-    setTopicChips([])
+
+  /// Select one of the feed's group chips by its name, or deselect it.
+  func toggleGroupChip(_ group: String) {
+    settings.groupChips = toggled(group, in: settings.groupChips)
+    staying = []
+    saveSetting(.groupChips, .array(settings.groupChips.map(JSONValue.string)))
+  }
+
+  /// The title's "Clear" on the feed or a channel's page: deselect the
+  /// page's topic chips and, on the feed, its group chips.
+  func clearFeedChips() {
+    if selectedChannel == nil && !settings.groupChips.isEmpty {
+      settings.groupChips = []
+      staying = []
+      saveSetting(.groupChips, .array([]))
+    }
+    if !settings.topicChips.isEmpty {
+      setTopicChips([])
+    }
   }
 
   /// Choose how far back the channel lists reach.
@@ -843,9 +940,88 @@ final class FeedModel {
     setChannelTopicChips(toggled(categoryId, in: settings.channelTopicChips))
   }
 
-  /// Deselect every one of the channel lists' topic chips.
-  func clearChannelTopicChips() {
-    setChannelTopicChips([])
+  /// Select one of the channel lists' group chips by its name, or deselect
+  /// it.
+  func toggleChannelGroupChip(_ group: String) {
+    settings.channelGroupChips = toggled(group, in: settings.channelGroupChips)
+    saveSetting(.channelGroupChips, .array(settings.channelGroupChips.map(JSONValue.string)))
+    reorderChannels()
+  }
+
+  /// The channel lists' title's "Clear": deselect their group and topic
+  /// chips.
+  func clearChannelChips() {
+    if !settings.channelGroupChips.isEmpty {
+      settings.channelGroupChips = []
+      saveSetting(.channelGroupChips, .array([]))
+      reorderChannels()
+    }
+    if !settings.channelTopicChips.isEmpty {
+      setChannelTopicChips([])
+    }
+  }
+
+  /// The listed channels in a group, by id.
+  func members(of group: String) -> Set<String> {
+    Set(channels.filter { channel in channel.groups.contains { sameScalars($0, group) } }
+      .map(\.channelId))
+  }
+
+  /// Every saved filter by channel id: the listed channels' as they are
+  /// here, the others' as last loaded.
+  private func everySavedFilter() -> [String: JSONObject] {
+    savedFilters.merging(channels.map { ($0.channelId, $0.storedFilter) }) { _, listed in listed }
+  }
+
+  private var groupSelections: GroupSelections {
+    GroupSelections(
+      groupChips: settings.groupChips, channelGroupChips: settings.channelGroupChips)
+  }
+
+  /// The feed's selected groups that exist, which is what its group chips filter by.
+  private var feedGroups: [String] {
+    selectedGroups(groups, selected: settings.groupChips)
+  }
+
+  /// Show a group edit here at once and save it as one edit. A card marked
+  /// while on screen leaves only if the feed's selected groups change.
+  private func apply(_ edit: GroupEdit) {
+    guard !edit.isEmpty else { return }
+    let selectedBefore = feedGroups
+    savedFilters.merge(edit.channels) { _, edited in edited }
+    let edited = groupEdited(channels, by: edit)
+    if !edited.isEmpty {
+      channels = keepingEdits(channels, edits: edited)
+      if loading {
+        editsDuringLoad.merge(edited) { _, new in new }
+      }
+    }
+    if let groupChips = edit.groupChips {
+      settings.groupChips = groupChips
+    }
+    if let channelGroupChips = edit.channelGroupChips {
+      settings.channelGroupChips = channelGroupChips
+    }
+    settingEdits += 1
+    write { await $0.applyGroupEdit(edit) }
+    if !feedGroups.elementsEqual(selectedBefore, by: sameScalars) {
+      staying = []
+    }
+    rebuild()
+  }
+
+  /// The group editor's "Save": `members`, listed channels' ids, become the
+  /// group's channels and it takes `name`; `group` is nil for a new one.
+  func saveGroup(_ group: String?, name: String, members: [String]) {
+    apply(
+      SubtubeCore.saveGroup(
+        everySavedFilter(), listed: channels.map(\.channelId), selections: groupSelections,
+        group: group, name: name, members: members))
+  }
+
+  /// Delete a group; its channels stay.
+  func deleteGroup(_ group: String) {
+    apply(SubtubeCore.deleteGroup(everySavedFilter(), selections: groupSelections, group: group))
   }
 
   /// List unwatched items, watched ones, or both.
@@ -855,11 +1031,23 @@ final class FeedModel {
     rebuild()
   }
 
+  /// Mark a video or playlist watched, keeping a video's position, or
+  /// unmark it, forgetting the position.
+  func setWatched(_ id: String, watched isWatched: Bool) {
+    edit(id) { prior, at in markedEntry(prior, now: at, watched: isWatched) }
+    write { await $0.setWatched([id], watched: isWatched) }
+    entryChanged(id, durationSeconds: length(of: id))
+  }
+
   /// Mark a video or playlist watched, keeping a video's position.
   func markWatched(_ id: String) {
-    edit(id) { prior, at in markedEntry(prior, now: at, watched: true) }
-    write { await $0.setWatched([id], watched: true) }
-    entryChanged(id, durationSeconds: length(of: id))
+    setWatched(id, watched: true)
+  }
+
+  /// A press on a card's progress bar: watched becomes unwatched, anything
+  /// else watched. The card stays where it is until the list is next built.
+  func toggleWatched(_ id: String) {
+    setWatched(id, watched: !watched.contains(id))
   }
 
   /// Save how far a video has been played: `position` of `playerDuration`
@@ -885,30 +1073,97 @@ final class FeedModel {
     resumePosition(entries[id], durationSeconds: length(of: id))
   }
 
-  /// What auto-play plays after `endedId` on this page; nil when it doesn't
-  /// move on.
-  func autoplayNext(after endedId: String) -> FeedItem? {
-    if settings.autoplay && autoplayAdvances(watchedMode) {
-      nextUnwatched(shown, after: endedId, watched: watched)
-    } else {
-      nil
+  private func play(_ item: FeedItem, place: PlayerPlace, page: String?, queue: PlayQueue) {
+    player = PlayerSession(
+      item, feed: self, startAt: resumeAt(item.id), place: place, startedOn: page, queue: queue)
+  }
+
+  /// Play a card, on a Mac over the dimmed window and on a phone in the
+  /// card; whatever was playing stops and saves its position. The page's
+  /// list and watched chip are kept as they are now for what plays next.
+  func open(_ item: FeedItem) {
+    #if os(macOS)
+      let place = PlayerPlace.large
+    #else
+      let place = PlayerPlace.card
+    #endif
+    play(
+      item, place: place, page: selectedChannel,
+      queue: PlayQueue(items: shown, mode: watchedMode))
+    playStarts += 1
+    if place == .card {
+      // a card pressed while under half of it shows is scrolled into view and plays there
+      cardScrolls += 1
     }
   }
 
-  /// Play a card; whatever was playing stops and saves its position.
-  func open(_ item: FeedItem) {
-    player = PlayerSession(item, feed: self, startAt: resumeAt(item.id))
+  /// Move the player to the window's corner, still playing.
+  func minimize() {
+    player?.place = .minimized
   }
 
-  /// The playing item is over: auto-play's next item takes its place.
+  /// Minimize a player that is in a card.
+  func minimizeCard() {
+    if player?.place == .card {
+      minimize()
+    }
+  }
+
+  /// Draw a minimized player over the dimmed window again.
+  func enlarge() {
+    player?.place = .large
+  }
+
+  /// Whether the page the minimized player was started on still lists its
+  /// item, whatever page shows now: only then can it go back in its card.
+  var cardIsListed: Bool {
+    if let player, player.place == .minimized {
+      listed(on: player.startedOn).kept.contains { $0.id == player.item.id }
+    } else {
+      false
+    }
+  }
+
+  /// Put a minimized player back in its card and scroll that into view, when
+  /// the page it was started on is showing and still lists it; it stays
+  /// minimized otherwise.
+  func expandToCard() {
+    if let player, player.place == .minimized, player.startedOn == selectedChannel,
+      shown.contains(where: { $0.id == player.item.id })
+    {
+      player.place = .card
+      cardScrolls += 1
+    }
+  }
+
+  /// Stop playing, saving the position, and remove the player.
+  func closePlayer() {
+    player = nil
+  }
+
+  /// The playing item is over: the next unwatched item of the list it was
+  /// started from plays where the player is, or minimized when that is a
+  /// card not on the page showing. With nothing next the large player stays
+  /// and any other closes (shared/fixtures/player.json).
   func playbackEnded(_ session: PlayerSession) {
     guard player === session else { return }
-    if let next = autoplayNext(after: session.item.id) {
-      open(next)
-    } else {
-      #if os(iOS)
-        player = nil
-      #endif
+    let next = nextInQueue(
+      session.queue, after: session.item.id, watched: watched, autoplay: settings.autoplay)
+    let nextCardShowing = next.map { item in shown.contains { $0.id == item.id } } ?? false
+    switch endOutcome(
+      place: session.place, hasNext: next != nil, nextCardShowing: nextCardShowing)
+    {
+    case .next(let place):
+      if let next {
+        play(next, place: place, page: session.startedOn, queue: session.queue)
+        if place == .card {
+          cardScrolls += 1
+        }
+      }
+    case .stay:
+      break
+    case .close:
+      player = nil
     }
   }
 
@@ -925,12 +1180,7 @@ final class FeedModel {
   /// Delete the profile from Drive, every device's files, and from this
   /// device.
   func deleteProfile() async throws {
-    do {
-      try await store.deleteProfile()
-    } catch GoogleAPIError.tokenExpired {
-      _ = try await auth.refreshedToken()
-      try await store.deleteProfile()
-    }
+    try await store.deleteProfile()
   }
 
   /// Upload edits still waiting out the pause.
@@ -1048,7 +1298,34 @@ private enum FetchMark {
       if let topics = debugArgument("channelTopics") {
         feed.settings.channelTopicChips = topics.split(separator: ",").map(String.init)
       }
+      if let topics = debugArgument("topics") {
+        feed.settings.topicChips = topics.split(separator: ",").map(String.init)
+      }
+      if CommandLine.arguments.contains("-groups") {
+        let demoGroups = [
+          "Woodworking": ["One", "Three", "Five"], "Home": ["Six", "Four"],
+          "Talks": ["Two", "Seven"],
+        ]
+        feed.channels = feed.channels.map { channel in
+          var grouped = channel
+          grouped.groups = demoGroups.filter { _, names in
+            names.contains(String(channel.channelId.dropFirst(2)))
+          }.keys.sorted()
+          return grouped
+        }
+      }
+      if let names = debugArgument("groupChips") {
+        feed.settings.groupChips = names.split(separator: ",").map(String.init)
+      }
+      if let names = debugArgument("channelGroupChips") {
+        feed.settings.channelGroupChips = names.split(separator: ",").map(String.init)
+      }
       feed.rebuild()
+      if let index = debugArgument("toggleWatched").flatMap(Int.init),
+        feed.shown.indices.contains(index)
+      {
+        feed.toggleWatched(feed.shown[index].id)
+      }
       feed.fullLoadShown = true
       feed.reorderChannels()
       feed.loading = CommandLine.arguments.contains("-loading")
@@ -1073,6 +1350,18 @@ private enum FetchMark {
         open(.video(video))
       } else if let first = unwatched.first {
         open(first)
+      }
+      if CommandLine.arguments.contains("-minimized") {
+        minimize()
+      }
+      if CommandLine.arguments.contains("-playerFrame") {
+        player?.showsFrame = true
+      }
+      if let seconds = debugArgument("minimizeAfter").flatMap(Double.init) {
+        Task {
+          try? await Task.sleep(for: .seconds(seconds))
+          minimize()
+        }
       }
     }
   }

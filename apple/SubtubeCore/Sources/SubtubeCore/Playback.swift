@@ -8,8 +8,11 @@ public enum PlayerContent: Sendable, Hashable {
 
 /// The IFrame API's `PlayerState` values playback reacts to.
 public enum YouTubePlayerState {
+  /// The video, or a playlist's current video, is over.
   public static let ended = 0
+  /// It is playing.
   public static let playing = 1
+  /// It is paused.
   public static let paused = 2
 }
 

@@ -11,8 +11,7 @@ public typealias ShortsProbeFunction = @Sendable (String) async -> Bool?
 
 /// Whether a video could be a Short at all, and so is worth classifying.
 public func isShortsCandidate(_ video: Video) -> Bool {
-  guard let duration = video.durationSeconds else { return false }
-  return duration > 0 && duration <= shortsMaxSeconds
+  video.durationSeconds.map { $0 > 0 && $0 <= shortsMaxSeconds } ?? false
 }
 
 /// One channel's uploads when its Shorts list isn't read, because nothing
@@ -27,10 +26,10 @@ public func withoutShortsList(_ videos: [Video]) -> [Video] {
 }
 
 /// Set `isShort` on one channel's uploads. The verdict comes from the
-/// channel's Shorts list (`loadShortIds`, nil when the channel has none).
-/// Should that list ever stop being served, every channel would look
-/// Short-free, so with a `probe` the candidates are asked about directly
-/// instead; an inconclusive answer leaves the verdict unknown.
+/// channel's Shorts list (`loadShortIds`: empty for a channel without
+/// Shorts, nil when the list couldn't be read). Only when it couldn't be
+/// read are the candidates asked about directly, with a `probe`; an
+/// inconclusive answer leaves the verdict unknown.
 public func classifyShorts(
   _ videos: [Video],
   loadShortIds: () async throws -> Set<String>?,

@@ -12,10 +12,13 @@ import {
   topicLabel,
 } from "./chips";
 import { feedItemId } from "./feed-item";
+import { groupKeptChannels } from "./groups";
+import { defaultFilter } from "./sync-merge";
 import type { FeedItem } from "./types";
 
 interface FixtureItem {
   id: string;
+  channelId?: string;
   kind?: string;
   publishedAt?: string;
   categoryId?: string;
@@ -30,13 +33,15 @@ interface FixtureCase {
   now?: number;
   timeChip?: string;
   topicChips?: string[];
+  channelGroups?: Record<string, string[]>;
+  groupChips?: string[];
   start?: string;
   expected: string[] | string | null;
 }
 
 function feedItem(raw: FixtureItem): FeedItem {
   const common = {
-    channelId: "UC1",
+    channelId: raw.channelId ?? "UC1",
     channelTitle: "Chan",
     title: raw.id,
     description: "",
@@ -64,6 +69,21 @@ function result(testCase: FixtureCase): string[] | string | null {
   } else if (testCase.op === "filter") {
     return chipFiltered(
       items,
+      testCase.timeChip as TimeChip,
+      testCase.topicChips ?? [],
+      testCase.now ?? 0,
+    ).map(feedItemId);
+  } else if (testCase.op === "groupFilter") {
+    const kept = groupKeptChannels(
+      new Map(
+        Object.entries(testCase.channelGroups ?? {}).map(
+          ([channelId, groups]) => [channelId, { ...defaultFilter(), groups }],
+        ),
+      ),
+      testCase.groupChips ?? [],
+    );
+    return chipFiltered(
+      items.filter((item) => kept?.has(item.channelId) ?? true),
       testCase.timeChip as TimeChip,
       testCase.topicChips ?? [],
       testCase.now ?? 0,

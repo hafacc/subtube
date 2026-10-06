@@ -2,14 +2,20 @@ import Foundation
 
 /// A channel filter made ready to apply.
 public struct CompiledFilter: Sendable {
+  /// Whether the main feed loads the channel.
   public var enabled: Bool
   /// Nil when the filter has no pattern, or one that isn't phrases (read as
   /// none).
   public var regex: NSRegularExpression?
+  /// Whether the pattern keeps or drops what it finds.
   public var mode: FilterMode
+  /// What the pattern searches.
   public var scope: FilterScope
+  /// Videos shorter than this many seconds are dropped; 0 keeps every length.
   public var minDurationSeconds: Int
+  /// Which broadcast kinds are kept.
   public var liveFilter: LiveFilter
+  /// Which of Shorts and other videos are kept.
   public var shortsFilter: ShortsFilter
   /// The categories kept; empty keeps every one.
   public var topics: Set<String>
@@ -70,14 +76,13 @@ public func itemPassesFilter(_ item: FeedItem, _ compiled: CompiledFilter) -> Bo
       return false
     }
   }
-  guard let regex = compiled.regex else { return true }
-  // Title and description are searched separately so a match can't span both.
-  let matches =
-    (compiled.scope != .description && regexMatches(regex, item.title))
-    || (compiled.scope != .title && regexMatches(regex, item.description))
-  if compiled.mode == .include {
-    return matches
+  if let regex = compiled.regex {
+    // Title and description are searched separately so a match can't span both.
+    let matches =
+      (compiled.scope != .description && regexMatches(regex, item.title))
+      || (compiled.scope != .title && regexMatches(regex, item.description))
+    return matches == (compiled.mode == .include)
   } else {
-    return !matches
+    return true
   }
 }

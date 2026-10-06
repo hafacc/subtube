@@ -1,5 +1,5 @@
 {
-  "description": "The chip row of the channel list: which topic chips it offers and which channels its time and topic chips keep. The row holds, in this order: the sort chip, which moves through the `channelSort` setting (shared/fixtures/channel-order.json); the time chip, which shows the `channelTimeChip` setting's label and moves through the same choices as the feed's time chip (All time (none), Past day (day), Past week (week), Past month (month)); then the topic chips, each a toggle, any number selected, kept in the `channelTopicChips` setting, with the same \"Clear topics\" chip after the divider as the feed's row (shared/fixtures/feed-chips.json), which here sets `channelTopicChips` to []. There is no auto-play chip and no watched chip. These are the channel list's own settings: the feed's `timeChip` and `topicChips` neither change them nor are changed by them. Topics, their ids and labels, the time spans and how `publishedAt` and `now` are read are exactly as in shared/fixtures/feed-chips.json. In every case `items` is every fetched item, watched or not, that passes its channel's filter, of the channels that are on (a channel that is off has no items here whatever was fetched for it); each has its `channelId`, and its `categoryId` (absent means none; a playlist has none). `op` says what a case checks. `chips`: the topic chips offered, as ids in order: a chip for every id in the table that at least one item has, and for every id in the table that is in `selected` (the `channelTopicChips` setting) even when no item has it; by the number of items having the id, most first, ties by label ignoring case, as the feed's topic chips are ordered. The time chip does not change which topic chips are offered. `channels`: the channels the list shows. `channels` is every channel's id in the list's sorted order; `expected` is the ids shown, in that order. With `timeChip` none and no id of the table in `topicChips`, every channel is shown, the ones with no items too. Otherwise a channel is shown only when at least one of its items is inside the time chip's span (any item, when it is none) and, when an id of the table is in `topicChips`, has one of those as its `categoryId`: one item must meet both. So a channel that is off, or has nothing fetched, or nothing passing its filter, is not shown while a span or a topic is chosen. The chips change neither the order nor a channel's unwatched count. A list on screen holds its rows as it holds their order: a channel that stops being kept (switched off, say) stays in its place until the list is next put in order, which a change of any of these chips does at once.",
+  "description": "The chip row of the channel list: which topic chips it offers and which channels its time and topic chips keep. The row holds, in this order: the sort chip, which moves through the `channelSort` setting (shared/fixtures/channel-order.json); the time chip, which shows the `channelTimeChip` setting's label and moves through the same choices as the feed's time chip (All time (none), Past day (day), Past week (week), Past month (month)); then the topic chips, each a toggle, any number selected, kept in the `channelTopicChips` setting, with the \"New group\" chip and the group chips between the divider and the topic chips, and a second divider before the topic chips, as in the feed's row (shared/fixtures/groups.json), whose selection is the `channelGroupChips` setting. There is no auto-play chip and no watched chip. These are the channel list's own settings: the feed's `timeChip`, `topicChips` and `groupChips` neither change them nor are changed by them. Topics, their ids and labels, the time spans and how `publishedAt` and `now` are read are exactly as in shared/fixtures/feed-chips.json. In every case `items` is every fetched item, watched or not, that passes its channel's filter, of the channels that are on (a channel that is off has no items here whatever was fetched for it); each has its `channelId`, and its `categoryId` (absent means none; a playlist has none). `op` says what a case checks. `chips`: the topic chips offered, as ids in order: a chip for every id in the table that at least one item has, and for every id in the table that is in `selected` (the `channelTopicChips` setting) even when no item has it; by the number of items having the id, most first, ties by label ignoring case, as the feed's topic chips are ordered. Neither the time chip nor the group chips change which topic chips are offered. `channels`: the channels the list shows. `channels` is every channel's id in the list's sorted order; `expected` is the ids shown, in that order. With `timeChip` none and no id of the table in `topicChips`, every channel is shown, the ones with no items too. Otherwise a channel is shown only when at least one of its items is inside the time chip's span (any item, when it is none) and, when an id of the table is in `topicChips`, has one of those as its `categoryId`: one item must meet both. So a channel that is off, or has nothing fetched, or nothing passing its filter, is not shown while a span or a topic is chosen. Group chips: `channelGroups` is every listed channel's groups by channel id (absent in a case means no channel has any) and `groupChips` the `channelGroupChips` setting (absent means []). Of `groupChips` only the names that are an existing group count (shared/fixtures/groups.json). With at least one of those, only the channels in any of them can be shown, and with `timeChip` none and no topic chosen all of them are: the ones that are off and the ones with no items too. With a span or a topic also chosen, a channel must be in a selected group and have an item meeting the span and topic as above, so the off ones drop out again. The chips change neither the order nor a channel's unwatched count. A list on screen holds its rows as it holds their order: a channel that stops being kept (switched off, say) stays in its place until the list is next put in order, which a change of any of these chips does at once.",
   "cases": [
     {
       "name": "topic chips: most common first, over watched and unwatched alike",
@@ -791,6 +791,916 @@
       "now": 1769904000000,
       "expected": [
         "UCa"
+      ]
+    },
+    {
+      "name": "groups: none selected shows every channel",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ]
+    },
+    {
+      "name": "groups: one group shows its channels, the off one and the one with no items too",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCnone",
+        "UCoff"
+      ]
+    },
+    {
+      "name": "groups: a group only an off channel is in shows it",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Cooking"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCoff"
+      ]
+    },
+    {
+      "name": "groups: several groups show the channels in any of them, in the list's order",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Outdoors",
+        "Making"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ]
+    },
+    {
+      "name": "groups: a group and a topic: a channel in the group with an item in the topic",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "20"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCa"
+      ]
+    },
+    {
+      "name": "groups: several groups and a topic",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Making",
+        "Outdoors"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "27"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCc"
+      ]
+    },
+    {
+      "name": "groups: a group and a span: the off and empty ones drop out",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "day",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa"
+      ]
+    },
+    {
+      "name": "groups: several groups and a span",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Making",
+        "Outdoors"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "week",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa"
+      ]
+    },
+    {
+      "name": "groups: a group whose channels have nothing in the topic shows none",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "27"
+      ],
+      "now": 1769904000000,
+      "expected": []
+    },
+    {
+      "name": "groups: a name of no group is ignored",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Gone"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ]
+    },
+    {
+      "name": "groups: a name of no group beside an existing one does not widen it",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Gone",
+        "Outdoors"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCc"
+      ]
+    },
+    {
+      "name": "groups: a name of no group leaves a topic working alone",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "Gone"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "20"
+      ],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb"
+      ]
+    },
+    {
+      "name": "groups: names match exactly, so another case is no group",
+      "op": "channels",
+      "channels": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
+      ],
+      "channelGroups": {
+        "UCa": [
+          "Making"
+        ],
+        "UCb": [],
+        "UCc": [
+          "Outdoors"
+        ],
+        "UCnone": [
+          "Making"
+        ],
+        "UCoff": [
+          "Making",
+          "Cooking"
+        ]
+      },
+      "groupChips": [
+        "making"
+      ],
+      "items": [
+        {
+          "id": "a1",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-31T22:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "a2",
+          "channelId": "UCa",
+          "publishedAt": "2026-01-12T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-01-29T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "b2",
+          "channelId": "UCb",
+          "publishedAt": "2025-12-23T00:00:00Z",
+          "categoryId": "27"
+        },
+        {
+          "id": "c1",
+          "channelId": "UCc",
+          "publishedAt": "2026-01-22T00:00:00Z",
+          "categoryId": "27"
+        }
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "now": 1769904000000,
+      "expected": [
+        "UCa",
+        "UCb",
+        "UCc",
+        "UCnone",
+        "UCoff"
       ]
     }
   ]

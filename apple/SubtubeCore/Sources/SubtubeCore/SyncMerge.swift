@@ -9,6 +9,7 @@ public struct ChannelEntry: Sendable, Hashable {
   /// The entry's other fields, kept as read.
   public var extra: JSONObject = [:]
 
+  /// A filter saved at `at`.
   public init(at: Int64, filter: JSONObject, extra: JSONObject = [:]) {
     self.at = at
     self.filter = filter
@@ -32,6 +33,7 @@ public struct WatchedEntry: Sendable, Hashable {
   /// The entry's other fields, kept as read.
   public var extra: JSONObject = [:]
 
+  /// A mark made at `at`.
   public init(at: Int64, watched: Bool, extra: JSONObject = [:]) {
     self.at = at
     self.watched = watched
@@ -69,6 +71,7 @@ public struct SettingEntry: Sendable, Hashable {
   /// The entry's other fields, kept as read.
   public var extra: JSONObject = [:]
 
+  /// A value saved at `at`.
   public init(at: Int64, value: JSONValue, extra: JSONObject = [:]) {
     self.at = at
     self.value = value
@@ -96,6 +99,7 @@ public struct DeviceFile: Sendable, Hashable {
   /// Top-level fields this version doesn't know, written back unchanged.
   public var extra: JSONObject = [:]
 
+  /// A file holding these sections.
   public init(
     channels: [String: ChannelEntry] = [:], watched: [String: WatchedEntry] = [:],
     settings: [String: SettingEntry]? = nil, extra: JSONObject = [:]
@@ -144,6 +148,12 @@ public func hasSyncedProfile(_ fileNames: [String]) -> Bool {
   fileNames.contains { deviceIdFromFileName($0) != nil }
 }
 
+/// Whether another device has set the account up: a device file other than
+/// this device's own, which a setup left unfinished here may have written.
+public func setUpElsewhere(_ fileNames: [String], ownName: String) -> Bool {
+  hasSyncedProfile(fileNames.filter { $0 != ownName })
+}
+
 /// Whether the profile was deleted from another device: this device
 /// uploaded its file before, and a listing of the app folder no longer has it.
 public func profileDeletedElsewhere(uploadedBefore: Bool, fileNames: [String], ownName: String)
@@ -153,17 +163,21 @@ public func profileDeletedElsewhere(uploadedBefore: Bool, fileNames: [String], o
 }
 
 private func entryTime(_ object: JSONObject) -> Int64? {
-  guard let at = object["at"]?.integerValue, at >= 0, at <= maxEntryTime else { return nil }
-  return at
+  object["at"]?.integerValue.flatMap { (0...maxEntryTime).contains($0) ? $0 : nil }
 }
 
 /// Read a device file. Nil when it should be skipped: not JSON, not an
 /// object, or a `version` other than 1. Malformed sections read as empty and
 /// malformed entries are dropped; everything else is kept, unknown fields too.
 public func parseDeviceFile(_ value: JSONValue) -> DeviceFile? {
-  guard let object = value.objectValue, object["version"]?.integerValue == deviceFileVersion else {
+  if let object = value.objectValue, object["version"]?.integerValue == deviceFileVersion {
+    return readDeviceFile(object)
+  } else {
     return nil
   }
+}
+
+private func readDeviceFile(_ object: JSONObject) -> DeviceFile {
   var file = DeviceFile()
   file.extra = object.filter { !["version", "channels", "watched", "settings"].contains($0.key) }
   for (key, raw) in object["channels"]?.objectValue ?? [:] {
@@ -208,9 +222,12 @@ public func encodeDeviceFile(_ file: DeviceFile) throws -> Data {
 
 /// One device's file and the id it was written under.
 public struct DeviceFileSource: Sendable {
+  /// The id in the file's name.
   public var deviceId: String
+  /// What the file holds.
   public var file: DeviceFile
 
+  /// A device's file.
   public init(deviceId: String, file: DeviceFile) {
     self.deviceId = deviceId
     self.file = file
@@ -274,11 +291,14 @@ public func pruneDeviceFile(_ file: DeviceFile, now: Int64) -> DeviceFile {
 
 /// The name and avatar of a channel, which YouTube owns.
 public struct ChannelIdentity: Codable, Sendable, Hashable {
+  /// The channel's name.
   public var title: String
+  /// The channel's avatar URL, or empty.
   public var thumbnail: String
   /// When YouTube was asked; nil for one cached before this was kept.
   public var fetchedAt: Date?
 
+  /// A name and avatar as YouTube gave them at `fetchedAt`.
   public init(title: String, thumbnail: String, fetchedAt: Date? = nil) {
     self.title = title
     self.thumbnail = thumbnail
@@ -318,7 +338,13 @@ public func channelsFor(
         thumbnail: identity?.thumbnail ?? "", stored: entry.filter)
     }
     .filter(\.followed)
-    .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    .sorted { left, right in
+      if sameScalars(left.title, right.title) {
+        return precedesByScalar(left.channelId, right.channelId)
+      } else {
+        return precedesIgnoringCase(left.title, right.title)
+      }
+    }
   channels.append(contentsOf: followed)
   return channels
 }
@@ -332,9 +358,13 @@ public func followedWithoutIdentity(
   let subscribed = Set(subscriptions.map(\.channelId))
   return channelsFor(merged, subscriptions: subscriptions)
     .filter { channel in
-      guard !subscribed.contains(channel.channelId) else { return false }
-      guard let fetchedAt = identities[channel.channelId]?.fetchedAt else { return true }
-      return now.timeIntervalSince(fetchedAt) > identityLifetime
+      if subscribed.contains(channel.channelId) {
+        return false
+      } else if let fetchedAt = identities[channel.channelId]?.fetchedAt {
+        return now.timeIntervalSince(fetchedAt) > identityLifetime
+      } else {
+        return true
+      }
     }
     .map(\.channelId)
 }

@@ -72,7 +72,9 @@ paginated feed (older uploads beyond the first page per channel); build the
 feed in place while it loads (a placeholder row for each video known to pass,
 filled once its position is certain, rows growing upward with the scroll
 adjusted so the view doesn't jump) instead of greying the feed out until the
-load finishes; an advanced setting for writing a raw regex pattern.
+load finishes; an advanced setting for writing a raw regex pattern; a menu on
+the channel list (and setup's "Choose channels") that turns every channel
+shown on or off.
 
 ## Gotchas
 

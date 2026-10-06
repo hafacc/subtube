@@ -58,8 +58,6 @@ struct ProminentButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == ProminentButtonStyle {
   /// The Sunflower main-action button.
   static var prominent: ProminentButtonStyle { ProminentButtonStyle() }
-  /// The Sunflower main-action button, full width.
-  static var prominentWide: ProminentButtonStyle { ProminentButtonStyle(fullWidth: true) }
 }
 
 /// A channel's avatar, or its initial while that loads or when it has none.
@@ -69,10 +67,7 @@ struct Avatar: View {
   var size: CGFloat = 18
 
   private var initial: String {
-    // "Channel One" reads as O, as the mockups draw it
-    let words = title.split(separator: " ")
-    let word = words.count > 1 && words[0] == "Channel" ? words[1] : words.first
-    return word.map { String($0.prefix(1)).uppercased() } ?? "?"
+    title.first.map { String($0).uppercased() } ?? "?"
   }
 
   var body: some View {
@@ -128,7 +123,7 @@ private struct Shimmer: ViewModifier {
 
   private var bandColor: Color {
     if !overCards {
-      .white.opacity(0.4)
+      .white.opacity(colorScheme == .dark ? 0.09 : 0.65)
     } else if colorScheme == .dark {
       .white.opacity(0.22)
     } else {
@@ -268,18 +263,6 @@ struct StepDots: View {
     }
     .accessibilityElement()
     .accessibilityLabel(Strings.step(index + 1, of: count))
-  }
-}
-
-/// The Google "G" as a letter in a white circle, beside "Sign In with Google".
-struct GoogleMark: View {
-  var body: some View {
-    Text("G")
-      .font(.system(size: 11, weight: .heavy))
-      .foregroundStyle(Color(red: 0x8A / 255, green: 0x61 / 255, blue: 0))
-      .frame(width: 18, height: 18)
-      .background(.white, in: Circle())
-      .accessibilityHidden(true)
   }
 }
 

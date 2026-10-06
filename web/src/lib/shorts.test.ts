@@ -44,10 +44,24 @@ describe("classifyShorts", () => {
     expect(verdicts(result)).toEqual({ clip: false });
   });
 
-  test("probes instead when there is no list and the platform can", async () => {
+  test("a channel with no Shorts list is not probed", async () => {
+    const probed: string[] = [];
+    const result = await classifyShorts(
+      [video("clip", 90)],
+      async () => null,
+      async (videoId) => {
+        probed.push(videoId);
+        return true;
+      },
+    );
+    expect(verdicts(result)).toEqual({ clip: false });
+    expect(probed).toEqual([]);
+  });
+
+  test("probes instead when the list couldn't be read and the platform can", async () => {
     const result = await classifyShorts(
       [video("short", 30), video("unsure", 40), video("long", 600)],
-      async () => null,
+      async () => "failed",
       async (videoId) => (videoId === "short" ? true : null),
     );
     expect(verdicts(result)).toEqual({
@@ -73,7 +87,11 @@ describe("shared Shorts fixtures", () => {
         })),
         async () => {
           readsShortsList = true;
-          return testCase.shortsList ? new Set(testCase.shortsList) : null;
+          if ((testCase as { shortsListFailed?: boolean }).shortsListFailed) {
+            return "failed";
+          } else {
+            return testCase.shortsList ? new Set(testCase.shortsList) : null;
+          }
         },
         probeAnswers &&
           (async (videoId) => {

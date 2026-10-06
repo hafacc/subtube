@@ -11,20 +11,26 @@
   let {
     item,
     feed,
-    focusPlayer = false,
+    covered = false,
     onended,
     ondata,
+    ontoggle,
+    onready,
   }: {
     /** what to play; a different item needs a new frame */
     item: RouteItem;
     /** the feed, for where to start and to save positions and marks */
     feed: PlaybackFeed;
-    /** whether the player takes keyboard focus once it is ready */
-    focusPlayer?: boolean;
+    /** whether something lies over the player, which pauses it meanwhile */
+    covered?: boolean;
     /** the item is over */
-    onended: () => void;
+    onended: (item: RouteItem) => void;
     /** the player reported its video's title and channel */
-    ondata?: (data: VideoData) => void;
+    ondata?: (item: RouteItem, data: VideoData) => void;
+    /** the user paused the video, or played it again */
+    ontoggle?: () => void;
+    /** the player is ready, in this frame */
+    onready?: (frame: HTMLIFrameElement) => void;
   } = $props();
 
   /** How often the playing position is saved on this device. */
@@ -34,8 +40,12 @@
   const opened = untrack(() => item);
 
   let host: HTMLDivElement;
-  let playback: Playback | null = null;
+  let playback: Playback | null = $state.raw(null);
   let loadFailed = $state(false);
+
+  $effect(() => {
+    playback?.cover(covered);
+  });
 
   onMount(() => {
     let cancelled = false;
@@ -60,7 +70,8 @@
           opened,
           feed,
           namespace.PlayerState,
-          onended,
+          () => onended(opened),
+          () => ontoggle?.(),
         );
         playback = current;
         const element = document.createElement("div");
@@ -73,17 +84,16 @@
             onReady: (event) => {
               if (!cancelled) {
                 current.ready(event.target);
-                if (focusPlayer) {
-                  // so the player's keyboard shortcuts work without a click first
-                  event.target.getIframe().focus({ preventScroll: true });
-                }
+                onready?.(event.target.getIframe());
               }
             },
             onStateChange: (event) => {
-              current.stateChanged(event.data, event.target);
-              if (current.videoData) {
-                ondata?.(current.videoData);
+              // before the end is passed on, which may be this frame's last moment
+              const data = event.target.getVideoData();
+              if (data) {
+                ondata?.(opened, data);
               }
+              current.stateChanged(event.data, event.target);
             },
           },
         });
@@ -106,7 +116,7 @@
   });
 </script>
 
-<div class="video" bind:this={host}>
+<div class="embed" bind:this={host}>
   {#if loadFailed}
     <p class="failed">
       Couldn't load the YouTube player. Check your connection or any content
@@ -116,15 +126,14 @@
 </div>
 
 <style>
-  .video {
+  .embed {
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
+    height: 100%;
     background: #0e0c08;
   }
 
-  .video :global(iframe) {
+  .embed :global(iframe) {
     position: absolute;
     inset: 0;
     width: 100%;

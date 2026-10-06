@@ -27,6 +27,9 @@
   --shimmer: rgba(255, 255, 255, 0.65);
   --shimmer-over-cards: rgba(0, 0, 0, 0.16);
   --mark-on-surface: var(--gold);
+  --google-fill: #ffffff;
+  --google-stroke: #747775;
+  --google-text: #1f1f1f;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -53,6 +56,9 @@
     --error: #ff8a7a;
     --shimmer: rgba(255, 255, 255, 0.09);
     --shimmer-over-cards: rgba(255, 255, 255, 0.22);
+    --google-fill: #131314;
+    --google-stroke: #8e918f;
+    --google-text: #e3e3e3;
   }
 }
 
@@ -77,6 +83,9 @@
   --error: #ff8a7a;
   --shimmer: rgba(255, 255, 255, 0.09);
   --shimmer-over-cards: rgba(255, 255, 255, 0.22);
+  --google-fill: #131314;
+  --google-stroke: #8e918f;
+  --google-text: #e3e3e3;
 }
 
 *,
@@ -209,6 +218,42 @@ button:disabled {
   color: var(--ink);
 }
 
+/* a button sized for a side panel, as high as a text input; quiet unless it is primary or destructive */
+.button-compact {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.button-compact:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.button-compact.destructive {
+  color: var(--error);
+}
+
+.button-compact.primary {
+  background: var(--sunflower);
+  color: var(--ink);
+}
+
+.button-compact.primary:hover:not(:disabled) {
+  background: var(--sunflower);
+  filter: brightness(0.96);
+}
+
 .search-field {
   display: flex;
   align-items: center;
@@ -244,6 +289,10 @@ button:disabled {
   font-size: 13px;
   line-height: 18px;
   white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .chip:hover {
@@ -270,6 +319,28 @@ button:disabled {
   border-radius: 10px;
   background: var(--surface);
   font-size: 14px;
+}
+
+/* a channel with its switch, in setup's "Choose channels" and in the group editor */
+.channel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.channel-row.off > :not(.switch) {
+  opacity: 0.45;
+}
+
+.channel-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .text-input {
@@ -307,6 +378,37 @@ button:disabled {
 
 .secondary {
   color: var(--text-secondary);
+}
+
+/* a popover or dialog arriving and leaving; still when the system asks for reduced motion */
+.fades[data-state="open"] {
+  animation: fade-in 0.15s;
+}
+
+.fades[data-state="closed"] {
+  animation: fade-out 0.15s;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+
+  .fades[data-state] {
+    animation: none;
+  }
 }
 
 @keyframes spin {

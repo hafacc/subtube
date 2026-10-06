@@ -1,6 +1,7 @@
 import type { ChannelSort } from "./channel-order";
 import type { TimeChip } from "./chips";
 import type { FeedSort } from "./feed-order";
+import { oneOf } from "./values";
 
 /** The settings synced through the Drive file, as this version reads them. */
 export interface Settings {
@@ -18,6 +19,10 @@ export interface Settings {
   channelTimeChip: TimeChip;
   /** the channel list's selected topic chips' category ids */
   channelTopicChips: string[];
+  /** the selected group chips' names */
+  groupChips: string[];
+  /** the channel list's selected group chips' names */
+  channelGroupChips: string[];
 }
 
 /** What a setting reads as when it is missing or holds a value this version doesn't know. */
@@ -29,6 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   topicChips: [],
   channelTimeChip: "none",
   channelTopicChips: [],
+  groupChips: [],
+  channelGroupChips: [],
 };
 
 const FEED_SORTS: readonly FeedSort[] = [
@@ -39,14 +46,6 @@ const FEED_SORTS: readonly FeedSort[] = [
 ];
 const CHANNEL_SORTS: readonly ChannelSort[] = ["newest", "name", "unwatched"];
 const TIME_CHIPS: readonly TimeChip[] = ["none", "day", "week", "month"];
-
-function oneOf<Value extends string>(
-  options: readonly Value[],
-  value: unknown,
-  fallback: Value,
-): Value {
-  return options.find((option) => option === value) ?? fallback;
-}
 
 function stringsOr(value: unknown, fallback: string[]): string[] {
   return Array.isArray(value) && value.every((id) => typeof id === "string")
@@ -61,20 +60,20 @@ export function readSettings(
   const autoplay = entries.autoplay?.value;
   return {
     feedSort: oneOf(
-      FEED_SORTS,
       entries.feedSort?.value,
+      FEED_SORTS,
       DEFAULT_SETTINGS.feedSort,
     ),
     channelSort: oneOf(
-      CHANNEL_SORTS,
       entries.channelSort?.value,
+      CHANNEL_SORTS,
       DEFAULT_SETTINGS.channelSort,
     ),
     autoplay:
       typeof autoplay === "boolean" ? autoplay : DEFAULT_SETTINGS.autoplay,
     timeChip: oneOf(
-      TIME_CHIPS,
       entries.timeChip?.value,
+      TIME_CHIPS,
       DEFAULT_SETTINGS.timeChip,
     ),
     topicChips: stringsOr(
@@ -82,13 +81,21 @@ export function readSettings(
       DEFAULT_SETTINGS.topicChips,
     ),
     channelTimeChip: oneOf(
-      TIME_CHIPS,
       entries.channelTimeChip?.value,
+      TIME_CHIPS,
       DEFAULT_SETTINGS.channelTimeChip,
     ),
     channelTopicChips: stringsOr(
       entries.channelTopicChips?.value,
       DEFAULT_SETTINGS.channelTopicChips,
+    ),
+    groupChips: stringsOr(
+      entries.groupChips?.value,
+      DEFAULT_SETTINGS.groupChips,
+    ),
+    channelGroupChips: stringsOr(
+      entries.channelGroupChips?.value,
+      DEFAULT_SETTINGS.channelGroupChips,
     ),
   };
 }

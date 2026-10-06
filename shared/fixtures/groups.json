@@ -1,0 +1,1948 @@
+{
+  "description": "Groups of channels. A group is a name, and nothing else is stored for it: each channel's saved filter may list the groups the channel is in as `groups`, an array of names (shared/schema/device-file.schema.json), written and merged with the rest of the filter (shared/fixtures/merge.json). Two names are the same group only when they are identical, code point for code point. `op` says what a case checks. `name`: typed `text` as a group's name; `expected` is the name, or null when the text is none. White space at either end is removed, the rest is kept as typed (case and inner spaces too), and what is left must be 1 to 24 Unicode code points (not UTF-16 units, not what a reader sees as one character); longer text is no name and is never cut. White space is exactly Unicode's White_Space code points, which every client spells out instead of using its platform's trim: U+0009 to U+000D, U+0020, U+0085, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F, U+3000. `groups`: the groups that exist, in the order of their chips. `channels` is every listed channel's saved filter by channel id (the channels the channel list shows, on or off: subscribed or followed; a filter saved for a channel no longer listed does not count); `expected` is the names. A filter's groups are the strings of its `groups` that are a name as they stand, each once in the order written; a `groups` that is absent, not an array, or holds anything but strings is none (the value stays in the file until the filter is next saved). A group exists while at least one listed channel's filter has it, whether that channel is on or off. Chip order: ignoring case (lowercased code point by code point, then code point order, as shared/fixtures/feed-order.json's `title` sort), ties by code point order of the names as written. The group chips: the feed's row and the channel list's row each show a round chip showing only a +, named \"New group\", after the divider, then a chip for every group that exists in chip order, then a second divider like the first, then the topic chips. The second divider is there whenever the row has topic chips after a + chip or a group chip, also when no group exists yet. The divider and the + chip are there once the first load is shown. A group chip is a toggle and any number can be selected; the feed's selection is the `groupChips` setting and the channel list's is `channelGroupChips` (shared/fixtures/settings.json), each an array of names. A selected name that is no existing group is ignored everywhere: it has no chip, filters nothing and is not in the title; it stays in the setting. A channel's own page has neither the + chip nor group chips, and `groupChips` filters nothing there. What the selected groups keep is in shared/fixtures/feed-chips.json (`groupFilter`) and shared/fixtures/channel-chips.json. `title`: what a row's title shows while something is selected. `groups` and `topics` are the row's group chips and topic chips in order (a channel's page has no groups), `groupChips` and `topicChips` its two settings. `expected.names` are the selected existing groups in chip order, then the labels of the selected topic chips in chip order; with any, they replace the title (the feed's \"Feed\", the channel list's \"Channels\") joined with \", \" on one line, cut with an ellipsis, and are followed by an × button named \"Clear\", which sets that row's two settings to [] and changes nothing else. `expected.edit` is the group an \"Edit group\" pencil button before the × opens the editor for: the selected existing group when there is exactly one (however many topics are selected), else null and no pencil. With no names the title is the usual one with no buttons. A channel's page keeps the channel's name as its title and shows only the × beside it while it has names, which there empties `topicChips` alone. The edits. Each takes `saved`, every saved filter by channel id from the merged view, channels no longer listed included, and `settings`, the `groupChips` and `channelGroupChips` settings as read; `expected.channels` is the whole new filter of every channel whose groups change (a filter with every field it had, and `groups` rewritten as read above: only names, each once, so [] when none is left), and `expected.settings` the new value of each of the two settings that changes. A channel or setting that would be written unchanged is not written. All of an edit's channels are written in one save with one `at`, as any filter edit is. `members`: `channelIds` are put in `group` (`member` true) or taken out (false). A channel with nothing saved gets the default filter ({enabled: true, regex: \"\", mode: \"include\"}); a name is added last. A `group` that is not a name as it stands changes nothing. `listed` is every listed channel's id: when no listed channel is left in the group after taking channels out, the group is deleted as `delete` does. Putting channels in never changes the settings. `rename`: `from` becomes `to` on every saved filter that has `from`, and in both settings, in the place `from` had; where `to` is already there it is kept once, in whichever of the two places came first, so renaming to another group's name merges the two. Nothing changes when `to` is not a name as it stands or equals `from`. `delete`: `group` is removed from every saved filter that has it and from both settings. `save`: what the editor's \"Save\" writes, as one edit in one save. `group` is the edited group, or null for a new one; `to` the name in the field; `members` the ids of the channels switched on. Nothing changes unless `to` is a name as it stands and `members` has a channel. For a new group the members are put in `to` as `members` does, so a `to` that is already a group gains them and loses none. For an existing group the members not yet in `group` are put in it, every other listed channel in it is taken out (channels no longer listed keep it), and then `group` is renamed to `to` as `rename` does, so a `to` another group has merges the two. The editor: opened by the + chip for a new group or by the title's pencil for an existing one. From top to bottom it has a \"Name\" field (at most 24 code points can be typed); \"Channels\", every listed channel by name ignoring case with a switch, on at opening for the channels in the group (a row is dimmed only when its channel is off); for an existing group \"Delete group\"; and \"Cancel\" and \"Save\". Where a platform's channel list already has a search field, the editor's channel list gets the same one, which hides rows without changing their switches; otherwise it has none. Only the channel rows scroll: the name, the heading, \"Delete group\" and the two buttons stay in view. Nothing is written until \"Save\", which is disabled unless the field holds a name (after trimming) and at least one switch is on, for an existing group as for a new one; it writes `save` and closes the editor. Only that button saves: Enter in the name field does nothing. \"Cancel\" closes it and writes nothing, as does opening the editor again for another group or a new one, or going to another page. \"Delete group\" deletes at once (`delete`) and closes the editor. Saving never changes which chips are selected, except by the rename following through.",
+  "cases": [
+    {
+      "name": "name: a plain name is itself",
+      "op": "name",
+      "text": "Making",
+      "expected": "Making"
+    },
+    {
+      "name": "name: case is kept",
+      "op": "name",
+      "text": "making",
+      "expected": "making"
+    },
+    {
+      "name": "name: spaces and tabs at the ends go",
+      "op": "name",
+      "text": "  Making \t",
+      "expected": "Making"
+    },
+    {
+      "name": "name: spaces inside stay as typed",
+      "op": "name",
+      "text": " Slow  TV ",
+      "expected": "Slow  TV"
+    },
+    {
+      "name": "name: empty text is no name",
+      "op": "name",
+      "text": "",
+      "expected": null
+    },
+    {
+      "name": "name: only white space is no name",
+      "op": "name",
+      "text": " \t 　 ",
+      "expected": null
+    },
+    {
+      "name": "name: no-break, ideographic and line-end white space are trimmed too",
+      "op": "name",
+      "text": " 　 Making \n",
+      "expected": "Making"
+    },
+    {
+      "name": "name: a zero-width space is not white space",
+      "op": "name",
+      "text": " ​Making ",
+      "expected": "​Making"
+    },
+    {
+      "name": "name: a byte order mark is not white space",
+      "op": "name",
+      "text": "﻿Making",
+      "expected": "﻿Making"
+    },
+    {
+      "name": "name: 24 code points is the longest",
+      "op": "name",
+      "text": "abcdefghijklmnopqrstuvwx",
+      "expected": "abcdefghijklmnopqrstuvwx"
+    },
+    {
+      "name": "name: 25 code points is no name, and is not cut",
+      "op": "name",
+      "text": "abcdefghijklmnopqrstuvwxy",
+      "expected": null
+    },
+    {
+      "name": "name: the length is counted after trimming",
+      "op": "name",
+      "text": "   abcdefghijklmnopqrstuvwx   ",
+      "expected": "abcdefghijklmnopqrstuvwx"
+    },
+    {
+      "name": "name: a character outside the basic plane counts once",
+      "op": "name",
+      "text": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "expected": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    },
+    {
+      "name": "name: 25 characters outside the basic plane are too many",
+      "op": "name",
+      "text": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "expected": null
+    },
+    {
+      "name": "name: an accent written as its own code point counts",
+      "op": "name",
+      "text": "éééééééééééée",
+      "expected": null
+    },
+    {
+      "name": "groups: none while no channel has one",
+      "op": "groups",
+      "channels": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include"
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": []
+        }
+      },
+      "expected": []
+    },
+    {
+      "name": "groups: every name once, ignoring case, then by code point",
+      "op": "groups",
+      "channels": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "outdoors",
+            "making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making",
+            "Cooking"
+          ]
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making",
+            "Älpler",
+            "Zen",
+            "apples"
+          ]
+        }
+      },
+      "expected": [
+        "apples",
+        "Cooking",
+        "Making",
+        "making",
+        "outdoors",
+        "Zen",
+        "Älpler"
+      ]
+    },
+    {
+      "name": "groups: a channel that is off still makes its group exist",
+      "op": "groups",
+      "channels": {
+        "UC1": {
+          "enabled": false,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include"
+        }
+      },
+      "expected": [
+        "Making"
+      ]
+    },
+    {
+      "name": "groups: a groups value that is not an array of strings is none",
+      "op": "groups",
+      "channels": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": "Making"
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking",
+            3
+          ]
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": {
+            "Making": true
+          }
+        },
+        "UC4": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Outdoors"
+          ]
+        }
+      },
+      "expected": [
+        "Outdoors"
+      ]
+    },
+    {
+      "name": "groups: strings that are not names are skipped, and a repeat counts once",
+      "op": "groups",
+      "channels": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "",
+            " Making",
+            "Making ",
+            "abcdefghijklmnopqrstuvwxy",
+            "Cooking",
+            "Cooking",
+            "abcdefghijklmnopqrstuvwx"
+          ]
+        }
+      },
+      "expected": [
+        "abcdefghijklmnopqrstuvwx",
+        "Cooking"
+      ]
+    },
+    {
+      "name": "title: nothing selected is the usual title",
+      "op": "title",
+      "groups": [
+        "Cooking",
+        "Making"
+      ],
+      "groupChips": [],
+      "topics": [
+        "26",
+        "28"
+      ],
+      "topicChips": [],
+      "expected": {
+        "names": [],
+        "edit": null
+      }
+    },
+    {
+      "name": "title: one group, which can be edited",
+      "op": "title",
+      "groups": [
+        "Cooking",
+        "Making"
+      ],
+      "groupChips": [
+        "Making"
+      ],
+      "topics": [
+        "26",
+        "28"
+      ],
+      "topicChips": [],
+      "expected": {
+        "names": [
+          "Making"
+        ],
+        "edit": "Making"
+      }
+    },
+    {
+      "name": "title: several groups in chip order, not the order selected, and none to edit",
+      "op": "title",
+      "groups": [
+        "Cooking",
+        "Making",
+        "Outdoors"
+      ],
+      "groupChips": [
+        "Outdoors",
+        "Cooking"
+      ],
+      "topics": [],
+      "topicChips": [],
+      "expected": {
+        "names": [
+          "Cooking",
+          "Outdoors"
+        ],
+        "edit": null
+      }
+    },
+    {
+      "name": "title: groups first, then topics by their labels in chip order",
+      "op": "title",
+      "groups": [
+        "Cooking",
+        "Making"
+      ],
+      "groupChips": [
+        "Making"
+      ],
+      "topics": [
+        "26",
+        "28",
+        "10"
+      ],
+      "topicChips": [
+        "10",
+        "26"
+      ],
+      "expected": {
+        "names": [
+          "Making",
+          "Howto & Style",
+          "Music"
+        ],
+        "edit": "Making"
+      }
+    },
+    {
+      "name": "title: topics alone, with no group to edit",
+      "op": "title",
+      "groups": [
+        "Cooking"
+      ],
+      "groupChips": [],
+      "topics": [
+        "28",
+        "26"
+      ],
+      "topicChips": [
+        "28"
+      ],
+      "expected": {
+        "names": [
+          "Science & Technology"
+        ],
+        "edit": null
+      }
+    },
+    {
+      "name": "title: names of no group and ids of no topic chip are left out",
+      "op": "title",
+      "groups": [
+        "Cooking",
+        "Making"
+      ],
+      "groupChips": [
+        "Gone",
+        "making"
+      ],
+      "topics": [
+        "26"
+      ],
+      "topicChips": [
+        "99"
+      ],
+      "expected": {
+        "names": [],
+        "edit": null
+      }
+    },
+    {
+      "name": "title: one existing group beside a name of none can be edited",
+      "op": "title",
+      "groups": [
+        "Cooking",
+        "Making"
+      ],
+      "groupChips": [
+        "Gone",
+        "Cooking"
+      ],
+      "topics": [],
+      "topicChips": [],
+      "expected": {
+        "names": [
+          "Cooking"
+        ],
+        "edit": "Cooking"
+      }
+    },
+    {
+      "name": "title: a channel's page has no groups, so only its topics show",
+      "op": "title",
+      "groups": [],
+      "groupChips": [
+        "Making"
+      ],
+      "topics": [
+        "26"
+      ],
+      "topicChips": [
+        "26"
+      ],
+      "expected": {
+        "names": [
+          "Howto & Style"
+        ],
+        "edit": null
+      }
+    },
+    {
+      "name": "members: a channel put in a group gets the name last",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "minDurationSeconds": 60,
+          "groups": [
+            "Cooking"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": true,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "minDurationSeconds": 60,
+            "groups": [
+              "Cooking",
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: a channel with nothing saved gets the default filter with the group",
+      "op": "members",
+      "saved": {},
+      "listed": [
+        "UC1"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": true,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: a new group's channels are saved together",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": false,
+          "regex": "",
+          "mode": "include"
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": []
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2",
+        "UC3"
+      ],
+      "settings": {
+        "groupChips": [
+          "Cooking"
+        ],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1",
+        "UC2"
+      ],
+      "group": "Making",
+      "member": true,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": false,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: putting in a channel that is already in changes nothing",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": true,
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: unknown fields of the filter are kept",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "playbackSpeed": 1.5,
+          "topics": [
+            "10"
+          ]
+        }
+      },
+      "listed": [
+        "UC1"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": true,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "playbackSpeed": 1.5,
+            "topics": [
+              "10"
+            ],
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: a filter's groups are rewritten as read, so what is no name goes",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking",
+            " Cooking",
+            "Cooking",
+            ""
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": "Cooking"
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1",
+        "UC2"
+      ],
+      "group": "Making",
+      "member": true,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Cooking",
+              "Making"
+            ]
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: text that is not a name as it stands changes nothing",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include"
+        }
+      },
+      "listed": [
+        "UC1"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": " Making",
+      "member": true,
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: a channel taken out keeps its other groups, and the group stays selected",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking",
+            "Making",
+            "Outdoors"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": false,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Cooking",
+              "Outdoors"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: taking out a channel that is not in changes nothing",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": false,
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "members: taking out the last channel deletes the group, from the selected chips too",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [
+          "Cooking",
+          "Making"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": false,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": []
+          }
+        },
+        "settings": {
+          "groupChips": [
+            "Cooking"
+          ],
+          "channelGroupChips": []
+        }
+      }
+    },
+    {
+      "name": "members: taking out the last listed channel also takes the name off channels no longer listed",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UCgone": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making",
+            "Cooking"
+          ]
+        }
+      },
+      "listed": [
+        "UC1"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": false,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": []
+          },
+          "UCgone": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Cooking"
+            ]
+          }
+        },
+        "settings": {
+          "channelGroupChips": []
+        }
+      }
+    },
+    {
+      "name": "members: a group that still has a listed channel leaves channels no longer listed alone",
+      "op": "members",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UCgone": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "channelIds": [
+        "UC1"
+      ],
+      "group": "Making",
+      "member": false,
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": []
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "rename: every channel in the group and both settings get the new name in the old one's place",
+      "op": "rename",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking",
+            "Making",
+            "Outdoors"
+          ]
+        },
+        "UC2": {
+          "enabled": false,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking"
+          ]
+        },
+        "UCgone": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "Outdoors",
+          "Making"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "from": "Making",
+      "to": "Workshop",
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Cooking",
+              "Workshop",
+              "Outdoors"
+            ]
+          },
+          "UC2": {
+            "enabled": false,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          },
+          "UCgone": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          }
+        },
+        "settings": {
+          "groupChips": [
+            "Outdoors",
+            "Workshop"
+          ],
+          "channelGroupChips": [
+            "Workshop"
+          ]
+        }
+      }
+    },
+    {
+      "name": "rename: a setting that does not name the group is not written",
+      "op": "rename",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "Cooking"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "from": "Making",
+      "to": "Workshop",
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          }
+        },
+        "settings": {
+          "channelGroupChips": [
+            "Workshop"
+          ]
+        }
+      }
+    },
+    {
+      "name": "rename: to another group's name merges the two, each channel and setting naming it once",
+      "op": "rename",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making",
+            "Cooking",
+            "Workshop"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Workshop",
+            "Making"
+          ]
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC4": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Workshop"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "Workshop",
+          "Outdoors",
+          "Making"
+        ],
+        "channelGroupChips": [
+          "Making",
+          "Workshop"
+        ]
+      },
+      "from": "Making",
+      "to": "Workshop",
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop",
+              "Cooking"
+            ]
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          },
+          "UC3": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          }
+        },
+        "settings": {
+          "groupChips": [
+            "Workshop",
+            "Outdoors"
+          ],
+          "channelGroupChips": [
+            "Workshop"
+          ]
+        }
+      }
+    },
+    {
+      "name": "rename: changing only the case is a rename",
+      "op": "rename",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "making"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "making"
+        ],
+        "channelGroupChips": []
+      },
+      "from": "making",
+      "to": "Making",
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {
+          "groupChips": [
+            "Making"
+          ]
+        }
+      }
+    },
+    {
+      "name": "rename: to the same name changes nothing",
+      "op": "rename",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": []
+      },
+      "from": "Making",
+      "to": "Making",
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "rename: to text that is not a name as it stands changes nothing",
+      "op": "rename",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": []
+      },
+      "from": "Making",
+      "to": "abcdefghijklmnopqrstuvwxy",
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "delete: the name leaves every channel and both settings, and nothing else changes",
+      "op": "delete",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "minDurationSeconds": 60,
+          "groups": [
+            "Cooking",
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking"
+          ]
+        },
+        "UCgone": {
+          "enabled": false,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "Making",
+          "Cooking"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "group": "Making",
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "minDurationSeconds": 60,
+            "groups": [
+              "Cooking"
+            ]
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": []
+          },
+          "UCgone": {
+            "enabled": false,
+            "regex": "",
+            "mode": "include",
+            "groups": []
+          }
+        },
+        "settings": {
+          "groupChips": [
+            "Cooking"
+          ],
+          "channelGroupChips": []
+        }
+      }
+    },
+    {
+      "name": "delete: a name no channel has changes nothing but the settings that name it",
+      "op": "delete",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking"
+          ]
+        }
+      },
+      "settings": {
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": [
+          "Cooking"
+        ]
+      },
+      "group": "Making",
+      "expected": {
+        "channels": {},
+        "settings": {
+          "groupChips": []
+        }
+      }
+    },
+    {
+      "name": "save: a new group puts its channels in the name",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2",
+        "UC3"
+      ],
+      "settings": {
+        "groupChips": [
+          "Cooking"
+        ],
+        "channelGroupChips": []
+      },
+      "group": null,
+      "to": "Making",
+      "members": [
+        "UC1",
+        "UC2"
+      ],
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Cooking",
+              "Making"
+            ]
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "save: a new group under an existing group's name adds to it and takes none out",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include"
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "group": null,
+      "to": "Making",
+      "members": [
+        "UC2"
+      ],
+      "expected": {
+        "channels": {
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "save: without a channel nothing is written",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "group": "Making",
+      "to": "Making",
+      "members": [],
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "save: a name that is not one as it stands writes nothing",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "group": "Making",
+      "to": " Workshop",
+      "members": [
+        "UC1",
+        "UC2"
+      ],
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "save: an existing group saved as it is writes nothing",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making",
+            "Cooking"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2",
+        "UC3"
+      ],
+      "settings": {
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": []
+      },
+      "group": "Making",
+      "to": "Making",
+      "members": [
+        "UC2",
+        "UC1"
+      ],
+      "expected": {
+        "channels": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "save: channels switched on are put in and the others taken out, the selection staying",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking",
+            "Making"
+          ]
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Cooking"
+          ]
+        },
+        "UCgone": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2",
+        "UC3",
+        "UC4"
+      ],
+      "settings": {
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "group": "Making",
+      "to": "Making",
+      "members": [
+        "UC1",
+        "UC3",
+        "UC4"
+      ],
+      "expected": {
+        "channels": {
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Cooking"
+            ]
+          },
+          "UC3": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Cooking",
+              "Making"
+            ]
+          },
+          "UC4": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "save: every channel swapped for others keeps the group and its selection",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [
+          "Making"
+        ],
+        "channelGroupChips": []
+      },
+      "group": "Making",
+      "to": "Making",
+      "members": [
+        "UC2"
+      ],
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": []
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Making"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "save: a new name and new channels go in one edit, channels no longer listed renamed too",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UCgone": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2",
+        "UC3"
+      ],
+      "settings": {
+        "groupChips": [
+          "Cooking",
+          "Making"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "group": "Making",
+      "to": "Workshop",
+      "members": [
+        "UC1",
+        "UC3"
+      ],
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": []
+          },
+          "UC3": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          },
+          "UCgone": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          }
+        },
+        "settings": {
+          "groupChips": [
+            "Cooking",
+            "Workshop"
+          ],
+          "channelGroupChips": [
+            "Workshop"
+          ]
+        }
+      }
+    },
+    {
+      "name": "save: another group's name merges the two, that group keeping its own channels",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making"
+          ]
+        },
+        "UC2": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Making",
+            "Workshop"
+          ]
+        },
+        "UC3": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": [
+            "Workshop"
+          ]
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2",
+        "UC3"
+      ],
+      "settings": {
+        "groupChips": [
+          "Making",
+          "Workshop"
+        ],
+        "channelGroupChips": [
+          "Making"
+        ]
+      },
+      "group": "Making",
+      "to": "Workshop",
+      "members": [
+        "UC1"
+      ],
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          },
+          "UC2": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          }
+        },
+        "settings": {
+          "groupChips": [
+            "Workshop"
+          ],
+          "channelGroupChips": [
+            "Workshop"
+          ]
+        }
+      }
+    },
+    {
+      "name": "save: a group that no longer exists is made again under the name",
+      "op": "save",
+      "saved": {
+        "UC1": {
+          "enabled": true,
+          "regex": "",
+          "mode": "include",
+          "groups": []
+        }
+      },
+      "listed": [
+        "UC1",
+        "UC2"
+      ],
+      "settings": {
+        "groupChips": [],
+        "channelGroupChips": []
+      },
+      "group": "Making",
+      "to": "Workshop",
+      "members": [
+        "UC1"
+      ],
+      "expected": {
+        "channels": {
+          "UC1": {
+            "enabled": true,
+            "regex": "",
+            "mode": "include",
+            "groups": [
+              "Workshop"
+            ]
+          }
+        },
+        "settings": {}
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import SwiftUI
 
 @main
 struct SubtubeApp: App {
-  @State private var model = AppModel()
+  @State private var app = AppModel()
 
   #if DEBUG && os(macOS)
     init() {
@@ -14,17 +14,17 @@ struct SubtubeApp: App {
   var body: some Scene {
     #if os(macOS)
       Window(Strings.appName, id: "main") {
-        RootView(model: model)
+        RootView(app: app)
       }
       .defaultSize(width: 1280, height: 800)
-      .commands { FeedCommands(model: model) }
+      .commands { FeedCommands(app: app) }
       Settings {
-        MacSettingsView(app: model)
-          .preferredColorScheme(model.theme.colorScheme)
+        MacSettingsView(app: app)
+          .preferredColorScheme(app.theme.colorScheme)
       }
     #else
       WindowGroup {
-        RootView(model: model)
+        RootView(app: app)
       }
     #endif
   }
@@ -33,25 +33,25 @@ struct SubtubeApp: App {
 /// The first run until it's finished and someone is signed in, then the
 /// platform's main screen.
 struct RootView: View {
-  let model: AppModel
+  let app: AppModel
 
   var body: some View {
     Group {
-      switch model.phase {
+      switch app.phase {
       case .checking:
         ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
       case .signedOut:
-        NuxView(app: model)
+        NuxView(app: app)
       case .signedIn(let feed):
-        if model.onboarded {
-          PlatformMainView(app: model, feed: feed)
+        if app.onboarded {
+          PlatformMainView(app: app, feed: feed)
         } else {
-          NuxView(app: model)
+          NuxView(app: app)
         }
       }
     }
-    .task { await model.start() }
-    .preferredColorScheme(model.theme.colorScheme)
+    .task { await app.start() }
+    .preferredColorScheme(app.theme.colorScheme)
     #if os(iOS)
       .tint(Color.gold)
     #endif

@@ -73,11 +73,6 @@ private func channel(_ id: String, _ configure: (inout ChannelFilter) -> Void = 
     #expect(kept.map(\.channelId) == ["a", "b"])
     #expect(kept.last?.regex == #"\blive\b"#)
   }
-
-  @Test func failedRequestsDontShowTheirBody() {
-    #expect(GoogleAPIError.http(status: 503, body: "<html>").localizedDescription == "Google request failed: 503")
-    #expect(GoogleAPIError.noChannel.localizedDescription == "This Google account has no YouTube channel.")
-  }
 }
 
 /// Fetches that end only when released.
@@ -354,5 +349,60 @@ private func uploads(_ ids: [String] = [], shorts: Bool = false) -> ChannelItems
     await #expect(throws: GoogleAPIError.tokenExpired) {
       _ = try await fetchChannels(channels) { _ in throw GoogleAPIError.tokenExpired }
     }
+  }
+
+  @Test func followedChannelsAreListedByNameIgnoringCaseAfterTheSubscriptions() {
+    func followed(_ at: Int64) -> ChannelEntry {
+      ChannelEntry(
+        at: at,
+        filter: [
+          "enabled": .bool(true), "regex": .string(""), "mode": .string("include"),
+          "followed": .bool(true),
+        ])
+    }
+    let merged = DeviceFile(channels: ["UCb": followed(1), "UCa": followed(2), "UCz": followed(3)])
+    let listed = channelsFor(
+      merged,
+      subscriptions: [Subscription(channelId: "UCsub", title: "zebra", thumbnail: "")],
+      identities: [
+        "UCb": ChannelIdentity(title: "beta", thumbnail: ""),
+        "UCa": ChannelIdentity(title: "Alpha", thumbnail: ""),
+        "UCz": ChannelIdentity(title: "Éclair", thumbnail: ""),
+      ])
+    #expect(listed.map(\.title) == ["zebra", "Alpha", "beta", "Éclair"])
+  }
+
+  @Test func workIsDoneAFewAtATimeAndComesBackInOrder() async throws {
+    let running = Running()
+    let doubled = try await mapWithConcurrency(Array(1...20), limit: 3) { number in
+      await running.enter()
+      try await Task.sleep(for: .milliseconds(5))
+      await running.leave()
+      return number * 2
+    }
+    #expect(doubled == (1...20).map { $0 * 2 })
+    #expect(await running.most <= 3)
+  }
+
+  @Test func aLoadCalledOffIsNotAFailedChannel() async {
+    await #expect(throws: CancellationError.self) {
+      _ = try await fetchChannels([makeChannel()]) { _ in throw CancellationError() }
+    }
+    #expect(isCancellation(URLError(.cancelled)))
+    #expect(!isCancellation(URLError(.notConnectedToInternet)))
+  }
+}
+
+private actor Running {
+  private var now = 0
+  private(set) var most = 0
+
+  func enter() {
+    now += 1
+    most = max(most, now)
+  }
+
+  func leave() {
+    now -= 1
   }
 }

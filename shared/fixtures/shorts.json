@@ -1,5 +1,5 @@
 {
-  "description": "Classifying one channel's uploads as Shorts. A candidate is a video with a known duration (> 0) of at most 180 s; anything else is not a Short. With no candidates the Shorts list is not read. Otherwise a candidate is a Short iff it is in the list's newest page (`shortsList`, null when YouTube answers that the list doesn't exist). Only when the list is null and the platform can probe (`probe` present: videoId -> true, false, or null for an inconclusive answer or an error; an id missing from `probe` is an error) are the candidates probed instead, an inconclusive probe leaving the verdict unknown. `expected` maps each video to true, false, or null (unknown); `readsShortsList` and `probes` (in any order) say which requests are made. All of this applies only where the verdict is needed: a channel showing its uploads with its Shorts filter on `normal` (hide) or `shorts` (only). For any other channel no Shorts list is read and nothing is probed: a non-candidate is still not a Short, and a candidate is left unknown (so it gets no Shorts tag). When such a channel's filter later comes to need the verdict, the client reads the Shorts list for the uploads it already has (one request, none without a candidate) rather than fetching the uploads again; until then the Shorts filter holds the unknown ones back, as it does any unknown verdict.",
+  "description": "Classifying one channel's uploads as Shorts. A candidate is a video with a known duration (> 0) of at most 180 s; anything else is not a Short. With no candidates the Shorts list is not read. Otherwise a candidate is a Short iff it is in the list's newest page (`shortsList`, null when YouTube answers that the list doesn't exist: such a channel has no Shorts, and nothing is probed). `shortsListFailed: true` means the list couldn't be read: the request got a server error (5xx) again after one retry, or no answer at all. Only then, and only where the platform can probe (`probe` present: videoId -> true, false, or null for an inconclusive answer or an error; an id missing from `probe` is an error), are the candidates probed instead, an inconclusive probe leaving the verdict unknown; a list that couldn't be read on a platform with no probe reads as no Shorts. `expected` maps each video to true, false, or null (unknown); `readsShortsList` and `probes` (in any order) say which requests are made. All of this applies only where the verdict is needed: a channel showing its uploads with its Shorts filter on `normal` (hide) or `shorts` (only). For any other channel no Shorts list is read and nothing is probed: a non-candidate is still not a Short, and a candidate is left unknown (so it gets no Shorts tag). When such a channel's filter later comes to need the verdict, the client reads the Shorts list for the uploads it already has (one request, none without a candidate) rather than fetching the uploads again; until then the Shorts filter holds the unknown ones back, as it does any unknown verdict.",
   "cases": [
     {
       "name": "nothing short enough: the list is not read",
@@ -140,7 +140,7 @@
       "probes": []
     },
     {
-      "name": "no list: candidates are probed instead",
+      "name": "the list can't be read: candidates are probed instead",
       "videos": [
         {
           "videoId": "short",
@@ -164,6 +164,7 @@
         }
       ],
       "shortsList": null,
+      "shortsListFailed": true,
       "probe": {
         "short": true,
         "clip": false,
@@ -183,6 +184,45 @@
         "unsure",
         "failed"
       ]
+    },
+    {
+      "name": "no list: nothing is probed, even where the platform can",
+      "videos": [
+        {
+          "videoId": "clip",
+          "durationSeconds": 90
+        },
+        {
+          "videoId": "long",
+          "durationSeconds": 600
+        }
+      ],
+      "shortsList": null,
+      "probe": {
+        "clip": true
+      },
+      "expected": {
+        "clip": false,
+        "long": false
+      },
+      "readsShortsList": true,
+      "probes": []
+    },
+    {
+      "name": "the list can't be read and no probe: no Shorts",
+      "videos": [
+        {
+          "videoId": "clip",
+          "durationSeconds": 90
+        }
+      ],
+      "shortsList": null,
+      "shortsListFailed": true,
+      "expected": {
+        "clip": false
+      },
+      "readsShortsList": true,
+      "probes": []
     }
   ]
 }

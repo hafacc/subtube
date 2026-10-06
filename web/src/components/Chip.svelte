@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Toggle } from "bits-ui";
+
   let {
     label,
     pressed = undefined,
@@ -16,12 +18,38 @@
   } = $props();
 </script>
 
-<button type="button" class="chip" aria-pressed={pressed} {onclick}>
+{#snippet content()}
   {label}
   {#if removes}
-    <span class="remove">×</span>
+    <span class="remove" aria-hidden="true">×</span>
   {/if}
-</button>
+{/snippet}
+
+{#if pressed === undefined}
+  <button
+    type="button"
+    class="chip"
+    aria-label={removes ? `Remove ${label}` : undefined}
+    {onclick}
+  >
+    {@render content()}
+  </button>
+{:else}
+  <Toggle.Root bind:pressed={() => pressed === true, () => onclick()}>
+    {#snippet child({
+      props,
+    })}
+      <button
+        {...props}
+        type="button"
+        class="chip"
+        aria-label={removes ? `Remove ${label}` : undefined}
+      >
+        {@render content()}
+      </button>
+    {/snippet}
+  </Toggle.Root>
+{/if}
 
 <style>
   .remove {

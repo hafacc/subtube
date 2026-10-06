@@ -12,6 +12,7 @@ public final class ShortsProbe: NSObject, URLSessionTaskDelegate, Sendable {
 
   private let session: URLSession
 
+  /// A probe with its own cookie-less session.
   public override init() {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.httpShouldSetCookies = false
@@ -24,22 +25,19 @@ public final class ShortsProbe: NSObject, URLSessionTaskDelegate, Sendable {
   /// True for a Short, false for a redirect (not a Short), nil for anything
   /// else, including an invalid id or a timeout.
   public func probe(_ videoId: String) async -> Bool? {
-    guard videoId.wholeMatch(of: #/[A-Za-z0-9_-]{11}/#) != nil,
+    if videoId.wholeMatch(of: #/[A-Za-z0-9_-]{11}/#) != nil,
       let url = URL(string: Self.base + videoId)
-    else {
+    {
+      var request = URLRequest(url: url, timeoutInterval: Self.timeout)
+      request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+      request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+      // pre-consent, so the probe isn't bounced to a consent page
+      request.setValue("SOCS=CAI; CONSENT=YES+", forHTTPHeaderField: "Cookie")
+      let answer = try? await session.data(for: request, delegate: self)
+      return ((answer?.1 as? HTTPURLResponse)?.statusCode).flatMap(Self.verdict(status:))
+    } else {
       return nil
     }
-    var request = URLRequest(url: url, timeoutInterval: Self.timeout)
-    request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-    request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
-    // pre-consent, so the probe isn't bounced to a consent page
-    request.setValue("SOCS=CAI; CONSENT=YES+", forHTTPHeaderField: "Cookie")
-    guard let (_, response) = try? await session.data(for: request, delegate: self),
-      let status = (response as? HTTPURLResponse)?.statusCode
-    else {
-      return nil
-    }
-    return Self.verdict(status: status)
   }
 
   /// A probe's answer from its status code.
@@ -53,6 +51,7 @@ public final class ShortsProbe: NSObject, URLSessionTaskDelegate, Sendable {
     }
   }
 
+  /// Refuse every redirect, so its status is the answer.
   public func urlSession(
     _ session: URLSession,
     task: URLSessionTask,
