@@ -1,7 +1,9 @@
 #!/bin/sh
 # Regenerate both apps' AppIcon PNGs from design/icons/sub-play.svg: the
-# logo at 75% on an ink tile. iOS gets a full-bleed square (the system masks
-# it); macOS gets the 824 pt rounded tile with a shadow on the 1024 canvas.
+# logo's box at 84.375% of an ink tile, which makes the hull five eighths of
+# the tile wide and centred, the tower above it. iOS gets a full-bleed
+# square (the system masks it); macOS gets the 824 pt rounded tile with a
+# shadow on the 1024 canvas.
 # Needs rsvg-convert and sips. Run from anywhere.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -12,7 +14,7 @@ trap 'rm -r "$work"' EXIT
 paths=$(sed -e 's/^<svg[^>]*>//' -e 's/<\/svg>$//' "$logo")
 
 tile() { # size inset radius shadow(0/1)
-  t=$(echo "$1 - 2 * $2" | bc -l); glyph=$(echo "$t * 0.75" | bc -l)
+  t=$(echo "$1 - 2 * $2" | bc -l); glyph=$(echo "$t * 0.84375" | bc -l)
   offset=$(echo "$2 + ($t - $glyph) / 2" | bc -l); scale=$(echo "$glyph / 24" | bc -l)
   defs=""; filter=""
   if [ "$4" = 1 ]; then
