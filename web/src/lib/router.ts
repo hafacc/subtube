@@ -19,7 +19,6 @@ export interface Route {
 /** Read a route from a query string. */
 export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search);
-  // An empty/missing channel param is simply no channel (feed background).
   const channel = params.get("channel") || null;
   const video = params.get("v");
   const playlist = params.get("list");

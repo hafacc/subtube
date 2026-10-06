@@ -1,5 +1,5 @@
 {
-  "description": "Merging every device's file into one view. `files` are the device files as downloaded (`content` is the raw JSON, `deviceId` the <id> of device-<id>.json); `expected` is the merged view, which always has `channels`, `watched` and `settings`. Per key the entry with the greatest `at` wins; on equal `at` the greater deviceId (ASCII order) wins; the winning entry is kept whole, unknown fields included: a watched entry's `position` and `seen` travel with its `watched` and are never merged on their own. `seen` takes no part in the order: `at` alone decides, then the deviceId. A file that is not an object or whose `version` is not the number 1 is skipped; `channels`/`watched`/`settings` that are missing or not objects read as empty; an entry that is not an object, whose `at` is not a whole number from 0 to 2^53-1, whose `filter` is not an object, whose `watched` is not a boolean, or (in `settings`) that has no `value` field, is dropped. A setting's `value` may be any JSON value, `null` included, and is kept as it is under any name: filter field values, a watched entry's `position` (shared/fixtures/watch-progress.json reads it) and `seen` (shared/fixtures/prune.json reads it) and setting values are not checked here (shared/fixtures/settings.json reads the settings).",
+  "description": "Merging every device's file into one view. `files` are the device files as downloaded (`content` is the raw JSON, `deviceId` the <id> of device-<id>.json); `expected` is the merged view, which always has `channels`, `watched` and `settings`. Per key the entry with the greatest `at` wins; on equal `at` the greater deviceId (ASCII order) wins; the winning entry is kept whole, unknown fields included: a watched entry's `position` and `seen` travel with its `watched` and are never merged on their own. `seen` takes no part in the order: `at` alone decides, then the deviceId. A file that is not an object or whose `version` is not the number 1 is skipped; `channels`/`watched`/`settings` that are missing or not objects read as empty; an entry that is not an object, whose `at` is not a whole number from 0 to 2^53-1, whose `filter` is not an object, whose `watched` is not a boolean, or (in `settings`) that has no `value` field, is dropped. A setting's `value` may be any JSON value, `null` included, and is kept as it is under any name: filter field values (a filter's `groups` among them: shared/fixtures/groups.json reads it, and since each channel's entry is its own key, two devices that put different channels in one group both do), a watched entry's `position` (shared/fixtures/watch-progress.json reads it) and `seen` (shared/fixtures/prune.json reads it) and setting values are not checked here (shared/fixtures/settings.json reads the settings).",
   "cases": [
     {
       "name": "no files",
@@ -1572,6 +1572,400 @@
             "seen": 1.5
           }
         },
+        "settings": {}
+      }
+    },
+    {
+      "name": "groups: two devices put different channels in one group, and both are in it",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Making"
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC2": {
+                "at": 1759500000005,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Making"
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Making"
+              ]
+            }
+          },
+          "UC2": {
+            "at": 1759500000005,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Making"
+              ]
+            }
+          }
+        },
+        "watched": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "groups: two devices edit one channel's groups, and the newer entry wins whole",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000009,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Outdoors"
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "minDurationSeconds": 60,
+                  "groups": [
+                    "Making",
+                    "Cooking"
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000009,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Outdoors"
+              ]
+            }
+          }
+        },
+        "watched": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "groups: a newer save that leaves a channel's groups empty takes it out of them",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Making"
+                  ]
+                }
+              },
+              "UC2": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Making"
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000001,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": []
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000001,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": []
+            }
+          },
+          "UC2": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Making"
+              ]
+            }
+          }
+        },
+        "watched": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "groups: a device that renamed a group while another added a channel under the old name leaves both names",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000010,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Workshop"
+                  ]
+                }
+              },
+              "UC2": {
+                "at": 1759500000010,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Workshop"
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Making"
+                  ]
+                }
+              },
+              "UC3": {
+                "at": 1759500000020,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Making"
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000010,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Workshop"
+              ]
+            }
+          },
+          "UC2": {
+            "at": 1759500000010,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Workshop"
+              ]
+            }
+          },
+          "UC3": {
+            "at": 1759500000020,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Making"
+              ]
+            }
+          }
+        },
+        "watched": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "groups: a groups value of any kind neither drops its entry nor is changed",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {
+              "UC1": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": "Making"
+                }
+              },
+              "UC2": {
+                "at": 1759500000000,
+                "filter": {
+                  "enabled": true,
+                  "regex": "",
+                  "mode": "include",
+                  "groups": [
+                    "Making",
+                    "Making",
+                    " Making ",
+                    3
+                  ]
+                }
+              }
+            },
+            "watched": {}
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": "Making"
+            }
+          },
+          "UC2": {
+            "at": 1759500000000,
+            "filter": {
+              "enabled": true,
+              "regex": "",
+              "mode": "include",
+              "groups": [
+                "Making",
+                "Making",
+                " Making ",
+                3
+              ]
+            }
+          }
+        },
+        "watched": {},
         "settings": {}
       }
     }

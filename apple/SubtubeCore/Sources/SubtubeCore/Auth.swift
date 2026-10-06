@@ -17,8 +17,10 @@ public enum GoogleClient {
     return "com.googleusercontent.apps.\(prefix)"
   }
 
+  /// Where Google sends the answer of a sign-in.
   public static var redirectURI: String { "\(redirectScheme):/oauthredirect" }
 
+  /// What the apps ask for: reading YouTube, and the Drive app folder.
   public static let scopes = [
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/drive.appdata",
@@ -33,26 +35,22 @@ public enum GoogleClient {
 public enum AuthError: Error, Sendable, Equatable {
   /// Only an interactive sign-in can produce a token.
   case signInRequired
+  /// The permissions were declined on Google's page; like closing it.
+  case declined
   /// Google's redirect didn't carry what was asked for.
   case invalidCallback(String)
-  /// The token endpoint refused, with its body.
-  case tokenRequestFailed(String)
-}
-
-extension AuthError: LocalizedError {
-  public var errorDescription: String? {
-    switch self {
-    case .signInRequired: "Sign in again to continue."
-    case .invalidCallback(let detail): "Google sign-in failed: \(detail)"
-    case .tokenRequestFailed(let detail): "Google sign-in failed: \(detail)"
-    }
-  }
+  /// Google's answer to the sign-in held no refresh token.
+  case noRefreshToken
+  /// The Keychain wouldn't keep the sign-in, with its status.
+  case notKept(Int32)
 }
 
 /// One interactive sign-in in progress: the URL to open and what checks its
 /// answer.
 public struct AuthorizationRequest: Sendable {
+  /// Google's sign-in page.
   public var url: URL
+  /// The scheme of the address Google's page ends on.
   public var callbackScheme: String
   let verifier: String
   let state: String
@@ -77,9 +75,12 @@ func pkceChallenge(_ verifier: String) -> String {
 
 /// A generic-password item in the Keychain.
 public struct KeychainItem: Sendable {
+  /// The item's service name.
   public var service: String
+  /// The item's account name.
   public var account: String
 
+  /// The item with this service and account.
   public init(service: String, account: String) {
     self.service = service
     self.account = account
@@ -90,33 +91,43 @@ public struct KeychainItem: Sendable {
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
       kSecAttrAccount as String: account,
+      // on a Mac too: the login keychain stops handing an item to a build signed anew
+      kSecUseDataProtectionKeychain as String: true,
     ]
   }
 
+  /// The stored text, or nil when there is none.
   public func read() -> String? {
     var query = query
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var result: CFTypeRef?
-    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+    if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
       let data = result as? Data
-    else {
+    {
+      return String(data: data, encoding: .utf8)
+    } else {
       return nil
     }
-    return String(data: data, encoding: .utf8)
   }
 
-  public func write(_ value: String) {
+  /// Store text in place of what is there; throws ``AuthError/notKept(_:)``
+  /// when the Keychain refuses.
+  public func write(_ value: String) throws {
     let attributes: [String: Any] = [
       kSecValueData as String: Data(value.utf8),
       kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
     ]
-    let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+    var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
     if status == errSecItemNotFound {
-      SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+      status = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+    }
+    if status != errSecSuccess {
+      throw AuthError.notKept(status)
     }
   }
 
+  /// Remove the stored text.
   public func delete() {
     SecItemDelete(query as CFDictionary)
   }
@@ -134,7 +145,10 @@ public actor GoogleAuth: AccessTokenSource {
   private var accessToken: String?
   private var expiresAt = Date.distantPast
   private var renewal: Task<String, Error>?
+  /// Goes up at each sign-out, so a renewal that started before one is dropped.
+  private var signOuts = 0
 
+  /// Sign-in kept in `keychain`, talking to Google through `session`.
   public init(
     keychain: KeychainItem = KeychainItem(service: "cc.hafa.subtube", account: "google-refresh-token"),
     session: URLSession = .shared
@@ -161,6 +175,8 @@ public actor GoogleAuth: AccessTokenSource {
       URLQueryItem(name: "code_challenge", value: pkceChallenge(verifier)),
       URLQueryItem(name: "code_challenge_method", value: "S256"),
       URLQueryItem(name: "state", value: state),
+      // signing out leaves Google's grant in place, so always offer the choice of account
+      URLQueryItem(name: "prompt", value: "select_account"),
     ]
     return AuthorizationRequest(
       url: components.url!, callbackScheme: GoogleClient.redirectScheme, verifier: verifier,
@@ -173,7 +189,7 @@ public actor GoogleAuth: AccessTokenSource {
     let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
     func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
     if let error = value("error") {
-      throw AuthError.invalidCallback(error)
+      throw error == "access_denied" ? AuthError.declined : AuthError.invalidCallback(error)
     }
     guard value("state") == request.state else {
       throw AuthError.invalidCallback("state mismatch")
@@ -189,9 +205,9 @@ public actor GoogleAuth: AccessTokenSource {
       "redirect_uri": GoogleClient.redirectURI,
     ])
     guard let refreshToken = response.refreshToken else {
-      throw AuthError.tokenRequestFailed("no refresh token")
+      throw AuthError.noRefreshToken
     }
-    keychain.write(refreshToken)
+    try keychain.write(refreshToken)
     apply(response)
   }
 
@@ -208,11 +224,8 @@ public actor GoogleAuth: AccessTokenSource {
   }
 
   private func tokenRequest(_ form: [String: String]) async throws -> TokenResponse {
-    var request = URLRequest(url: GoogleClient.tokenEndpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-    request.httpBody = Data(formEncode(form).utf8)
-    let (body, response) = try await session.data(for: request)
+    let (body, response) = try await session.data(
+      for: formRequest(GoogleClient.tokenEndpoint, form))
     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
     let text = String(decoding: body, as: UTF8.self)
     if status == 400 && text.contains("invalid_grant") {
@@ -234,6 +247,7 @@ public actor GoogleAuth: AccessTokenSource {
     expiresAt = Date().addingTimeInterval(response.expiresIn)
   }
 
+  /// A token good for at least five more minutes, renewed without UI when needed.
   public func validToken() async throws -> String {
     if let accessToken, Date() < expiresAt.addingTimeInterval(-Self.refreshMargin) {
       return accessToken
@@ -242,52 +256,68 @@ public actor GoogleAuth: AccessTokenSource {
     }
   }
 
+  /// A token minted now from the remembered sign-in; callers that ask at once share one request.
   public func refreshedToken() async throws -> String {
     if let renewal {
       return try await renewal.value
+    } else {
+      let task = Task { try await self.renew() }
+      renewal = task
+      defer {
+        if renewal == task {
+          renewal = nil
+        }
+      }
+      return try await task.value
     }
-    let task = Task { try await self.renew() }
-    renewal = task
-    defer { renewal = nil }
-    return try await task.value
   }
 
   private func renew() async throws -> String {
     guard let refreshToken = keychain.read() else {
       throw AuthError.signInRequired
     }
+    let startedAfter = signOuts
     let response = try await tokenRequest([
       "client_id": GoogleClient.iOSClientID,
       "grant_type": "refresh_token",
       "refresh_token": refreshToken,
     ])
+    guard signOuts == startedAfter else {
+      throw AuthError.signInRequired
+    }
     apply(response)
     return response.accessToken
   }
 
-  /// Forget the sign-in and revoke it at Google, which also ends every access
-  /// token minted from it.
-  public func signOut() async {
+  /// Forget the sign-in on this device. With `revoke` Google's grant is
+  /// withdrawn too, which signs every device out and ends every access token
+  /// minted from it; without, other devices stay signed in.
+  public func signOut(revoke: Bool) async {
     let refreshToken = keychain.read()
     keychain.delete()
     accessToken = nil
     expiresAt = .distantPast
-    guard let refreshToken else { return }
-    var request = URLRequest(url: GoogleClient.revokeEndpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-    request.httpBody = Data(formEncode(["token": refreshToken]).utf8)
-    // an unrevoked grant still can't be used without the deleted refresh token
-    _ = try? await session.data(for: request)
+    signOuts += 1
+    renewal = nil
+    if revoke, let refreshToken {
+      // an unrevoked grant still can't be used here without the deleted refresh token
+      _ = try? await session.data(
+        for: formRequest(GoogleClient.revokeEndpoint, ["token": refreshToken]))
+    }
   }
 }
 
-private func formEncode(_ form: [String: String]) -> String {
+private func formRequest(_ url: URL, _ form: [String: String]) -> URLRequest {
   var allowed = CharacterSet.alphanumerics
   allowed.insert(charactersIn: "-._~")
-  return form.sorted { $0.key < $1.key }
-    .map { key, value in
-      "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value)"
-    }
-    .joined(separator: "&")
+  var request = URLRequest(url: url)
+  request.httpMethod = "POST"
+  request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+  request.httpBody = Data(
+    form.sorted { $0.key < $1.key }
+      .map { key, value in
+        "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value)"
+      }
+      .joined(separator: "&").utf8)
+  return request
 }

@@ -1,26 +1,35 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { knownTopics, topicLabel } from "../lib/chips";
+  import { topicLabel } from "../lib/chips";
   import Chip from "./Chip.svelte";
   import Icon from "./Icon.svelte";
 
   let {
     leading,
+    groups = [],
+    selectedGroups = [],
+    ongroup = () => undefined,
+    onnewgroup = undefined,
     topics,
     selected,
     ontopic,
-    onclear,
   }: {
     /** the chips before the divider */
     leading: Snippet;
+    /** the group chips' names, in order */
+    groups?: readonly string[];
+    /** the selected groups' names */
+    selectedGroups?: readonly string[];
+    /** called with a pressed group chip's name */
+    ongroup?: (group: string) => void;
+    /** called by the "New group" chip; the row has that chip only when this is given */
+    onnewgroup?: () => void;
     /** the topic chips' category ids, in order */
     topics: readonly string[];
     /** the selected topics' category ids */
     selected: readonly string[];
     /** called with a pressed topic chip's category id */
     ontopic: (categoryId: string) => void;
-    /** called to deselect every topic */
-    onclear: () => void;
   } = $props();
 
   let scroller: HTMLDivElement;
@@ -42,8 +51,10 @@
   });
 
   $effect(() => {
-    // the topic chips are the only ones that come and go
+    // the chips that come and go
     void topics.length;
+    void groups.length;
+    void onnewgroup;
     measure();
   });
 </script>
@@ -57,18 +68,29 @@
     onscroll={measure}
   >
     {@render leading()}
-    {#if topics.length > 0}
+    {#if onnewgroup || groups.length > 0 || topics.length > 0}
       <span class="divider" aria-hidden="true"></span>
+    {/if}
+    {#if onnewgroup}
       <button
         type="button"
-        class="chip clear"
-        aria-label="Clear topics"
-        title="Clear topics"
-        disabled={knownTopics(selected).size === 0}
-        onclick={onclear}
+        class="chip new-group"
+        aria-label="New group"
+        title="New group"
+        onclick={onnewgroup}
       >
-        <Icon name="close" size={14} />
+        <Icon name="plus" size={14} />
       </button>
+    {/if}
+    {#each groups as group (group)}
+      <Chip
+        label={group}
+        pressed={selectedGroups.includes(group)}
+        onclick={() => ongroup(group)}
+      />
+    {/each}
+    {#if (onnewgroup || groups.length > 0) && topics.length > 0}
+      <span class="divider" aria-hidden="true"></span>
     {/if}
     {#each topics as categoryId (categoryId)}
       <Chip
@@ -114,7 +136,7 @@
     --fade-after: 40px;
   }
 
-  .clear {
+  .new-group {
     justify-content: center;
     width: 30px;
     height: 30px;

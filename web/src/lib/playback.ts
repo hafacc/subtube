@@ -45,22 +45,57 @@ export class Playback {
   private readonly feed: PlaybackFeed;
   private readonly states: PlaybackStates;
   private readonly onended: () => void;
+  private readonly ontoggle: () => void;
   private player: YouTubePlayer | null = null;
   private playing = false;
+  // the last of playing and paused the player reported; buffering between them doesn't count
+  private settled: "playing" | "paused" | null = null;
+  private covered = false;
+  // paused by `cover`, to play again once nothing covers the player
+  private held = false;
+  // the next pause or play the player reports is this class's doing
+  private ownToggle = false;
   // from the first time the video plays until it ends: while set, its position is worth saving
   private tracking = false;
 
-  /** Playback of `item`, before its player exists. */
+  /**
+   * Playback of `item`, before its player exists. `ontoggle` runs when the
+   * video is paused, or played again after a pause, by anyone but
+   * {@link cover}.
+   */
   constructor(
     item: RouteItem,
     feed: PlaybackFeed,
     states: PlaybackStates,
     onended: () => void,
+    ontoggle: () => void = () => undefined,
   ) {
     this.item = item;
     this.feed = feed;
     this.states = states;
     this.onended = onended;
+    this.ontoggle = ontoggle;
+  }
+
+  /**
+   * Say whether something covers the player: a covered player is paused, and
+   * one this paused plays again once nothing covers it.
+   */
+  cover(covered: boolean): void {
+    this.covered = covered;
+    if (covered && this.playing) {
+      this.hold();
+    } else if (!covered && this.held) {
+      this.held = false;
+      this.ownToggle = true;
+      this.player?.playVideo();
+    }
+  }
+
+  private hold(): void {
+    this.held = true;
+    this.ownToggle = true;
+    this.player?.pauseVideo();
   }
 
   /** The options the player is made with. */
@@ -137,6 +172,21 @@ export class Playback {
     const wasPlaying = this.playing;
     this.playing = state === this.states.PLAYING;
     this.tracking ||= this.playing;
+    if (this.playing || state === this.states.PAUSED) {
+      const settled = this.playing ? "playing" : "paused";
+      const toggled = this.settled !== null && this.settled !== settled;
+      this.settled = settled;
+      if (this.ownToggle) {
+        this.ownToggle = false;
+      } else if (toggled) {
+        this.ontoggle();
+      }
+      if (this.playing && this.covered) {
+        this.hold();
+      } else if (this.playing) {
+        this.held = false;
+      }
+    }
     this.videoData = player.getVideoData();
     if (this.item.kind === "playlist") {
       // the player's own list already skips unavailable videos

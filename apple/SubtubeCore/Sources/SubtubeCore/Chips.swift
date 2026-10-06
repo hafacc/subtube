@@ -35,7 +35,9 @@ public func knownTopics(_ categoryIds: [String]) -> [String] {
 public enum TimeChip: String, Codable, Sendable, CaseIterable {
   /// All time.
   case anyTime = "none"
+  /// 24 hours.
   case day
+  /// 7 days.
   case week
   /// 30 days.
   case month
@@ -53,7 +55,9 @@ public enum TimeChip: String, Codable, Sendable, CaseIterable {
 
 /// Where setup starts the feed: everything older is marked watched.
 public enum StartFrom: String, Codable, Sendable, CaseIterable {
+  /// The past day.
   case day
+  /// The past week.
   case week
   /// Nothing is marked.
   case all
@@ -187,25 +191,72 @@ public func startMarks(_ items: [FeedItem], start: StartFrom, now: Int64) -> [St
   }
 }
 
+/// Setup's starting point while channels still wait for it
+/// (shared/fixtures/setup-start.json): each channel that was on when setup
+/// finished gets its older items marked watched the first time a load
+/// fetches it.
+public struct PendingStart: Codable, Sendable, Hashable {
+  /// The starting point chosen; never `all`, which marks nothing.
+  public var start: StartFrom
+  /// When setup finished, in milliseconds since the epoch; the span counts back from here.
+  public var cutoff: Int64
+  /// The channels that were on and haven't been fetched since, in their order then.
+  public var channels: [String]
+
+  /// The record setup keeps when it finishes at `cutoff` with `channels`
+  /// on; nil, nothing to keep, for `all` or with no channel on.
+  public init?(start: StartFrom, cutoff: Int64, channels: [String]) {
+    if start == .all || channels.isEmpty {
+      return nil
+    } else {
+      self.start = start
+      self.cutoff = cutoff
+      self.channels = channels
+    }
+  }
+}
+
+/// What a fetch does to a pending starting point: the ids to mark watched,
+/// in the order of `items` — the items of the channels both waiting and in
+/// `fetched`, from before the starting point — and what still waits, nil
+/// once no channel does. `fetched` holds only the channels fetched whole;
+/// one that failed or was skipped is not in it and keeps waiting.
+public func applyPendingStart(
+  _ pending: PendingStart?, fetched: Set<String>, items: [FeedItem]
+) -> (marks: [String], remaining: PendingStart?) {
+  if let pending {
+    let reached = Set(pending.channels).intersection(fetched)
+    let marks = startMarks(
+      items.filter { reached.contains($0.channelId) }, start: pending.start, now: pending.cutoff)
+    return (
+      marks,
+      PendingStart(
+        start: pending.start, cutoff: pending.cutoff,
+        channels: pending.channels.filter { !reached.contains($0) })
+    )
+  } else {
+    return ([], nil)
+  }
+}
+
 private func pendingStartKey(_ accountId: String) -> String {
   "subtube.startFrom.\(accountId)"
 }
 
-/// Keep setup's starting point on this device for the account's next feed load.
+/// Keep a pending starting point on this device for the account, or with nil forget it.
 public func keepPendingStart(
-  accountId: String, start: StartFrom, defaults: UserDefaults = .standard
+  accountId: String, _ pending: PendingStart?, defaults: UserDefaults = .standard
 ) {
-  if start == .all {
-    defaults.removeObject(forKey: pendingStartKey(accountId))
+  if let pending, let encoded = try? JSONEncoder().encode(pending) {
+    defaults.set(encoded, forKey: pendingStartKey(accountId))
   } else {
-    defaults.set(start.rawValue, forKey: pendingStartKey(accountId))
+    defaults.removeObject(forKey: pendingStartKey(accountId))
   }
 }
 
-/// Setup's starting point for the account, handed over once.
-public func takePendingStart(accountId: String, defaults: UserDefaults = .standard) -> StartFrom {
-  let key = pendingStartKey(accountId)
-  let kept = defaults.string(forKey: key).flatMap(StartFrom.init(rawValue:))
-  defaults.removeObject(forKey: key)
-  return kept ?? .all
+/// The account's pending starting point, if channels still wait for it.
+public func pendingStart(accountId: String, defaults: UserDefaults = .standard) -> PendingStart? {
+  defaults.data(forKey: pendingStartKey(accountId)).flatMap {
+    try? JSONDecoder().decode(PendingStart.self, from: $0)
+  }
 }

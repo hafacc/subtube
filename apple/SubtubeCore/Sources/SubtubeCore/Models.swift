@@ -10,20 +10,27 @@ public enum FilterMode: String, Codable, Sendable, CaseIterable {
 
 /// What a channel's regex matches against.
 public enum FilterScope: String, Codable, Sendable, CaseIterable {
+  /// The title only.
   case title
+  /// The title and the description, each on its own.
   case both
+  /// The description only.
   case description
 }
 
 /// Whether a channel contributes its uploads or its playlists to the feed.
 public enum ContentMode: String, Codable, Sendable, CaseIterable {
+  /// Its uploads.
   case videos
+  /// Its playlists, each one feed entry.
   case playlists
 }
 
 /// A video's broadcast kind.
 public enum LiveStatus: String, Codable, Sendable, CaseIterable {
+  /// Scheduled, not started.
   case upcoming
+  /// Live now.
   case live
   /// A finished live stream or premiere.
   case vod
@@ -60,6 +67,7 @@ public struct Subscription: Codable, Sendable, Hashable {
   /// The channel's avatar URL, or empty.
   public var thumbnail: String
 
+  /// A subscription to a channel.
   public init(channelId: String, title: String, thumbnail: String) {
     self.channelId = channelId
     self.title = title
@@ -101,6 +109,8 @@ public struct ChannelFilter: Sendable, Hashable {
   public var topics: [String] = []
   /// Added in subtube rather than subscribed to on YouTube; listed while true.
   public var followed = false
+  /// The names of the groups the channel is in (``filterGroups(_:)``).
+  public var groups: [String] = []
   /// The filter object as read from Drive.
   public var stored: JSONObject = [:]
 
@@ -128,6 +138,7 @@ public struct ChannelFilter: Sendable, Hashable {
     contentMode = parsed.contentMode
     topics = parsed.topics
     followed = parsed.followed
+    groups = parsed.groups
   }
 
   private struct Fields: Equatable {
@@ -142,6 +153,7 @@ public struct ChannelFilter: Sendable, Hashable {
     var contentMode = ContentMode.videos
     var topics: [String] = []
     var followed = false
+    var groups: [String] = []
   }
 
   private static func parse(_ object: JSONObject) -> Fields {
@@ -165,6 +177,7 @@ public struct ChannelFilter: Sendable, Hashable {
       fields.topics = ids.count == listed.count ? knownTopics(ids) : []
     }
     fields.followed = object["followed"]?.boolValue ?? false
+    fields.groups = filterGroups(object)
     return fields
   }
 
@@ -214,16 +227,25 @@ public struct ChannelFilter: Sendable, Hashable {
       changed: topics != read.topics)
     optional(
       "followed", .bool(followed), isDefault: !followed, changed: followed != read.followed)
+    // an emptied `groups` is written as [], and a malformed one stays until the groups change
+    if !groups.elementsEqual(read.groups, by: sameScalars) {
+      object["groups"] = .array(groups.map(JSONValue.string))
+    }
     return object
   }
 }
 
 /// A single upload.
 public struct Video: Codable, Sendable, Hashable {
+  /// YouTube's id of the video.
   public var videoId: String
+  /// The id of the channel that owns it.
   public var channelId: String
+  /// That channel's name.
   public var channelTitle: String
+  /// The video's title, HTML entities decoded.
   public var title: String
+  /// The video's description, as sent.
   public var description: String
   /// ISO 8601, compared as a string for ordering, as the web app does.
   public var publishedAt: String
@@ -238,6 +260,7 @@ public struct Video: Codable, Sendable, Hashable {
   /// YouTube's category id, as written; nil when it has none.
   public var categoryId: String?
 
+  /// A video as fetched.
   public init(
     videoId: String,
     channelId: String,
@@ -267,17 +290,24 @@ public struct Video: Codable, Sendable, Hashable {
 
 /// A channel's playlist, shown as one feed entry.
 public struct Playlist: Codable, Sendable, Hashable {
+  /// YouTube's id of the playlist.
   public var playlistId: String
+  /// The id of the channel that owns it.
   public var channelId: String
+  /// That channel's name.
   public var channelTitle: String
+  /// The playlist's title, HTML entities decoded.
   public var title: String
+  /// The playlist's description, as sent.
   public var description: String
   /// Creation time, ISO 8601; used for feed ordering.
   public var publishedAt: String
   /// Thumbnail URL, or empty.
   public var thumbnail: String
+  /// How many videos it holds.
   public var itemCount: Int
 
+  /// A playlist as fetched.
   public init(
     playlistId: String,
     channelId: String,
@@ -302,7 +332,9 @@ public struct Playlist: Codable, Sendable, Hashable {
 /// A feed entry: a single video or a whole playlist, depending on the channel's
 /// content mode.
 public enum FeedItem: Sendable, Hashable, Identifiable {
+  /// One upload.
   case video(Video)
+  /// A whole playlist.
   case playlist(Playlist)
 
   /// The video id or playlist id: the key for watched state and de-duplication.
@@ -313,6 +345,7 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
     }
   }
 
+  /// The id of the channel that owns the item.
   public var channelId: String {
     switch self {
     case .video(let video): video.channelId
@@ -320,6 +353,7 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
     }
   }
 
+  /// That channel's name.
   public var channelTitle: String {
     switch self {
     case .video(let video): video.channelTitle
@@ -327,6 +361,7 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
     }
   }
 
+  /// The item's title.
   public var title: String {
     switch self {
     case .video(let video): video.title
@@ -334,6 +369,7 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
     }
   }
 
+  /// The item's description.
   public var description: String {
     switch self {
     case .video(let video): video.description
@@ -341,6 +377,7 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
     }
   }
 
+  /// When it was published or created, ISO 8601.
   public var publishedAt: String {
     switch self {
     case .video(let video): video.publishedAt
@@ -348,6 +385,7 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
     }
   }
 
+  /// Thumbnail URL, or empty.
   public var thumbnail: String {
     switch self {
     case .video(let video): video.thumbnail
@@ -382,6 +420,6 @@ public enum FeedItem: Sendable, Hashable, Identifiable {
 
   /// `publishedAt` parsed, or nil when YouTube sent something unexpected.
   public var publishedDate: Date? {
-    try? Date(publishedAt, strategy: .iso8601)
+    parseTimestamp(publishedAt).map { Date(timeIntervalSince1970: Double($0) / 1000) }
   }
 }

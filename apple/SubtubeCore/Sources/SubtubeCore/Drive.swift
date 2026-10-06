@@ -2,7 +2,9 @@ import Foundation
 
 /// A file in the Drive app folder.
 public struct DriveFile: Codable, Sendable, Hashable {
+  /// Drive's id of the file.
   public var id: String
+  /// The file's name.
   public var name: String
   /// RFC 3339, as Drive sends it; compared only for equality.
   public var modifiedTime: String
@@ -10,7 +12,9 @@ public struct DriveFile: Codable, Sendable, Hashable {
 
 /// The Google account behind a token, as Drive reports it.
 public struct DriveUser: Codable, Sendable, Hashable {
+  /// The account's name.
   public var displayName: String
+  /// The account's address, when Drive gives it.
   public var emailAddress: String?
   /// Avatar URL, or nil.
   public var photoLink: String?
@@ -24,9 +28,12 @@ public struct DriveClient: Sendable {
   private static let uploadEndpoint = URL(
     string: "https://www.googleapis.com/upload/drive/v3/files")!
 
+  /// The token every call is made with.
   public let accessToken: String
+  /// The session the calls go through.
   public let session: URLSession
 
+  /// A client for one access token.
   public init(accessToken: String, session: URLSession = .shared) {
     self.accessToken = accessToken
     self.session = session
@@ -84,6 +91,16 @@ public struct DriveClient: Sendable {
   public func download(_ fileId: String) async throws -> Data {
     try await send(
       URLRequest(url: url(Self.filesEndpoint, path: fileId, query: ["alt": "media"])))
+  }
+
+  /// Whether a file is still in Drive, asked for by its id.
+  public func exists(_ fileId: String) async throws -> Bool {
+    do {
+      _ = try await send(URLRequest(url: url(Self.filesEndpoint, path: fileId, query: ["fields": "id"])))
+      return true
+    } catch GoogleAPIError.http(status: 404, _) {
+      return false
+    }
   }
 
   /// Delete a file for good.

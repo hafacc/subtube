@@ -9,7 +9,10 @@ private let namedEntities: [String: String] = [
 /// `don&#39;t`), so they display as typed and per-channel regexes match the
 /// text the user sees. Unknown entities are left as written.
 public func decodeHTMLEntities(_ text: String) -> String {
-  guard text.contains("&") else { return text }
+  text.contains("&") ? decodedEntities(text) : text
+}
+
+private func decodedEntities(_ text: String) -> String {
   var decoded = ""
   var rest = Substring(text)
   while let ampersand = rest.firstIndex(of: "&") {

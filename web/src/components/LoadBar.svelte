@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Progress } from "bits-ui";
   import { untrack } from "svelte";
 
   let {
@@ -38,17 +39,18 @@
 </script>
 
 {#if shown !== null}
-  <div
-    class="load-bar"
-    class:leaving={leaving}
-    role="progressbar"
-    aria-labelledby={labelledby}
-    aria-valuemin="0"
-    aria-valuemax="100"
-    aria-valuenow={Math.round(shown * 100)}
-  >
-    <div class="fill" style:width={`${shown * 100}%`}></div>
-  </div>
+  <Progress.Root value={Math.round(shown * 100)} aria-labelledby={labelledby}>
+    {#snippet child({
+      props,
+    })}
+      <div {...props} class="load-bar" class:leaving={leaving}>
+        <div
+          class="fill"
+          style:width={`${shown === null ? 0 : shown * 100}%`}
+        ></div>
+      </div>
+    {/snippet}
+  </Progress.Root>
 {/if}
 
 <style>

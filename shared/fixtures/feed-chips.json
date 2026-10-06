@@ -1,5 +1,5 @@
 {
-  "description": "The chips at the top of the feed and of a channel's page, the topics in a channel's filter editor, and setup's starting point. A topic is one of YouTube's video categories, identified everywhere (on a video, in the `topicChips` setting, in a filter's `topics`) by YouTube's category id, a string, taken as written from videos.list `snippet.categoryId`; a video has at most one, a playlist none. Only these fifteen ids are topics, shown under these labels: 1 Film & Animation, 2 Autos & Vehicles, 10 Music, 15 Pets & Animals, 17 Sports, 19 Travel & Events, 20 Gaming, 22 People & Blogs, 23 Comedy, 24 Entertainment, 25 News & Politics, 26 Howto & Style, 27 Education, 28 Science & Technology, 29 Nonprofits & Activism. `op` says what a case checks. `label`: the label of `categoryId` (absent means the video has none); `expected` is the label, or null for an id not in the table. The chip row holds, in this order: the auto-play chip, which shows \"Play one\" when the `autoplay` setting is off (the default) and \"Auto-play\" when it is on, and on each press switches to the other; the sort chip, which shows the `feedSort` setting's label and on each press moves to the next of Latest (newest), Shortest (shortest), Title (title), Random (random), then back to Latest; the time chip, which shows the `timeChip` setting's label and on each press moves to the next of All time (none), Past day (day), Past week (week), Past month (month), then back to All time; the watched chip, which on each press moves to the next of Unwatched (the default: only items that are not watched), Watched (only watched items), All (both), then back to Unwatched, and is kept on the device for the visit, not synced; then the topic chips, each a toggle, any number selected. Between the divider and the first topic chip the row has a round chip showing only an ×, named \"Clear topics\", whenever it has at least one topic chip: a press sets the row's topic setting to [] and changes nothing else; while no id of the table is selected it stays in its place, dimmed and disabled, so no topic chip moves when one is toggled. The cycling chips are never drawn as selected. An item that becomes watched or unwatched while its list is on screen stays listed, whatever the watched chip says, until the next full load, a filter edit, or a change of the watched, time or topic chips. Auto-play moves on to the next unwatched item under Unwatched and All, and not at all under Watched. The channel list's sort chip moves the same way through the `channelSort` setting: Latest (newest), Name (name), Unwatched (unwatched). `chips`: the topic chips shown for a list, as ids in order. `items` is the current list after the per-channel filters and the watched chip and before the chips' own filtering; each has its `categoryId` (absent means none). A chip is shown for every id in the table that at least one item has, and for every id in the table that is in `selected` (the `topicChips` setting) even when no item has it; an id not in the table gets no chip. Order: by the number of items having the id, most first; ties by label ignoring case (lowercased code point by code point as the feed's `title` sort does, shared/fixtures/feed-order.json). `filter`: what the chips keep; `expected` is the kept ids in the order given (sorting is separate). `timeChip` none keeps every item; day, week and month keep an item when `now` minus its `publishedAt` is at most 86400000, 604800000 and 2592000000 ms (24 hours, 7 days, 30 days); `now` is in milliseconds since the Unix epoch, `publishedAt` is an RFC 3339 UTC time that may carry fractional seconds, and here it must be read as an instant. Of `topicChips` only the ids in the table count; with none of those every item passes, otherwise an item passes when its `categoryId` is one of them, so a playlist, a video without a category and a video whose category is not in the table do not. An item must pass both. A page with nothing to list says \"Nothing new. You're caught up.\" when the watched chip is on Unwatched, the time chip on All time and no topic chip is selected; otherwise it says \"No videos for selected filter\". The chips do not change the channel list's unwatched counts. `editor`: the topics in a channel's filter editor, where every one of the fifteen is a toggle for the filter's `topics` (shared/fixtures/filters.json); `items` is everything fetched for the channel, and `expected` all fifteen ids in order: by the number of the channel's videos having the id, most first, ties by label ignoring case. `start`: setup's \"Where to start\" choice (all, the default; day; week). At the first feed load after setup, every fetched item of the channels that are on, whether or not it passes a filter, with `now` minus `publishedAt` greater than the span (the items the same time chip would drop) is marked watched in one save; `expected` is those ids in the order given. `all` marks nothing. The choice is kept on the device, not synced.",
+  "description": "The chips at the top of the feed and of a channel's page, the topics in a channel's filter editor, and setup's starting point. A topic is one of YouTube's video categories, identified everywhere (on a video, in the `topicChips` setting, in a filter's `topics`) by YouTube's category id, a string, taken as written from videos.list `snippet.categoryId`; a video has at most one, a playlist none. Only these fifteen ids are topics, shown under these labels: 1 Film & Animation, 2 Autos & Vehicles, 10 Music, 15 Pets & Animals, 17 Sports, 19 Travel & Events, 20 Gaming, 22 People & Blogs, 23 Comedy, 24 Entertainment, 25 News & Politics, 26 Howto & Style, 27 Education, 28 Science & Technology, 29 Nonprofits & Activism. `op` says what a case checks. `label`: the label of `categoryId` (absent means the video has none); `expected` is the label, or null for an id not in the table. The chip row holds, in this order: the auto-play chip, which shows \"Play one\" when the `autoplay` setting is off (the default) and \"Auto-play\" when it is on, and on each press switches to the other; the sort chip, which shows the `feedSort` setting's label and on each press moves to the next of Latest (newest), Shortest (shortest), Title (title), Random (random), then back to Latest; the time chip, which shows the `timeChip` setting's label and on each press moves to the next of All time (none), Past day (day), Past week (week), Past month (month), then back to All time; the watched chip, which on each press moves to the next of Unwatched (the default: only items that are not watched), Watched (only watched items), All (both), then back to Unwatched, and is kept on the device for the visit, not synced; then the topic chips, each a toggle, any number selected. Between the divider and the first topic chip the feed's row has the \"New group\" chip and the group chips (shared/fixtures/groups.json), then a second divider before the topic chips; a channel's page has none of these; no chip moves when one is toggled. The row has no chip that clears the topics: the title's \"Clear\" button does (shared/fixtures/groups.json, `title`). The cycling chips are never drawn as selected. An item that becomes watched or unwatched while its list is on screen stays listed, whatever the watched chip says, until the next full load, a filter edit, or a change of the watched, time, topic or group chips. Auto-play moves on to the next unwatched item under Unwatched and All, and not at all under Watched. The channel list's sort chip moves the same way through the `channelSort` setting: Latest (newest), Name (name), Unwatched (unwatched). `chips`: the topic chips shown for a list, as ids in order. `items` is the current list after the per-channel filters and the watched chip and before the chips' own filtering; each has its `categoryId` (absent means none). A chip is shown for every id in the table that at least one item has, and for every id in the table that is in `selected` (the `topicChips` setting) even when no item has it; an id not in the table gets no chip. Order: by the number of items having the id, most first; ties by label ignoring case (lowercased code point by code point as the feed's `title` sort does, shared/fixtures/feed-order.json). `filter`: what the chips keep; `expected` is the kept ids in the order given (sorting is separate). `timeChip` none keeps every item; day, week and month keep an item when `now` minus its `publishedAt` is at most 86400000, 604800000 and 2592000000 ms (24 hours, 7 days, 30 days); `now` is in milliseconds since the Unix epoch, `publishedAt` is an RFC 3339 UTC time that may carry fractional seconds, and here it must be read as an instant. Of `topicChips` only the ids in the table count; with none of those every item passes, otherwise an item passes when its `categoryId` is one of them, so a playlist, a video without a category and a video whose category is not in the table do not. An item must pass both. A page with nothing to list says \"Nothing new. You're caught up.\" when the watched chip is on Unwatched, the time chip on All time, no topic chip is selected and no existing group is selected (on the feed; a channel's page has no groups); otherwise it says \"No videos for selected filter\". The chips do not change the channel list's unwatched counts. `groupFilter`: what the feed keeps with group chips selected. `channelGroups` is every listed channel's groups by channel id (shared/fixtures/groups.json, `groups`; a channel absent from it is not listed), `groupChips` the setting, and each item has its `channelId`. Of `groupChips` only the names that are an existing group count; with none of those every item passes, otherwise an item passes when its channel is in any of them. The time and topic chips then apply as in `filter`: an item must pass all three. The group chips change neither which topic chips are offered, nor the order, nor any unwatched count, and do nothing on a channel's page. `editor`: the topics in a channel's filter editor, where every one of the fifteen is a toggle for the filter's `topics` (shared/fixtures/filters.json); `items` is everything fetched for the channel, and `expected` all fifteen ids in order: by the number of the channel's videos having the id, most first, ties by label ignoring case. `start`: setup's \"Where to start\" choice (all, the default; day; week). At the first feed load after setup, every fetched item of the channels that are on, whether or not it passes a filter, with `now` minus `publishedAt` greater than the span (the items the same time chip would drop) is marked watched in one save; `expected` is those ids in the order given. `all` marks nothing. The choice is kept on the device, not synced.",
   "cases": [
     {
       "name": "label: category 1",
@@ -801,6 +801,768 @@
       "expected": [
         "second-over",
         "year"
+      ]
+    },
+    {
+      "name": "groupFilter: no group keeps everything",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [],
+      "timeChip": "none",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "k1",
+        "k2",
+        "b1",
+        "n1",
+        "s1",
+        "x1",
+        "list"
+      ]
+    },
+    {
+      "name": "groupFilter: one group keeps its channels' items",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "k1",
+        "k2",
+        "b1",
+        "n1",
+        "list"
+      ]
+    },
+    {
+      "name": "groupFilter: several groups keep the channels in any of them",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Outdoors",
+        "Music"
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "n1",
+        "s1",
+        "list"
+      ]
+    },
+    {
+      "name": "groupFilter: a group and a topic must both hold",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "26"
+      ],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "k1",
+        "k2"
+      ]
+    },
+    {
+      "name": "groupFilter: a group and the time chip must both hold",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "timeChip": "week",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "k1",
+        "b1",
+        "list"
+      ]
+    },
+    {
+      "name": "groupFilter: a group, a topic and the time chip must all hold",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Making"
+      ],
+      "timeChip": "day",
+      "topicChips": [
+        "28",
+        "10"
+      ],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "b1"
+      ]
+    },
+    {
+      "name": "groupFilter: a group and a topic with nothing in both keep nothing",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Outdoors"
+      ],
+      "timeChip": "none",
+      "topicChips": [
+        "10"
+      ],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "groupFilter: a name of no group is ignored",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Gone"
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "k1",
+        "k2",
+        "b1",
+        "n1",
+        "s1",
+        "x1",
+        "list"
+      ]
+    },
+    {
+      "name": "groupFilter: a name of no group beside an existing one does not widen it",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "Gone",
+        "Outdoors"
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "s1"
+      ]
+    },
+    {
+      "name": "groupFilter: names match exactly, so another case is no group",
+      "op": "groupFilter",
+      "now": 1790000000000,
+      "channelGroups": {
+        "UCk": [
+          "Making"
+        ],
+        "UCb": [
+          "Making"
+        ],
+        "UCn": [
+          "Making",
+          "Music"
+        ],
+        "UCs": [
+          "Outdoors"
+        ],
+        "UCx": []
+      },
+      "groupChips": [
+        "making"
+      ],
+      "timeChip": "none",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "k1",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-21T10:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "k2",
+          "channelId": "UCk",
+          "publishedAt": "2026-09-01T00:00:00Z",
+          "categoryId": "26"
+        },
+        {
+          "id": "b1",
+          "channelId": "UCb",
+          "publishedAt": "2026-09-20T15:00:00Z",
+          "categoryId": "28"
+        },
+        {
+          "id": "n1",
+          "channelId": "UCn",
+          "publishedAt": "2026-08-01T00:00:00Z",
+          "categoryId": "10"
+        },
+        {
+          "id": "s1",
+          "channelId": "UCs",
+          "publishedAt": "2026-09-18T00:00:00Z",
+          "categoryId": "19"
+        },
+        {
+          "id": "x1",
+          "channelId": "UCx",
+          "publishedAt": "2026-09-21T00:00:00Z",
+          "categoryId": "20"
+        },
+        {
+          "id": "list",
+          "channelId": "UCn",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "k1",
+        "k2",
+        "b1",
+        "n1",
+        "s1",
+        "x1",
+        "list"
       ]
     }
   ]

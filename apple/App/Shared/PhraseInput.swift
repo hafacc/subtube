@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The field a phrase is typed into. Return hands the text to `onSubmit`;
-/// Delete in the empty field calls `onDeleteWhenEmpty`. The system's own
-/// field is used because SwiftUI's doesn't report either key on a phone.
+/// The field a phrase is typed into. Return, and leaving the field, hand
+/// the text to `onSubmit`; Delete in the empty field calls
+/// `onDeleteWhenEmpty`. The system's own field is used because SwiftUI's
+/// doesn't report either key on a phone.
 struct PhraseInput {
   @Binding var text: String
   let prompt: String
@@ -52,6 +53,12 @@ struct PhraseInput {
       }
     }
 
+    func controlTextDidEndEditing(_ notification: Notification) {
+      if let field = notification.object as? NSTextField, !field.stringValue.isEmpty {
+        input.onSubmit()
+      }
+    }
+
     func control(
       _ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector
     ) -> Bool {
@@ -73,6 +80,7 @@ struct PhraseInput {
     func makeUIView(context: Context) -> UITextField {
       let field = DeleteReportingTextField()
       field.placeholder = prompt
+      field.accessibilityLabel = prompt
       field.delegate = context.coordinator
       field.autocorrectionType = .no
       field.autocapitalizationType = .none
@@ -106,6 +114,12 @@ struct PhraseInput {
     func textFieldShouldReturn(_ field: UITextField) -> Bool {
       input.onSubmit()
       return false
+    }
+
+    func textFieldDidEndEditing(_ field: UITextField) {
+      if !(field.text ?? "").isEmpty {
+        input.onSubmit()
+      }
     }
   }
 

@@ -27,9 +27,9 @@
   } = $props();
 
   const HEADING: Record<FilterScope, string> = {
-    title: "Title pattern",
-    both: "Text pattern",
-    description: "Description pattern",
+    title: "Title phrases",
+    both: "Text phrases",
+    description: "Description phrases",
   };
 
   // the phrase being typed, not yet a chip

@@ -3,16 +3,23 @@ import Foundation
 /// Any JSON value, kept whole so fields this version doesn't know survive a
 /// read and a write.
 public enum JSONValue: Sendable, Hashable, Codable {
+  /// `null`.
   case null
+  /// `true` or `false`.
   case bool(Bool)
   /// A whole number; a decoded number lands here whenever it is whole and
   /// fits.
   case integer(Int64)
+  /// Any other number.
   case double(Double)
+  /// Text.
   case string(String)
+  /// A list of values.
   case array([JSONValue])
+  /// Values by name.
   case object(JSONObject)
 
+  /// Decode whatever JSON value is there.
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     if container.decodeNil() {
@@ -36,6 +43,7 @@ public enum JSONValue: Sendable, Hashable, Codable {
     }
   }
 
+  /// Encode the value as the JSON it stands for.
   public func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
     switch self {
@@ -61,18 +69,22 @@ public enum JSONValue: Sendable, Hashable, Codable {
     return try encoder.encode(self)
   }
 
+  /// The object, when the value is one.
   public var objectValue: JSONObject? {
     if case .object(let value) = self { value } else { nil }
   }
 
+  /// The text, when the value is text.
   public var stringValue: String? {
     if case .string(let value) = self { value } else { nil }
   }
 
+  /// The truth value, when the value is one.
   public var boolValue: Bool? {
     if case .bool(let value) = self { value } else { nil }
   }
 
+  /// The whole number, when the value is one.
   public var integerValue: Int64? {
     if case .integer(let value) = self { value } else { nil }
   }

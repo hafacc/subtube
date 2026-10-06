@@ -1,12 +1,22 @@
+import { ExtensionMissingError, SignInRequiredError } from "./errors";
 import { type Platform, platform, type Token } from "./platform";
 import { TokenExpiredError } from "./youtube";
 
 // Renew a little before expiry so in-flight calls never 401.
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
+/** The account a token renewed without UI must be for. */
+export interface ExpectedAccount {
+  /** the Google account's address, passed to Google as the hint; absent when it isn't known */
+  loginHint?: string;
+  /** whether a token is this account's */
+  owns(token: string): Promise<boolean>;
+}
+
 let accessToken: string | null = null;
 let expiresAt = 0;
 let renewal: Promise<string> | null = null;
+let expected: ExpectedAccount | null = null;
 
 function apply(token: Token): string {
   accessToken = token.accessToken;
@@ -23,20 +33,18 @@ export function hasToken(): boolean {
   return tokenIsFresh();
 }
 
-/** Thrown when only an interactive sign-in can produce a token. */
-export class SignInRequiredError extends Error {
-  constructor() {
-    super("Sign in again to continue.");
-    this.name = "SignInRequiredError";
-  }
+/** Forget the token without telling the extension, e.g. when another tab changed the account. */
+export function forgetToken(): void {
+  accessToken = null;
+  expiresAt = 0;
 }
 
-/** Thrown when the extension the web app needs isn't installed. */
-export class ExtensionMissingError extends Error {
-  constructor() {
-    super("The SubTube extension isn't installed.");
-    this.name = "ExtensionMissingError";
-  }
+/**
+ * Say whose tokens silent renewals are for: one that turns out to be another
+ * account's is not used. Null while nobody is signed in.
+ */
+export function expectAccount(account: ExpectedAccount | null): void {
+  expected = account;
 }
 
 async function required(): Promise<Platform> {
@@ -48,19 +56,28 @@ async function required(): Promise<Platform> {
   }
 }
 
-async function renew(current: Platform): Promise<string> {
-  const token = await current.silentToken();
-  if (token) {
+async function renew(current: Platform, fresh: boolean): Promise<string> {
+  const account = expected;
+  const token = await current.silentToken({
+    ...(account?.loginHint ? { loginHint: account.loginHint } : {}),
+    ...(fresh ? { fresh } : {}),
+  });
+  if (token && (!account || (await account.owns(token.accessToken)))) {
     return apply(token);
   } else {
     throw new SignInRequiredError();
   }
 }
 
-/** A fresh token without UI; rejects with {@link SignInRequiredError} when there is none. */
-export function silentRefresh(): Promise<string> {
+/**
+ * A new token without UI; rejects with {@link SignInRequiredError} when there
+ * is none, or when Google answers for another account than the one signed in.
+ * `refused` says Google refused the token at hand, so the extension must not
+ * hand that one back.
+ */
+export function silentRefresh(refused = false): Promise<string> {
   renewal ??= required()
-    .then(renew)
+    .then((current) => renew(current, refused))
     .finally(() => {
       renewal = null;
     });
@@ -76,16 +93,22 @@ export async function getValidToken(): Promise<string> {
   }
 }
 
-/** Interactive sign-in through the extension. */
+/** Interactive sign-in through the extension; Google's account chooser may give another account. */
 export async function signIn(): Promise<string> {
   return apply(await (await required()).signIn());
 }
 
-/** Forget the token and have the extension revoke it. */
+/** Forget the token here and in the extension; Google's grant stays. */
 export async function signOut(): Promise<void> {
-  accessToken = null;
-  expiresAt = 0;
+  forgetToken();
   await (await required()).signOut();
+}
+
+/** Forget the token and withdraw the grant at Google, which signs every device out. */
+export async function revokeAccess(): Promise<void> {
+  const current = await required();
+  forgetToken();
+  await current.revoke();
 }
 
 /**
@@ -99,7 +122,8 @@ export async function withToken<Result>(
     return await request(await getValidToken());
   } catch (caught) {
     if (caught instanceof TokenExpiredError) {
-      return request(await silentRefresh());
+      forgetToken();
+      return request(await silentRefresh(true));
     } else {
       throw caught;
     }

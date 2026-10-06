@@ -1,3 +1,4 @@
+import { readJson, writeJson } from "./storage";
 import type { ChannelInfo } from "./types";
 import {
   fetchChannelsById,
@@ -20,26 +21,11 @@ interface StoredInfo extends ChannelInfo {
 }
 
 function readStored(): Record<string, StoredInfo> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, StoredInfo>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeStored(stored: Record<string, StoredInfo>): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  } catch {
-    // the next load looks them up again
-  }
+  return readJson<Record<string, StoredInfo>>(STORAGE_KEY) ?? {};
 }
 
 /** The kept identity of each of these channels, without asking YouTube. */
-export function cachedChannelInfo(
-  channelIds: string[],
-): Map<string, ChannelInfo> {
+function cachedChannelInfo(channelIds: string[]): Map<string, ChannelInfo> {
   const stored = readStored();
   const found = new Map<string, ChannelInfo>();
   for (const channelId of channelIds) {
@@ -53,11 +39,7 @@ export function cachedChannelInfo(
 
 /** Forget every kept channel identity. */
 export function clearChannelInfo(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // nothing was kept
-  }
+  writeJson(STORAGE_KEY, null);
 }
 
 /**
@@ -86,7 +68,7 @@ export async function channelInfo(
           fetchedAt: now,
         };
       }
-      writeStored(stored);
+      writeJson(STORAGE_KEY, stored);
     } catch (caught) {
       if (
         caught instanceof TokenExpiredError ||

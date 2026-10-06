@@ -43,9 +43,11 @@ By user agent at load: phone/tablet (incl. iPadOS's desktop UA + touch) →
 `GetApp` (iOS/iPad/Android); desktop Safari → `GetApp platform="mac"`; other
 non-Chromium desktop browsers → `ExtensionRequired` (needs Chrome, links to
 it); Chromium → `Shell`, told whether the extension answered a ping (it times
-out after 500 ms). With the extension: first-run `Nux` until setup is done on
-this browser (`subtube.setupDone`), then `Feed`; signed out after setup → Nux
-opens at its sign-in step. Without it there is no warning page: `Nux` runs,
+out after 500 ms). With the extension: first-run `Nux` until setup is done
+for the account on this browser (`subtube.setupDone.<account>`, one mark per
+account; signing out clears none), then `Feed`; signed out on a browser where
+any account finished setup → Nux opens at its sign-in step, and an account
+with no mark here goes on through setup. Without it there is no warning page: `Nux` runs,
 from its start for a new browser or at its "Add the Chrome extension" step
 when setup was done or an account is known. That step links to the Chrome Web
 Store (`chromeWebStoreUrl`), pings every 1.5 s, and keeps Next disabled until
@@ -53,8 +55,24 @@ the extension answers. A page can only message an extension that was there
 when it loaded, so on coming back to the tab with no answer the step reloads
 the page and reopens there (`subtube.setupAtExtension` in sessionStorage).
 After sign-in, before "Choose channels", `Nux` loads the Drive folder: any
-`device-*.json` there (`hasProfile` in `sync-merge.ts`) marks setup done and
-opens the feed.
+`device-*.json` of ANOTHER device there (`SyncStore.profileFound`, `hasProfile`
+in `sync-merge.ts`) marks setup done and opens the feed. This device's own
+file never counts, so a reload part-way through setup, after "Choose
+channels" saved the switches, goes on with setup.
+
+## Content-Security-Policy (`index.html`, `privacy.html`, `terms.html`)
+
+Each page carries a `<meta http-equiv="Content-Security-Policy">` first in its
+head (Pages can't send headers). The app's lets in its own files, the inline
+theme script by its hash, `https://www.youtube.com` for the IFrame API script
+and the player's frame, pictures from `*.ytimg.com`, `*.ggpht.com` and
+`*.googleusercontent.com`, and requests to `https://www.googleapis.com`
+(YouTube and Drive); `'self'` covers the dev server's module scripts and its
+reload socket, and `style-src` has `'unsafe-inline'` for the `style:`
+attributes and the dev server's style tags. The two policy pages allow only
+their own files and the theme script. `src/lib/csp.test.ts` fails when an
+inline script and its hash drift. A new host the app loads from (a picture
+host, another API) must be added there.
 
 ## Loading
 
@@ -88,7 +106,7 @@ values, named by the page's `h1`.
 
 - `src/lib/` — logic, ported from the old root `src/` and tested with `bun test`
   against `../shared/fixtures` (patterns, filters, merge, prune, Shorts, feed
-  order, channel order, channel chips, settings, feed chips, phrases, watch progress, and every `device-files/` example against the JSON Schema via ajv).
+  order, channel order, channel chips, settings, feed chips, groups, phrases, watch progress, the card swipe's rules, and every `device-files/` example against the JSON Schema via ajv).
   `bunfig.toml` preloads `scripts/test-svelte-modules.ts`, which compiles
   `.svelte.ts` modules so tests can drive `FeedController` (`feed.test.ts`).
   - `types.ts` — `ChannelFilter` is exactly the Drive file's filter: **no
@@ -97,17 +115,31 @@ values, named by the page's `h1`.
   - `sync-merge.ts` / `sync-store.ts` / `drive.ts` — per-device Drive files.
     `setFilter(channelId, filter)` strips identity keys and keeps unknown ones;
     every write goes through `sanitizeDeviceFile` + prune. Unsent edits live in
-    localStorage and go up after the next load. `close()` stops uploads before
-    the token can become another account's. An edit keeps unknown fields
+    localStorage and go up after the next load. **Tabs of one browser are
+    one device**: before it writes to localStorage or uploads, a store takes
+    in what another tab kept there (`absorbStored`, `mergeOwnCopies`: the
+    entry saved last, of two saved at once the one seen in a load last), and
+    `Session` passes the window's `storage` event to `storageChanged`. Saves
+    run one tab at a time (`navigator.locks`), a save with no file id loads
+    again first, and a load that finds several files under this device's
+    name merges them into the first by id and deletes the rest, so two tabs
+    never leave two files. A Drive request Google refuses (401) renews the
+    token once and runs again (`renew`, the constructor's fourth argument).
+    `close()` stops uploads before the token can become another account's. An edit keeps unknown fields
     beside `at` (`editedEntry`); unsent edits go up again after the next
     load and when the tab is hidden; a Drive file of this device that this
     version can't read is never overwritten. `deleteProfile()` (Settings →
-    "Delete profile") deletes every file in the Drive folder, then the local
-    copy; `Session.deleteProfile` also drops the kept channel names and
-    the setup-done mark, signs out, and setup starts over. A store marks in
-    localStorage (`subtube.uploaded.<account>`) that its file was uploaded; a
-    later successful listing without that file (`deletedElsewhere`) means
-    another device deleted the profile: the store wipes its copy, throws
+    "Delete profile") deletes every file in the Drive folder, this device's
+    last, then the local copy; `Session.deleteProfile` also drops the kept
+    channel names and the account's setup-done mark, withdraws Google's
+    grant (`revokeAccess`: the only place that does), signs out, and setup
+    starts over. Another tab hears of it through the `storage` event and
+    forgets the profile too. A store keeps in localStorage
+    (`subtube.uploaded.<account>`) its uploaded file's id; a later listing
+    without that file is looked at twice (`ownFiles`: the file asked for by
+    its id, then the folder listed again, and never a listing asked for
+    before one of this store's creates ended) before it means another device
+    deleted the profile: the store wipes its copy, throws
     `ProfileDeletedError`, and the session goes back to setup, still signed in.
     A watched entry is written by `markedEntry` (a mark keeps the entry's
     `position`, an unmark drops it) or `playedEntry` (`position`, with
@@ -129,8 +161,8 @@ values, named by the page's `h1`.
     phrases) / `phrasePatternOnly`. `compileFilter` applies a pattern only
     when it reads back as phrases.
   - `settings.ts` — the synced settings (`feedSort`, `channelSort`,
-    `autoplay`, `timeChip`, `topicChips`, and the channel list's own
-    `channelTimeChip` and `channelTopicChips`) read out of the Drive files'
+    `autoplay`, `timeChip`, `topicChips`, `groupChips`, and the channel list's own
+    `channelTimeChip`, `channelTopicChips` and `channelGroupChips`) read out of the Drive files'
     `settings` map, which merges like the other maps; a missing or unknown
     value reads as the default and the entry is kept. `SyncStore.settings()` /
     `setSetting(name, value)` hold the raw entries; `FeedController.settings`
@@ -147,9 +179,47 @@ values, named by the page's `h1`.
     YouTube category id, kept on `Video.categoryId`; `topicLabel` is null for
     any other id, which gets no chip and matches nothing), the topic chips'
     order (`chipRow`), the filter editor's (`editorTopics`), what the time and
-    topic chips keep (`chipFiltered`), and setup's starting point
-    (`startMarks`; the choice waits in localStorage as
-    `subtube.startFrom.<account>` for the first load after setup).
+    topic chips keep (`chipFiltered`), and what a starting point marks
+    (`startMarks`).
+  - `setup-start.ts` — setup's starting point, applied channel by channel
+    (`shared/fixtures/setup-start.json`): "Open my feed" keeps
+    `{start, cutoff, channels}` in localStorage as
+    `subtube.startFrom.<account>` (`pendingStart`: the choice, that moment
+    and the channels then on; nothing for "All time"). Each time a
+    channel's items are fetched in full, by a load or by itself,
+    `applyStart` marks its items from before the cut-off less the span and
+    takes it out of the record (`FeedController.markBeforeStart`); a channel
+    that failed or was skipped stays until a later fetch, and the record is
+    dropped once empty.
+  - `storage.ts` — the one place that touches localStorage (`readText`,
+    `writeText`, `readJson`, `writeJson`, `keysWith`); a read that fails
+    finds nothing and a write that fails is dropped.
+  - `errors.ts` — `ShownError`: an error whose message is the text shown
+    (daily limit, missing permission, sign in again, the extension, no
+    YouTube channel). `shownMessage(caught)` gives that message, and for
+    anything else — a request that got no answer, a status Google answered
+    with, an OAuth code — the one text "Couldn't reach Google. Check your
+    connection and try again."; the detail goes to the console only. A
+    sign-in the user calls off (`SignInCancelledError`) shows nothing.
+  - `groups.ts` — groups of channels (`shared/fixtures/groups.json`): a
+    group is a name in the `groups` of its channels' saved filters.
+    `groupName` (typed text → name or null), `filterGroups`, `groupNames`
+    (the groups that exist: named by a listed channel, in chip order),
+    `groupKeptChannels` (what selected groups keep; null = everything) and
+    `keptByBoth`, `chipTitle` (what a row's title shows), and the edits
+    `setMembers` / `renameGroup` / `deleteGroup` / `saveGroup` (the editor's
+    "Save"), which return a `GroupEdit`
+    (changed filters by channel id + changed settings) and touch nothing.
+    `FeedController.groups` is the chip list; `saveGroup` and
+    `deleteGroup` apply an edit to `channels`, save its
+    filters in one `SyncStore.setFilters` (over `savedFilters()`, which has
+    the channels no longer listed too) and set the settings; a save counts
+    only listed channels as members;
+    `toggleGroupChip` / `toggleChannelGroupChip` select, and
+    `clearChips("feed" | "channels")` empties a row's groups and topics.
+    The feed's groups filter `beforeChips` before `chipFiltered` (not on a
+    channel's page) and count for `emptiedBySelection`; the channel list's
+    narrow `chipChannels`, so with only a group selected off channels stay.
   - `autoplay.ts` — `AUTOPLAY_OPTIONS` (the auto-play chip's two labels) and
     `nextUnwatched`: what plays after an item ends.
   - `watched-mode.ts` — the watched chip: `modeFiltered` (Unwatched /
@@ -161,7 +231,16 @@ values, named by the page's `h1`.
     device; with an upload on pause, on leaving and, at once, when the tab is
     hidden), marks it at the player's reported end and calls `onended`.
     Nothing is saved for a live broadcast or a playlist; a playlist is marked
-    when its last video ends. Tested with a fake player (`playback.test.ts`).
+    when its last video ends. `cover(true)` pauses it and `cover(false)`
+    plays again what that paused; `ontoggle` reports a pause or play that
+    was not `cover`'s. Tested with a fake player (`playback.test.ts`).
+  - `player.ts` / `player.svelte.ts` — the one player, with no DOM
+    (`player.test.ts`): `PlayerController` (`play`, `minimize`, `expand`,
+    `enlarge`, `close`, `ended`, `routeChanged`, `pageChanged`, `cardLost`,
+    and `isPlaying` / `inCard` for the cards) over the
+    rules `nextInQueue`, `endOutcome`, `afterRoute`, and the boxes
+    `largeBox`, `minimizedBox`, `cardHolds`, `clipped`. See "Playing"
+    below.
   - `channel-info.ts` — names/pictures of followed (non-subscribed) channels:
     `channels.list?id=` 50 per call, kept in localStorage, refreshed daily.
   - `feed.svelte.ts` — `FeedController`: load (subscriptions + Drive in
@@ -170,11 +249,11 @@ values, named by the page's `h1`.
     chips (counted over the current page's items after the filters and the
     watched chip — `watchedMode`, kept for the visit only, not synced — then
     applied; the unwatched counts ignore them; `emptiedBySelection` is why
-    an empty page reads "No videos for selected filter" rather than "Nothing
+    an empty page reads "No videos for the selected filter." rather than "Nothing
     new. You're caught up."), the
     order (every passing item, in the `feedSort` order; a video that becomes
     watched or unwatched here stays until the next full load, filter edit or
-    change of the watched, time or topic chips — not when moving between the
+    change of the watched, time, topic or group chips — not when moving between the
     feed and a channel page, nor when one channel's fetch lands),
     `autoplayNext` (the next unwatched item of the page, null with
     "Auto-play" off or in Watched), watched marks and progress (`watched` and `bars`
@@ -186,8 +265,14 @@ values, named by the page's `h1`.
     missing (`isMissing`: its mode's items never fetched or failed in the
     last load, or the Shorts list — see below), at most 6 at a
     time, and after a running load ends. Refresh also refetches the open
-    page of a channel that is off. Any fetch whose token Google refuses
-    renews it once and retries (`withToken` in `auth.ts`). `Prefetch` fetches
+    page of a channel that is off. Any request whose token Google refuses
+    renews it once and retries (`withToken` in `auth.ts`; the store's own
+    for Drive), asking the extension for a token it has not handed out
+    before; a full load starts over instead. A channel's own fetch that
+    fails leaves the page as it is and shows the partial-results notice,
+    not the error banner; a failure signing in fixes goes to the session
+    (`needsSignIn`), which shows the banner with "Sign in". The empty text
+    is not shown beside an error. `Prefetch` fetches
     the items of the channels `fetchOnly` names, 6 at a time, before the feed
     opens; a later `fetchOnly` keeps what is fetched or being fetched for
     channels still named (adding only the Shorts list when a filter has come
@@ -205,7 +290,11 @@ values, named by the page's `h1`.
     one request, none without a candidate) when only that lacks, and fetches
     everything otherwise. Until the list arrives the Shorts gate hides the
     unjudged candidates. Only the Shorts gate in `filters.ts` and
-    `FeedCard`'s tag read `isShort`.
+    `FeedCard`'s tag read `isShort`. A channel whose Shorts list YouTube
+    answers "not found" for has no Shorts; the extension's `/shorts/{id}`
+    probe runs only when the list couldn't be read (`fetchShortIds` gives
+    "failed": a 5xx again after one retry, or no answer). An uploads list
+    answered "not found" is a channel with no uploads, not a failed channel.
     **Daily limit**: a 403 whose body has `error.errors[].reason`
     `quotaExceeded` or `dailyLimitExceeded` (`isDailyLimit`; not the
     per-minute `rateLimitExceeded`) is a `DailyLimitError`, whose message is
@@ -254,34 +343,79 @@ values, named by the page's `h1`.
     are not going somewhere.
   - `session.svelte.ts` — account, token state, the account's `SyncStore`.
   - `router.ts` / `router.svelte.ts` — `?channel=x&v=y|list=y`; the item
-    is the player open over the app, so Back closes it and a reload or deep
-    link reopens it over the feed. Auto-play moves on with `replace`, so
-    Back still closes. A card playing in place is not in the URL.
+    is in the URL only while the player is large. Minimizing drops it by
+    going back (`Router.close`), so Back from large minimizes, Back while
+    minimized goes back a page with the player still there, and Forward
+    onto the playing item makes it large again (`afterRoute`). Every entry
+    the app makes carries in `history.state` how many of its entries lie
+    before it (`depth`), which is how `close` knows it can go back, also
+    after Back, Forward and a reload. A reload or
+    a link with an item opens it large, also in a narrow window. Auto-play
+    moves on with `replace`. A minimized player or one in a card is not in
+    the URL, so a reload drops it.
   - `platform/` + `auth.ts` — the extension bridge. Protocol types come from
-    `../extension/src/protocol.ts` (type-only import; single source).
-  - `config.ts` — public ids and store links (TODO constants).
+    `../extension/src/protocol.ts` (type-only import; single source). A
+    silent renewal names the account (`loginHint`, the address Drive gave at
+    sign-in) and the token is checked to be that account's before it is
+    used (`expectAccount`; `Session.owns` asks Drive's `about` for its
+    `permissionId`), so with two Google accounts in the browser the app
+    never works with the other one's token. `signOut` only forgets the
+    token; `revokeAccess` also withdraws the grant.
+  - `session.svelte.ts` also follows other tabs: the `storage` event for
+    `subtube.account` signs this tab in, out or over to the other account.
+  - `config.ts` — the extension's id and store links (TODO constants).
 - `src/components/` — `Feed` is the signed-in app, laid out like the Mac app:
   `ChannelSidebar` on the left (the brand, which goes to the feed and
   refreshes; there is no Refresh button — clicking the row of the page
   already showing, Feed or a channel, refreshes it; "Feed" with its unwatched count,
   under the "Channels" heading a `ChipRow` of the list's own (hidden in the rail, where it keeps its height):
-  the sort chip, the time chip, a divider, then the topic chips, no auto-play or watched chip; every
+  the sort chip, the time chip, a divider, the "New group" chip, the group chips, a second divider, then the topic chips, no auto-play or watched chip; every
   channel the chips keep (`channel-chips.ts`) in `channel-order.ts` order with its unwatched count and off channels dimmed,
-  or "No channels for selected filter" in the feed's empty-text style when a loaded list's chips keep none; in the rail a row is
+  or "No channels for the selected filter." in the feed's empty-text style when a loaded list's chips keep none; in the rail a row is
   a 40px box around its icon, so the selected one's highlight stays inside); the feed or a channel's page
   (`?channel=`) in the middle under a toolbar (theme, show/hide details,
-  account → `Settings`) and the feed's `ChipRow` (`ChipRow` is the scrolling row, the divider, the round × chip "Clear topics" that empties the row's topic setting (there whenever a topic chip is, disabled and dimmed while none is selected) and the
-  topic chips; its `leading` snippet is the chips before the divider, and a parent fits it in with
+  account → `Settings`) and the feed's `ChipRow` (`ChipRow` is the scrolling row, the divider, the round + chip "New group" (only when given `onnewgroup`: once the first load is shown, and not on a channel's page), the group chips in name order and the
+  topic chips, with a second divider before the topic chips whenever the row has topics after a + chip or a group chip; its `leading` snippet is the chips before the first divider, and a parent fits it in with
   `--chip-row-padding` and `--chip-row-rule`, as the sidebar does; here: the auto-play chip, which cycles "Play one" (off) and
   "Auto-play" (on), the sort
-  chip, the time chip, the watched chip, a divider, then the topic chips; it
+  chip, the time chip, the watched chip, a divider, the "New group" chip, the group chips, a second divider, then the topic chips; it
   scrolls sideways with no scrollbar, fading out at an edge that hides
   chips). Every chip is `Chip` (a toggle, or a removable
-  phrase) or `CycleChip` (shows the current choice, a press moves to the
-  next; it is as wide as its widest label), both styled by `.chip` in
+  phrase, named "Remove {phrase}" to a screen reader) or `CycleChip` (shows
+  the current choice, a press moves to the next; it is as wide as its widest
+  label, and a screen reader hears what it sets first: "Playback: Play one",
+  "Sort: Latest", "Time: All time", "Show: Unwatched"), both styled by `.chip` in
   `app.css`, the same box selected or not. `FeedCard` draws a 4px Sunflower
   bar along the bottom of the thumbnail, `bars`' fraction wide; watched cards
-  are not dimmed and there is no per-card watched button. Under the title one
+  are not dimmed. **The bar marks**: `.mark`, a plain button beside the
+  thumbnail button in `.picture` (not Bits' `Toggle`: its name changes with
+  the state, "Mark watched" / "Mark unwatched", also its `title`), calls
+  `onmark`, which `Feed` gives as `FeedController.setWatched` with the
+  opposite of what the item is, so the card stays where it is and the
+  counts change at once. The bar (`.track` with `.progress` in it) fills or
+  empties over 0.2 s. In a wide window `.mark` is the bottom 18px of the
+  thumbnail; under the pointer or keyboard focus the track turns grey and
+  grows to 7px over 0.15 s (the hover only for a pointer that can hover; a
+  touch gets no grey track). At 760px and narrower `.mark` is 44px high,
+  22px over the thumbnail (which no longer plays there) and 22px over the
+  text. Nothing moves under `prefers-reduced-motion`. **A swipe marks too**,
+  at 760px and narrower only: `.card` has `touch-action: pan-y pinch-zoom`
+  and pointer handlers (touch, pen and mouse) that follow `swipe.ts` —
+  `swipeIntent` (after 10px, a swipe when twice as far sideways as upright,
+  else the press is dropped), `swipeOffset`, `swipePasses` (a quarter of the
+  card's width, either way). `.face` (everything in the card) follows the
+  pointer over `.behind`, a strip with the eye icon and "Mark watched", or
+  the crossed eye and "Mark unwatched", at the edge being uncovered, its
+  text darker once the swipe would count. On release `.face` slides back
+  over 0.2 s and a swipe that passed calls `onmark`; the click that ends a
+  mouse swipe is swallowed. Under `prefers-reduced-motion` the card stays
+  still and the release still marks. The bar button stays the screen
+  reader's and keyboard's way (the web has no accessibility actions).
+  The card of what the player is playing, in any
+  place, has no `.mark` (the player's next position save would undo the
+  mark): large or minimized it keeps the bar, which is then not a button,
+  and in the card it has none; it doesn't swipe either. `.mark` is described by its card's title
+  (`aria-describedby`). Under the title one
   line holds the channel name (cut with an ellipsis) and the date at the
   right (never cut); `FeedCardSkeleton` is the same height as a card with a
   two-line title. `FilterEditor` on the
@@ -290,7 +424,39 @@ values, named by the page's `h1`.
   `PatternFields` is the phrase input (Enter or a comma makes the typed
   phrase a chip, pressing a chip removes it, Backspace in the empty field
   removes the last), and "Topics" lists all fifteen as toggles for the
-  filter's `topics`, hidden for playlists. A
+  filter's `topics`, hidden for playlists.
+  **Titles while chips are selected** (`chipTitle`): with an existing group
+  or a topic selected in its row, the feed's `h1` and the sidebar's
+  "Channels" `h2` (a 15px-high `.heading` row, so nothing moves) show the
+  selected names joined with ", ", followed by a pencil "Edit group" (only
+  with exactly one group selected) and an × "Clear" (`clearChips`). A
+  channel's page keeps its name and gets only the ×, which empties
+  `topicChips`. There is no clear chip in the rows.
+  **`GroupEditor`** takes the filter editor's place in the right panel
+  (`groupEdit` in `Feed`): the "New group" chip or a pencil opens the panel
+  on it, each opening a fresh editor; it leaves when it closes itself or
+  the page's channel changes (the panel then shows the filter editor), and
+  the details button opens the filter editor again. It
+  fills the panel's height as a column: the `.filter-group` card "Name"
+  (no `maxlength`, which counts UTF-16 units, not code points: a name
+  `groupName` refuses just disables "Save"); the card "Channels" with every listed channel by name with a `Switch`, in
+  setup's `.channel-row` rows (now in `app.css`; only channels that are off
+  are dimmed) — the rows are the only part that scrolls (there is no
+  search field: the web app's channel list has none); then one row of
+  `.button-compact` buttons (36px high, in `app.css`, for side panels):
+  "Delete group" at the left for a group that exists (`.destructive`, with
+  the trash icon; deletes at once and closes), "Cancel" (quiet) and "Save"
+  (`.primary`) at the right (only the button saves, Enter in the
+  name field does nothing). Everything is a local draft: nothing is
+  written until "Save", which is disabled without a name and a switch on,
+  calls `FeedController.saveGroup` (`saveGroup` in `groups.ts`: channels in
+  and out and the rename as one `GroupEdit`, one save) and closes.
+  "Cancel", opening another editor and leaving the page discard the draft.
+  A name another group has merges into it. Selected chips change only by
+  a rename or delete following through.
+  `Switch` slides its knob with a transform and fades its track over
+  0.15 s (not under `prefers-reduced-motion`); every switch in the app is
+  that component (see "Controls"). A
   "Channels" button in the sidebar's header collapses the left sidebar to a
   rail of icons, and pins it open again from the widened rail; the rail only
   clips the full-width list, so no icon moves as it widens
@@ -298,28 +464,84 @@ values, named by the page's `h1`.
   keyboard focus widens the rail over the grid without reflowing it. Both
   sidebars animate over 200ms, not at all under `prefers-reduced-motion`.
   Under 1100px the right sidebar lies over the grid; under 760px the left one
-  is a drawer opened from a toolbar button; the toolbar stays one row.
-  Playing: `PlayerFrame` is the YouTube embed in a 16:9 box, driving one
-  `Playback`; both places a video plays use it. At 761px and wider a card
-  opens `Player`, a modal `<dialog>` over the app holding nothing but the
-  video (the browser dims and disables everything behind and keeps focus
-  inside), as wide as a 16:9 video fits inside the margins, with the cards'
-  8px corners. It closes on Escape, a click on the dimmed area, or Back;
-  there is no close button. Its accessible name is the video's title, else
-  "Player". The feed stays mounted under it, and focus returns to the card
-  of whatever it last played. With "Auto-play" on, the end plays
-  `autoplayNext` in the same dialog. Escape does nothing while focus is
-  inside the embed (a cross-origin frame keeps its keys), so the dialog
-  opens with focus on itself, not in the embed. At 760px and
-  narrower a card plays in place: `Feed` hands `FeedCard` the frame as its
-  `player` snippet, which takes the thumbnail's box, and focus goes into the
-  embed. One card plays at a time (`inlineItem`); starting another, the end,
-  or the card leaving the list (page, filter or chip change, a load that
-  drops it) unmounts the frame, which saves the position. With "Auto-play"
-  on, the end starts `autoplayNext` in its card and scrolls it into view.
-  The embed's own button is the way to full screen (`allowfullscreen` is set
-  on the frame). A `?v=` link opened in a narrow window still opens the
-  dialog.
+  is a drawer opened from a toolbar button, sliding in over 200ms while its
+  scrim fades; the toolbar stays one row.
+  Playing: one player for the whole app. `PlayerController`
+  (`player.svelte.ts`) holds what plays and where; `PlayerHost`, mounted once
+  beside `.app`, draws it: one `position: fixed` box that is exactly the
+  video's box, holding `PlayerFrame` (the YouTube embed, driving one
+  `Playback`) keyed by item, so changing size or place never moves the
+  iframe in the DOM and never reloads it. Three places:
+  - **large** — over the dimmed app (`.dim`, a button that minimizes; `.app`
+    is `inert` meanwhile), the widest 16:9 box that fits inside the margins
+    with 37px kept above it for the bar (`largeBox`). It is a
+    `role="dialog"` with `aria-modal` meanwhile. Escape (the box takes
+    focus itself, since a cross-origin frame keeps its keys), a click on the
+    dimmed area and Back minimize; none closes.
+  - **minimized** — 356×200 at the window's bottom right, 16px from the
+    edges (`minimizedBox`), with the app usable behind; `beside` moves it
+    left by the details panel's 320px while that is open in a wide window.
+    A window narrower than 388px gets the width it has, never under 200
+    high. Meanwhile the page's scrolling `.content` gets `MINIMIZED_ROOM`
+    (232px: the player and its margins) of padding after its last row, so
+    the last cards scroll clear of it. Nothing else needs it: the channel
+    list and the details panel are never under the player, and in a narrow
+    window the drawer, the panel and Settings lie over it.
+  - **card** — at 760px and narrower a card plays in place: `FeedCard`
+    leaves its thumbnail box empty (`data-player-slot`) and the host lays
+    the player over it, measuring it every frame and clipping to the
+    scrolling pane (`data-player-view`). It never gets the frame below: it
+    looks like its card with the video in it. When less than half of the box
+    shows it minimizes (`cardLost`) and does not come back by itself. While
+    something fills the screen (the embed's full-screen button), and for
+    0.5 s after, the window's width and the card's box say nothing: the
+    player stays in its card. A card whose
+    thumbnail is under 200px high (two columns, 528–760px) can't hold a
+    player, so it plays large.
+  A card starts it large in a wide window and in the card in a narrow one,
+  replacing whatever played. Leaving the page, the card leaving the list or
+  the window widening minimizes a card's player (`pageChanged`); nothing but
+  Close, and the end of a video with nothing next in a card, removes it. "Expand" makes
+  a minimized player large in a wide window; in a narrow one it goes back to
+  the page the video was started on (a new history entry), scrolls its card
+  into view and plays there, or large when that page no longer lists it
+  (in the one new entry, so Back returns to where Expand was pressed).
+  **Frame** (large and minimized only, never in a card): at rest nothing of
+  ours is drawn. While the user's last hover,
+  click or tap was on the video, `.frame` is drawn around the box (inset
+  -37px/-1px, so the video neither moves nor resizes): a 36px bar with the
+  title and "Expand" (minimized) or "Minimize" (large), then "Close"; it
+  fades in and out over 0.15 s (not under `prefers-reduced-motion`).
+  It shows on `pointerover` of the video, on the window's `blur` with the
+  embed focused (the first click inside a cross-origin frame), when the
+  player reports a pause or play that is not ours (`Playback`'s
+  `ontoggle`), and while the keyboard's focus (`:focus-visible`) is on the
+  player or one of the bar's buttons: large or minimized the player is a
+  tab stop, and the bar's buttons come next. It
+  goes on a scroll, on `pointerover`/`pointerdown` anywhere else (not
+  while the keyboard is inside), and when
+  the player changes place. Hiding it leaves the embed its focus, so
+  YouTube's keyboard shortcuts keep working; a later click inside no longer
+  blurs the window, and is seen by the hover before it or the toggle it
+  makes. Nothing is ever put over the embed.
+  **Covered**: every 250 ms the host asks `elementFromPoint` at nine points
+  of the shown part of the box; anything of the page there pauses the video
+  (`Playback.cover`), and a video paused that way plays again once clear.
+  In a wide window the player is above everything (z-index 30), in a narrow
+  one under the channel drawer, the details panel and Settings (11).
+  **Next**: `play` keeps the page's list and watched chip as they were
+  (`PlayQueue`); at the end `nextInQueue` is the next unwatched item after
+  the ended one in that list, whatever page shows now (null with
+  "Auto-play" off, or a list started in Watched), played in the place the
+  player is in (`endOutcome`; a card not on the page → minimized, else its
+  card is scrolled into view). With nothing next the large and the
+  minimized player stay, stopped on the ended video, until Close or Expand;
+  a card's player closes. A player opened from a link has no
+  list and uses the page's `autoplayNext`.
+  Focus returns to the card of what was playing when the large player
+  minimizes or closes. Its accessible name is the video's title, else
+  "Player". The embed's own button is the way to full screen
+  (`allowfullscreen` is set on the frame).
   `Settings`, `Nux` (setup uses the app's own controls, never its own
   variants: `ChoiceRow` is shared with `FilterEditor`, the cards are
   `.filter-group`; its screens are intro, extension, sign-in, "Choose
@@ -330,13 +552,52 @@ values, named by the page's `h1`.
   ones), which runs under the later screens (the "Shorts" screen's Next calls it
   again, so a Hide or Only choice adds the Shorts lists) and is handed to
   the first feed load on "Open my feed"; the Shorts choice (the `shortsChoice` snippet) is saved on its
-  own screen's Next; the starting point is kept for the first feed load, which marks
-  everything fetched from before it watched in one save),
+  own screen's Next; the starting point is kept per channel (`setup-start.ts`) and marks
+  each channel's older items watched when that channel is first fetched; the list is in name order (`compareIgnoringCase`) and its search is `nameMatches`, case only;
+  the sign-in screen's button is `GoogleButton`: Google's standard button, its four-colour mark on the neutral `--google-*` fill, stroke and text for a light and a dark page, never a Sunflower button),
   `ExtensionRequired`, `GetApp` (iOS/Android + Mac page). `Logo` takes the
   height of its hull, which is the line height of the name beside it (22px
   by the 18px name, 36px by the 30px one): the drawing is hull / 0.518
   square with negative margins, so only the hull takes up room and the tower
   rises above the line.
+
+## Controls (Bits UI)
+
+Behaviour (keyboard, focus, ARIA, state) comes from
+[Bits UI](https://bits-ui.com) (`bits-ui`, pinned to an exact version); the
+look is the app's own CSS. Each primitive is used through its `child`
+snippet, so the element is written in our template, keeps the component's
+scoped styles and is styled by the primitive's `data-state`. State is passed
+with a function binding (`bind:checked={() => checked, (next) => …}`), so
+the parent still owns it.
+
+| Component | Primitive |
+| --- | --- |
+| `Switch` | `Switch.Root` + `Switch.Thumb` |
+| `Segmented` (and `ChoiceRow` through it) | `RadioGroup`, horizontal: one tab stop, arrows move and choose |
+| `Chip` with `pressed` | `Toggle` |
+| the sidebar's "Channels" button | `Toggle` |
+| `Settings` | `Popover` (`Popover.Root` and `.Trigger` in `Feed`, `Popover.ContentStatic` in `Settings`, not portalled, focus not trapped) |
+| "Delete your profile?" | `AlertDialog`, not portalled: it stays inside the Settings popover so it stacks under the player as before; its `Content` is inside its `Overlay`, which is the centring backdrop |
+| `LoadBar` | `Progress` |
+
+Plain elements, because no primitive fits: `CycleChip`, a removable `Chip`
+and the "New group" chip (buttons that act, with no state of their own);
+`ChipRow`'s scroller and dividers; `PatternFields`' phrase input; text and
+number inputs; `Avatar` (Bits' hides the picture until a second copy has
+loaded); the details panel and the channel drawer (not modal, always in the
+page, moved by CSS); `PlayerHost`; tooltips, which are `title` attributes.
+
+- A new control uses a Bits primitive when one fits, with the app's CSS.
+- Every state change animates (0.15 s for controls, 0.2 s for panels) and is
+  still under `prefers-reduced-motion`. Popovers and dialogs fade through
+  the `.fades` class in `app.css`, which Bits waits for before unmounting.
+- Bits sets `contain: layout style` on popover and dialog content, which
+  would trap a `position: fixed` child and shifts text by a pixel; both
+  elements here set `contain: none`.
+- Nothing of Bits may be portalled over the player, lock scrolling or trap
+  focus outside a modal dialog: the minimized player stays usable beside an
+  open Settings popover.
 
 ## Gotchas
 
@@ -345,4 +606,7 @@ values, named by the page's `h1`.
 - Settings shows the Google account's name and email, which Drive's `about`
   answers under the app-folder scope (no email scope is requested); the
   privacy policy says so.
-- User-facing wording not in the mockups is marked `COPY-DRAFT` in the source.
+- Sign out only forgets the account on this browser; Google's grant stays
+  (other devices stay signed in, no consent screen next time), so an
+  interactive sign-in always asks Google for the account chooser. Only
+  "Delete profile" revokes.

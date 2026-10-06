@@ -1,12 +1,23 @@
 /// The names of the settings synced through the device files.
 public enum SettingName: String, Sendable, CaseIterable {
+  /// The feed's order.
   case feedSort
+  /// The channel lists' order.
   case channelSort
+  /// Whether the next unwatched item plays when one ends.
   case autoplay
+  /// The feed's time chip.
   case timeChip
+  /// The feed's selected topic chips.
   case topicChips
+  /// The channel lists' time chip.
   case channelTimeChip
+  /// The channel lists' selected topic chips.
   case channelTopicChips
+  /// The feed's selected group chips.
+  case groupChips
+  /// The channel lists' selected group chips.
+  case channelGroupChips
 }
 
 /// The synced settings as this version reads them out of the merged
@@ -27,6 +38,10 @@ public struct SyncedSettings: Sendable, Hashable {
   public var channelTimeChip = TimeChip.anyTime
   /// The channel list's selected topic chips' category ids, as written.
   public var channelTopicChips: [String] = []
+  /// The feed row's selected group chips' names, as written.
+  public var groupChips: [String] = []
+  /// The channel list row's selected group chips' names, as written.
+  public var channelGroupChips: [String] = []
 
   /// Every setting at its default.
   public init() {}
@@ -55,6 +70,8 @@ public struct SyncedSettings: Sendable, Hashable {
     topicChips = texts(.topicChips)
     channelTimeChip = choice(.channelTimeChip, TimeChip.anyTime)
     channelTopicChips = texts(.channelTopicChips)
+    groupChips = texts(.groupChips)
+    channelGroupChips = texts(.channelGroupChips)
   }
 }
 

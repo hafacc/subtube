@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Toggle } from "bits-ui";
   import {
     CHANNEL_SORT_OPTIONS,
     HeldChannelOrder,
@@ -7,6 +8,7 @@
   import { TIME_CHIP_OPTIONS } from "../lib/chips";
   import { privacyUrl, termsUrl } from "../lib/config";
   import type { FeedController } from "../lib/feed.svelte";
+  import { chipTitle } from "../lib/groups";
   import Avatar from "./Avatar.svelte";
   import ChipRow from "./ChipRow.svelte";
   import CycleChip from "./CycleChip.svelte";
@@ -22,6 +24,7 @@
     onhome,
     collapsed,
     ontoggle,
+    oneditgroup,
   }: {
     /** the feed whose channels these are */
     feed: FeedController;
@@ -37,7 +40,19 @@
     collapsed: boolean;
     /** collapse the sidebar, or pin it open */
     ontoggle: () => void;
+    /** open the group editor: for a group by its name, or for a new one (null) */
+    oneditgroup: (group: string | null) => void;
   } = $props();
+
+  // the selected groups and topics, which take the heading's place
+  const selection = $derived(
+    chipTitle(
+      feed.groups,
+      feed.settings.channelGroupChips,
+      feed.channelTopicChips,
+      feed.settings.channelTopicChips,
+    ),
+  );
 
   const held = new HeldChannelOrder();
   const channels = $derived(
@@ -54,6 +69,7 @@
         feed.settings.channelSort,
         feed.settings.channelTimeChip,
         feed.settings.channelTopicChips,
+        feed.settings.channelGroupChips,
       ]),
       feed.chipChannels,
     ),
@@ -72,17 +88,20 @@
         <Logo />
         <span class="wide-only">SubTube</span>
       </button>
-      <button
-        type="button"
-        class="icon-button"
+      <Toggle.Root
         aria-label="Channels"
         title="Channels"
         aria-expanded={!collapsed}
-        aria-pressed={!collapsed}
-        onclick={ontoggle}
+        bind:pressed={() => !collapsed, () => ontoggle()}
       >
-        <Icon name="sidebarLeft" />
-      </button>
+        {#snippet child({
+          props,
+        })}
+          <button {...props} type="button" class="icon-button">
+            <Icon name="sidebarLeft" />
+          </button>
+        {/snippet}
+      </Toggle.Root>
     </div>
     <button
       type="button"
@@ -100,22 +119,54 @@
         <span class="visually-hidden">{feed.unwatchedCount} unwatched</span>
       {/if}
     </button>
-    <h2>Channels</h2>
+    <div class="heading">
+      <h2>
+        {selection.names.length > 0 ? selection.names.join(", ") : "Channels"}
+      </h2>
+      {#if selection.names.length > 0}
+        {#if selection.edit !== null}
+          {@const group = selection.edit}
+          <button
+            type="button"
+            class="icon-button wide-only"
+            aria-label="Edit group"
+            title="Edit group"
+            onclick={() => oneditgroup(group)}
+          >
+            <Icon name="pencil" size={14} />
+          </button>
+        {/if}
+        <button
+          type="button"
+          class="icon-button wide-only"
+          aria-label="Clear"
+          title="Clear"
+          onclick={() => feed.clearChips("channels")}
+        >
+          <Icon name="close" size={14} />
+        </button>
+      {/if}
+    </div>
     <div class="channel-chips wide-only">
       <ChipRow
+        groups={feed.groups}
+        selectedGroups={feed.settings.channelGroupChips}
+        ongroup={(group) => feed.toggleChannelGroupChip(group)}
+        onnewgroup={feed.loadCount > 0 ? () => oneditgroup(null) : undefined}
         topics={feed.channelTopicChips}
         selected={feed.settings.channelTopicChips}
         ontopic={(categoryId) => feed.toggleChannelTopicChip(categoryId)}
-        onclear={() => feed.setSetting("channelTopicChips", [])}
       >
         {#snippet leading()}
           <CycleChip
+            label="Sort"
             options={CHANNEL_SORT_OPTIONS}
             value={feed.settings.channelSort}
             onchange={(channelSort) =>
               feed.setSetting("channelSort", channelSort)}
           />
           <CycleChip
+            label="Time"
             options={TIME_CHIP_OPTIONS}
             value={feed.settings.channelTimeChip}
             onchange={(channelTimeChip) =>
@@ -127,7 +178,9 @@
     {#if channels.length === 0 &&
       feed.chipChannels !== null &&
       feed.loadCount > 0}
-      <p class="empty secondary wide-only">No channels for selected filter</p>
+      <p class="empty secondary wide-only">
+        No channels for the selected filter.
+      </p>
     {/if}
     {#each channels as channel (channel.channelId)}
       {@const current = channel.channelId === selected}
@@ -249,11 +302,31 @@
     text-align: center;
   }
 
-  h2 {
+  /* as tall as the heading's line, so the buttons beside it don't move the list */
+  .heading {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 15px;
     margin: 14px 0 4px 8px;
+  }
+
+  h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 12px;
+    line-height: 15px;
     font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .heading .icon-button {
+    padding: 4px;
     color: var(--text-secondary);
   }
 

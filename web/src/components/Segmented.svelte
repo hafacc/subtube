@@ -1,4 +1,6 @@
 <script lang="ts" generics="Value extends string">
+  import { RadioGroup } from "bits-ui";
+
   let {
     options,
     value,
@@ -16,17 +18,27 @@
   } = $props();
 </script>
 
-<fieldset class="segmented" aria-label={label}>
-  {#each options as option (option.value)}
-    <button
-      type="button"
-      aria-pressed={option.value === value}
-      onclick={() => onchange(option.value)}
-    >
-      {option.label}
-    </button>
-  {/each}
-</fieldset>
+<RadioGroup.Root
+  orientation="horizontal"
+  aria-label={label}
+  bind:value={() => value, (next) => onchange(next as Value)}
+>
+  {#snippet child({
+    props,
+  })}
+    <fieldset {...props} class="segmented">
+      {#each options as option (option.value)}
+        <RadioGroup.Item value={option.value}>
+          {#snippet child({
+            props: item,
+          })}
+            <button {...item} type="button">{option.label}</button>
+          {/snippet}
+        </RadioGroup.Item>
+      {/each}
+    </fieldset>
+  {/snippet}
+</RadioGroup.Root>
 
 <style>
   .segmented {
@@ -46,11 +58,20 @@
     background: var(--page);
     color: var(--text);
     font-size: 13px;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
   }
 
-  button[aria-pressed="true"] {
+  button[data-state="checked"] {
     background: var(--sunflower);
     color: var(--ink);
     font-weight: 500;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button {
+      transition: none;
+    }
   }
 </style>

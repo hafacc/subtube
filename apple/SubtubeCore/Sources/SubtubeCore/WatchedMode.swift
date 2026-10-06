@@ -1,7 +1,10 @@
 /// Which of watched and unwatched items a page lists.
 public enum WatchedMode: String, Sendable, CaseIterable {
+  /// Only what isn't watched.
   case unwatched
+  /// Only what is watched.
   case watched
+  /// Both.
   case all
 }
 
@@ -22,9 +25,9 @@ public func autoplayAdvances(_ mode: WatchedMode) -> Bool {
 
 /// Whether an empty list is empty because of what is selected, rather than
 /// because nothing is left to watch: any mode but unwatched, a time chip, or
-/// a topic chip.
-public func emptiedBySelection(mode: WatchedMode, timeChip: TimeChip, topicChips: [String])
-  -> Bool
-{
-  mode != .unwatched || timeChip != .anyTime || !knownTopics(topicChips).isEmpty
+/// a topic chip, or a group (`groupSelected`: an existing one is selected).
+public func emptiedBySelection(
+  mode: WatchedMode, timeChip: TimeChip, topicChips: [String], groupSelected: Bool = false
+) -> Bool {
+  mode != .unwatched || timeChip != .anyTime || !knownTopics(topicChips).isEmpty || groupSelected
 }

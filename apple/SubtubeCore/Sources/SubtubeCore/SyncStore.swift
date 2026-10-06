@@ -60,7 +60,11 @@ public actor SyncStore {
   /// Whether this device's Drive file was there but couldn't be read.
   private var ownUnreadable = false
   private var pendingSave: Task<Void, Never>?
+  /// The newest upload asked for; nil once it has ended.
   private var saving: Task<Void, Error>?
+  private var savesStarted = 0
+  /// How many uploads have ended; a listing asked for before one ended may lack its file.
+  private var savesEnded = 0
   /// Names and avatars of followed channels, which the Drive files don't hold.
   private var identities: [String: ChannelIdentity]
   /// When Drive last answered a read or a write.
@@ -122,13 +126,12 @@ public actor SyncStore {
     // unsent edits stay on disk; if Drive fails they go up with the next edit
     pendingSave?.cancel()
     pendingSave = nil
-    while let running = saving {
-      _ = try? await running.value
-    }
+    await waitForSaves()
     do {
-      let client = try await drive()
-      for file in try await client.listAppFiles() {
-        try await client.delete(file.id)
+      try await withDrive { client in
+        for file in try await client.listAppFiles() {
+          try await client.delete(file.id)
+        }
       }
     } catch {
       // this device's file may be among the ones already gone: the next
@@ -158,37 +161,96 @@ public actor SyncStore {
       [DeviceFileSource(deviceId: deviceId, file: own)] + others.values.map(\.source))
   }
 
-  private func drive() async throws -> DriveClient {
-    DriveClient(accessToken: try await tokens.validToken(), session: session)
+  /// Run `work` against Drive, renewing the token once if Google refuses it.
+  private func withDrive<Result: Sendable>(
+    _ work: @Sendable (DriveClient) async throws -> Result
+  ) async throws -> Result {
+    do {
+      return try await work(
+        DriveClient(accessToken: try await tokens.validToken(), session: session))
+    } catch GoogleAPIError.tokenExpired {
+      return try await work(
+        DriveClient(accessToken: try await tokens.refreshedToken(), session: session))
+    }
+  }
+
+  private func waitForSaves() async {
+    // each upload clears `saving` itself unless a newer one took its place
+    while let running = saving {
+      _ = try? await running.value
+    }
+  }
+
+  /// Whether this device's file, missing from a listing, is really gone from
+  /// Drive: asked for by its id, or listed again when the id isn't known.
+  /// False while an upload of it runs or has just ended, when no answer can
+  /// be trusted.
+  private func ownFileIsGone() async throws -> Bool {
+    let endedBefore = savesEnded
+    let fileId = ownFileId
+    let ownName = ownName
+    if saving != nil {
+      return false
+    } else {
+      let gone = try await withDrive { client in
+        if let fileId {
+          return try await !client.exists(fileId)
+        } else {
+          return try await !client.listAppFiles().contains { $0.name == ownName }
+        }
+      }
+      return gone && saving == nil && savesEnded == endedBefore
+    }
+  }
+
+  private struct Listing: Sendable {
+    var files: [DriveFile]
+    var downloads: [(DriveFile, Data)]
   }
 
   /// Read every device's file, downloading only the ones that changed.
   public func load() async throws {
     guard !deleted else { throw SyncError.profileDeleted }
-    let client = try await drive()
-    let listing = try await client.listAppFiles().filter { deviceIdFromFileName($0.name) != nil }
     let ownName = ownName
-    if profileDeletedElsewhere(
+    let known = others.mapValues(\.modifiedTime)
+    let endedBefore = savesEnded
+    let savingBefore = saving != nil
+    let read = try await withDrive { client in
+      let files = try await client.listAppFiles().filter { deviceIdFromFileName($0.name) != nil }
+      let downloads = try await withThrowingTaskGroup(of: (DriveFile, Data).self) { group in
+        for entry in files where entry.name == ownName || known[entry.id] != entry.modifiedTime {
+          group.addTask { (entry, try await client.download(entry.id)) }
+        }
+        var results: [(DriveFile, Data)] = []
+        for try await result in group {
+          results.append(result)
+        }
+        return results
+      }
+      return Listing(files: files, downloads: downloads)
+    }
+    guard !deleted else { throw SyncError.profileDeleted }
+    let listing = read.files
+    let downloads = read.downloads
+    let ownListed = listing.contains { $0.name == ownName }
+    // an upload that ran while the listing was asked for may not be in it
+    let mayBeStale = savingBefore || saving != nil || savesEnded != endedBefore
+    var ownKept = ownListed
+    if ownListed {
+      markUploaded()
+    } else if profileDeletedElsewhere(
       uploadedBefore: uploadedBefore, fileNames: listing.map(\.name), ownName: ownName)
     {
-      wipe()
-      throw SyncError.profileDeleted
-    }
-    if listing.contains(where: { $0.name == ownName }) {
-      markUploaded()
-    }
-    let known = others.mapValues(\.modifiedTime)
-    let downloads = try await withThrowingTaskGroup(of: (DriveFile, Data).self) { group in
-      for entry in listing where entry.name == ownName || known[entry.id] != entry.modifiedTime {
-        group.addTask { (entry, try await client.download(entry.id)) }
+      if !mayBeStale, try await ownFileIsGone() {
+        wipe()
+        throw SyncError.profileDeleted
+      } else {
+        ownKept = true
       }
-      var results: [(DriveFile, Data)] = []
-      for try await result in group {
-        results.append(result)
-      }
-      return results
+    } else if mayBeStale {
+      ownKept = true
     }
-    if !listing.contains(where: { $0.name == ownName }) {
+    if !ownKept {
       ownFileId = nil
       ownUnreadable = false
       unsent = needsUpload(local: own, remote: nil)
@@ -263,6 +325,7 @@ public actor SyncStore {
     return entries
   }
 
+  /// Save one channel's filter.
   public func setFilter(_ filter: ChannelFilter) {
     setFilters([filter])
   }
@@ -276,6 +339,34 @@ public actor SyncStore {
       own.channels[filter.channelId] = ChannelEntry(
         at: now, filter: filter.storedFilter,
         extra: own.channels[filter.channelId]?.extra ?? [:])
+    }
+    changed()
+  }
+
+  /// Every filter as last saved on any device, by channel id, whether or
+  /// not its channel is still listed.
+  public func savedFilters() -> [String: JSONObject] {
+    merged.channels.mapValues(\.filter)
+  }
+
+  /// Save a group edit (``saveGroup(_:listed:selections:group:name:members:)``)
+  /// as one edit: every changed filter with one time, and the changed
+  /// selections. Each entry keeps its unknown fields.
+  public func applyGroupEdit(_ edit: GroupEdit) {
+    guard !edit.isEmpty else { return }
+    let now = epochMilliseconds()
+    for (channelId, filter) in edit.channels {
+      own.channels[channelId] = ChannelEntry(
+        at: now, filter: filter, extra: own.channels[channelId]?.extra ?? [:])
+    }
+    let selections: [(SettingName, [String]?)] = [
+      (.groupChips, edit.groupChips), (.channelGroupChips, edit.channelGroupChips),
+    ]
+    for case (let name, let names?) in selections {
+      var settings = own.settings ?? [:]
+      settings[name.rawValue] = editedSetting(
+        settings[name.rawValue], value: .array(names.map(JSONValue.string)), now: now)
+      own.settings = settings
     }
     changed()
   }
@@ -365,16 +456,20 @@ public actor SyncStore {
   /// Upload this device's file now; a save already running is waited for
   /// first.
   public func save() async throws {
-    while let running = saving {
-      _ = try? await running.value
-    }
-    let task = Task { try await self.upload() }
-    saving = task
-    defer {
-      if saving == task {
-        saving = nil
+    let previous = saving
+    savesStarted += 1
+    let started = savesStarted
+    let task = Task {
+      _ = try? await previous?.value
+      defer {
+        self.savesEnded += 1
+        if self.savesStarted == started {
+          self.saving = nil
+        }
       }
+      try await self.upload()
     }
+    saving = task
     try await task.value
   }
 
@@ -384,20 +479,24 @@ public actor SyncStore {
     }
     guard !deleted else { throw SyncError.profileDeleted }
     guard !ownUnreadable else { throw SyncError.ownFileUnreadable }
-    let client = try await drive()
     own = pruneDeviceFile(own, now: epochMilliseconds())
     unsent = false
     do {
       let content = try encodeDeviceFile(own)
-      if let ownFileId {
-        _ = try await client.updateJSON(fileId: ownFileId, content: content)
-      } else {
-        ownFileId = try await client.createJSON(name: ownName, content: content).id
+      let ownName = ownName
+      let fileId = ownFileId
+      ownFileId = try await withDrive { client in
+        if let fileId {
+          return try await client.updateJSON(fileId: fileId, content: content).id
+        } else {
+          return try await client.createJSON(name: ownName, content: content).id
+        }
       }
     } catch {
       unsent = true
       throw error
     }
+    guard !deleted else { throw SyncError.profileDeleted }
     markUploaded()
     lastSyncedAt = Date()
     writeLocal()

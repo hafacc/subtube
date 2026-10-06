@@ -31,4 +31,5 @@ The extension's ID is `gobcnmccpjhlgpnohehgkahhknkfbmfo`, the Chrome Web Store
 listing's. An unpacked build gets the same ID because `manifest.json` carries
 the listing's public key as `key` (store dashboard → Package → View public
 key, as one base64 line). `bun run package` leaves `key` out of the upload,
-which the store requires.
+which the store requires, and `http://localhost/*` out of the pages that may
+message it.

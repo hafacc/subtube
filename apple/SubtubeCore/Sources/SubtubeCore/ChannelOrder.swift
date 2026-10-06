@@ -2,6 +2,7 @@
 public enum ChannelSort: String, Codable, Sendable, CaseIterable {
   /// By each channel's newest fetched item.
   case newest
+  /// By name, ignoring case.
   case name
   /// By how many unwatched items pass each channel's filter.
   case unwatched
@@ -9,14 +10,18 @@ public enum ChannelSort: String, Codable, Sendable, CaseIterable {
 
 /// What a channel list needs to know to place one channel.
 public struct ChannelOrderEntry: Sendable, Hashable {
+  /// The channel's id.
   public var id: String
+  /// The channel's name.
   public var title: String
+  /// Whether the main feed loads the channel.
   public var enabled: Bool
   /// The `publishedAt` of the channel's newest fetched item.
   public var newest: String?
   /// How many of the channel's unwatched fetched items pass its filter.
   public var unwatched: Int
 
+  /// One channel's place in a list.
   public init(id: String, title: String, enabled: Bool, newest: String?, unwatched: Int = 0) {
     self.id = id
     self.title = title

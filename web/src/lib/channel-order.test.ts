@@ -18,11 +18,13 @@ describe("shared channel order fixtures", () => {
       const sort = (
         "sort" in testCase ? testCase.sort : "newest"
       ) as ChannelSort;
-      expect(
-        channels
-          .toSorted((left, right) => compareChannelOrder(left, right, sort))
-          .map(({ id }) => id),
-      ).toEqual(testCase.expected);
+      for (const given of [channels, channels.toReversed()]) {
+        expect(
+          given
+            .toSorted((left, right) => compareChannelOrder(left, right, sort))
+            .map(({ id }) => id),
+        ).toEqual(testCase.expected);
+      }
     });
   }
 });

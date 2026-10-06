@@ -5,7 +5,7 @@
     "includes": ["tools/**", "*.{json,ts}", "!dist", "!node_modules"]
   },
   "formatter": { "enabled": true, "indentStyle": "space" },
-  "linter": { "enabled": true, "rules": { "preset": "none" } },
+  "linter": { "enabled": true, "rules": { "preset": "recommended" } },
   "javascript": { "formatter": { "quoteStyle": "double" } },
   "assist": {
     "enabled": true,

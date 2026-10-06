@@ -1,17 +1,16 @@
-// The YouTube Data API returns snippet titles/descriptions HTML-escaped (e.g.
-// "Tom &amp; Jerry", "don&#39;t"). Decode them so they display correctly and so
-// per-channel regexes match the text the user actually sees. DOMParser parses the
-// string into an inert document (no scripts run) and we read its text back out —
-// the result is rendered by React as text, never reinjected as HTML.
 let parser: DOMParser | null = null;
 
-/** Decode HTML entities in Data API text. */
+/**
+ * Decode HTML entities in Data API text ("Tom &amp; Jerry", "don&#39;t"), so
+ * it shows as written and filters match what the user sees. The text is
+ * parsed into an inert document and read back as text, never put into the
+ * page as HTML.
+ */
 export function decodeHtmlEntities(text: string): string {
   if (!text.includes("&") || typeof DOMParser === "undefined") {
     return text;
+  } else {
+    parser ??= new DOMParser();
+    return parser.parseFromString(text, "text/html").body?.textContent ?? text;
   }
-  if (!parser) {
-    parser = new DOMParser();
-  }
-  return parser.parseFromString(text, "text/html").body?.textContent ?? text;
 }

@@ -8,8 +8,9 @@ export function formatDuration(totalSeconds: number): string {
   const paddedSeconds = String(seconds).padStart(2, "0");
   if (hours > 0) {
     return `${hours}:${String(minutes).padStart(2, "0")}:${paddedSeconds}`;
+  } else {
+    return `${minutes}:${paddedSeconds}`;
   }
-  return `${minutes}:${paddedSeconds}`;
 }
 
 /** Format a playlist's length as "N videos". */

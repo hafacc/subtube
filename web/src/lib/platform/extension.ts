@@ -2,6 +2,11 @@ import type {
   ExtensionRequest,
   ExtensionResponses,
 } from "../../../../extension/src/protocol";
+import {
+  ExtensionMissingError,
+  ExtensionSilentError,
+  SignInCancelledError,
+} from "../errors";
 import type { Platform, Token } from "./types";
 
 /** How long to wait for an installed extension to answer a ping. */
@@ -31,25 +36,26 @@ function send<Request extends ExtensionRequest>(
   return new Promise((resolve, reject) => {
     const chromeRuntime = runtime();
     if (!chromeRuntime) {
-      reject(new Error("The SubTube extension isn't installed."));
-      return;
+      reject(new ExtensionMissingError());
+    } else {
+      chromeRuntime.sendMessage(extensionId, request, (response) => {
+        if (chromeRuntime.lastError || response === undefined) {
+          reject(new ExtensionSilentError());
+        } else {
+          resolve(response as ExtensionResponses[Request["type"]]);
+        }
+      });
     }
-    chromeRuntime.sendMessage(extensionId, request, (response) => {
-      const failure = chromeRuntime.lastError;
-      if (failure || response === undefined) {
-        reject(
-          new Error(failure?.message ?? "The SubTube extension didn't answer."),
-        );
-      } else {
-        resolve(response as ExtensionResponses[Request["type"]]);
-      }
-    });
   });
 }
 
 function toToken(response: ExtensionResponses["token"]): Token {
   if ("error" in response) {
-    throw new Error(response.error);
+    if (response.cancelled) {
+      throw new SignInCancelledError();
+    } else {
+      throw new Error(response.error);
+    }
   } else {
     return response;
   }
@@ -74,15 +80,19 @@ export function extensionPlatform(extensionId: string): Platform {
   return {
     signIn: async () =>
       toToken(await send(extensionId, { type: "token", interactive: true })),
-    silentToken: async () => {
+    silentToken: async (options = {}) => {
       const response = await send(extensionId, {
         type: "token",
         interactive: false,
+        ...options,
       });
       return "error" in response ? null : response;
     },
     signOut: async () => {
       await send(extensionId, { type: "signOut" });
+    },
+    revoke: async () => {
+      await send(extensionId, { type: "revoke" });
     },
     probeShort: async (videoId) => {
       const response = await send(extensionId, { type: "probeShort", videoId });

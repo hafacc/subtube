@@ -147,7 +147,7 @@ struct TitlePatternFields: View {
       onChange: { filter.regex = phrasesToPattern($0) })
     SegmentedRow(
       label: Strings.matches, selection: $filter.mode,
-      options: [(.exclude, Strings.choiceHide), (.include, Strings.choiceShow)],
+      options: [(.exclude, Strings.choiceHide), (.include, Strings.show)],
       showsHeading: true)
     SegmentedRow(
       label: Strings.matchIn, selection: $filter.searchScope,

@@ -39,17 +39,19 @@ export function autoplayAdvances(mode: WatchedMode): boolean {
 
 /**
  * Whether an empty list is empty because of what is selected, rather than
- * because nothing is left to watch: any mode but unwatched, a time chip, or
- * a topic chip.
+ * because nothing is left to watch: any mode but unwatched, a time chip, a
+ * topic chip, or a group chip that narrows the list (`grouped`).
  */
 export function emptiedBySelection(
   mode: WatchedMode,
   timeChip: TimeChip,
   topicChips: readonly string[],
+  grouped = false,
 ): boolean {
   return (
     mode !== "unwatched" ||
     timeChip !== "none" ||
-    knownTopics(topicChips).size > 0
+    knownTopics(topicChips).size > 0 ||
+    grouped
   );
 }

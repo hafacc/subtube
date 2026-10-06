@@ -15,8 +15,14 @@ final class AppModel {
   }
 
   private static let accountKey = "subtube.account"
-  private static let onboardedKey = "subtube.onboarded"
+  /// Set once any account finished the first run here; setup then opens on sign-in.
+  private static let introSeenKey = "subtube.onboarded"
   private static let themeKey = "subtube.theme"
+  private static let perAccountKey = "subtube.onboarded.perAccount"
+
+  private static func onboardedKey(_ accountId: String) -> String {
+    "subtube.onboarded.\(accountId)"
+  }
 
   let auth = GoogleAuth()
   private(set) var phase: Phase = .checking
@@ -26,8 +32,10 @@ final class AppModel {
   /// Why the last Delete Profile didn't happen.
   private(set) var deleteError: String?
 
-  /// Whether this device finished the first run.
-  private(set) var onboarded = UserDefaults.standard.bool(forKey: AppModel.onboardedKey)
+  /// Whether the signed-in account finished the first run on this device.
+  private(set) var onboarded = false
+  /// Whether the first run was ever finished on this device, by any account.
+  private(set) var introSeen = UserDefaults.standard.bool(forKey: AppModel.introSeenKey)
 
   var theme: Theme = Theme(rawValue: UserDefaults.standard.string(forKey: AppModel.themeKey) ?? "")
     ?? .system
@@ -50,16 +58,16 @@ final class AppModel {
     #if DEBUG
       if CommandLine.arguments.contains("-demo") {
         onboarded = !CommandLine.arguments.contains("-nux")
-        let arguments = CommandLine.arguments
-        if arguments.contains("-signedOut") {
+        introSeen = onboarded
+        if CommandLine.arguments.contains("-signedOut") {
           phase = .signedOut
         } else {
           let feed = FeedModel.demo(auth: auth)
           phase = .signedIn(feed)
-          if let channelId = arguments.first(where: { $0.hasPrefix("-select:") }) {
-            feed.selectedChannel = String(channelId.dropFirst("-select:".count))
+          if let channelId = debugArgument("select") {
+            feed.selectedChannel = channelId
           }
-          if arguments.contains("-play") {
+          if CommandLine.arguments.contains("-play") {
             feed.demoPlay(videoId: debugArgument("video"))
           }
         }
@@ -74,20 +82,25 @@ final class AppModel {
       if let saved = UserDefaults.standard.data(forKey: Self.accountKey),
         let account = try? JSONDecoder().decode(ChannelSummary.self, from: saved)
       {
-        try await skipSetupIfSynced()
-        phase = .signedIn(makeFeed(account))
+        // the mark was one per device before it was kept per account
+        if introSeen, !UserDefaults.standard.bool(forKey: Self.perAccountKey) {
+          markOnboarded(account.channelId)
+        }
+        UserDefaults.standard.set(true, forKey: Self.perAccountKey)
+        try await open(account)
       } else {
         try await openAccount()
       }
     } catch {
-      self.error = error.localizedDescription
+      self.error = Strings.message(for: error, signedOut: Strings.signInAgain)
       phase = .signedOut
     }
   }
 
-  /// Sign in interactively. `authenticate` opens Google's page and returns
-  /// the redirect it ends on.
-  func signIn(authenticate: (URL, String) async throws -> URL) async {
+  /// Sign in interactively; says whether someone is now signed in.
+  /// `authenticate` opens Google's page and returns the redirect it ends on.
+  @discardableResult
+  func signIn(authenticate: (URL, String) async throws -> URL) async -> Bool {
     signingIn = true
     error = nil
     defer { signingIn = false }
@@ -95,20 +108,46 @@ final class AppModel {
       let request = auth.authorizationRequest()
       let callback = try await authenticate(request.url, request.callbackScheme)
       try await auth.completeSignIn(callback: callback, request: request)
-      try await openAccount()
+      do {
+        try await openAccount()
+      } catch {
+        // a sign-in the app can't use isn't kept
+        if feed == nil {
+          await auth.signOut(revoke: false)
+        }
+        throw error
+      }
+      return true
     } catch ASWebAuthenticationSessionError.canceledLogin {
       // closing Google's page is not an error
+      return false
     } catch {
-      self.error = error.localizedDescription
+      appLog.error("sign-in failed: \(String(describing: error), privacy: .public)")
+      self.error = Strings.message(for: error, signedOut: Strings.signInAgain)
+      return false
     }
   }
 
   private func openAccount() async throws {
     let account = try await YouTubeClient(accessToken: await auth.validToken()).myChannel()
     UserDefaults.standard.set(try JSONEncoder().encode(account), forKey: Self.accountKey)
-    try await skipSetupIfSynced()
+    try await open(account)
+  }
+
+  /// Show an account's feed, or setup when it hasn't finished that here and
+  /// no other device has.
+  private func open(_ account: ChannelSummary) async throws {
+    let defaults = UserDefaults.standard
+    var done = defaults.bool(forKey: Self.onboardedKey(account.channelId))
+    if !done {
+      done = try await isSetUpElsewhere()
+      if done {
+        markOnboarded(account.channelId)
+      }
+    }
+    onboarded = done
     if let feed, feed.account.channelId == account.channelId {
-      feed.reconnected()
+      feed.reconnected(items: done)
     } else {
       phase = .signedIn(makeFeed(account))
     }
@@ -116,18 +155,30 @@ final class AppModel {
 
   private func makeFeed(_ account: ChannelSummary) -> FeedModel {
     let feed = FeedModel(account: account, auth: auth)
-    feed.onProfileDeleted = { [weak self] in self?.profileDeletedElsewhere(account) }
+    feed.onProfileDeleted = { [weak self, weak feed] in
+      if let feed {
+        self?.profileDeletedElsewhere(feed)
+      }
+    }
     return feed
   }
 
   /// The profile is gone from Drive: start setup again, still signed in,
   /// unless another device has set the account up again meanwhile.
-  private func profileDeletedElsewhere(_ account: ChannelSummary) {
-    setOnboarded(false)
+  private func profileDeletedElsewhere(_ deleted: FeedModel) {
+    guard !deletingProfile, feed === deleted else { return }
+    let account = deleted.account
+    setOnboarded(false, account.channelId)
+    deleted.player = nil
     Task {
       // a failed check leaves setup showing, which asks again at sign-in
-      try? await skipSetupIfSynced()
-      phase = .signedIn(makeFeed(account))
+      let elsewhere = (try? await isSetUpElsewhere()) ?? false
+      if feed === deleted, !deletingProfile {
+        if elsewhere {
+          setOnboarded(true, account.channelId)
+        }
+        phase = .signedIn(makeFeed(account))
+      }
     }
   }
 
@@ -144,83 +195,150 @@ final class AppModel {
       deleteError = Strings.deleteProfileFailed
       return
     }
-    setOnboarded(false)
-    await signOut()
+    let accountId = feed.account.channelId
+    await signOut(revoke: true)
+    UserDefaults.standard.removeObject(forKey: Self.onboardedKey(accountId))
   }
 
-  private func setOnboarded(_ value: Bool) {
+  private func markOnboarded(_ accountId: String) {
+    UserDefaults.standard.set(true, forKey: Self.onboardedKey(accountId))
+    UserDefaults.standard.set(true, forKey: Self.introSeenKey)
+    introSeen = true
+  }
+
+  private func setOnboarded(_ value: Bool, _ accountId: String) {
     onboarded = value
-    UserDefaults.standard.set(value, forKey: Self.onboardedKey)
+    if value {
+      markOnboarded(accountId)
+    } else {
+      UserDefaults.standard.removeObject(forKey: Self.onboardedKey(accountId))
+    }
   }
 
-  /// Finish the first run without showing it when the account's Drive app
-  /// folder already holds a device's file.
-  private func skipSetupIfSynced() async throws {
-    guard !onboarded else { return }
+  /// Whether the account's Drive app folder holds another device's file;
+  /// this device's own, written by a setup not finished here, doesn't count.
+  private func isSetUpElsewhere() async throws -> Bool {
     let files: [DriveFile]
     do {
       files = try await DriveClient(accessToken: await auth.validToken()).listAppFiles()
     } catch GoogleAPIError.tokenExpired {
       files = try await DriveClient(accessToken: await auth.refreshedToken()).listAppFiles()
     }
-    if hasSyncedProfile(files.map(\.name)) {
-      finishOnboarding()
-    }
+    return setUpElsewhere(files.map(\.name), ownName: "device-\(deviceId()).json")
   }
 
   func finishOnboarding() {
-    setOnboarded(true)
+    if let feed {
+      setOnboarded(true, feed.account.channelId)
+    }
   }
 
-  func signOut() async {
-    if let feed {
-      // save what is playing and upload unsaved edits while the token still works
-      feed.player = nil
-      await feed.flush()
-    }
-    await auth.signOut()
-    UserDefaults.standard.removeObject(forKey: Self.accountKey)
+  /// Upload what is unsent and forget the account on this device. Google's
+  /// grant stays, so other devices stay signed in, unless `revoke` is set,
+  /// as Delete Profile does.
+  func signOut(revoke: Bool = false) async {
+    let leaving = feed
+    // off the main screen at once; the upload and Google's answer can take a while
     phase = .signedOut
+    onboarded = false
+    if let leaving {
+      // save what is playing and upload unsaved edits while the token still works
+      leaving.player = nil
+      await leaving.flush()
+    }
+    await auth.signOut(revoke: revoke)
+    UserDefaults.standard.removeObject(forKey: Self.accountKey)
   }
 }
 
 /// Starts Google's sign-in in a web authentication session.
 struct SignInButton<Label: View>: View {
-  let model: AppModel
+  let app: AppModel
+  /// Called once someone is signed in.
+  var onSignedIn: () -> Void = {}
   @ViewBuilder let label: Label
   @Environment(\.webAuthenticationSession) private var webAuthenticationSession
 
   var body: some View {
     Button {
       Task {
-        await model.signIn { url, scheme in
+        let signedIn = await app.signIn { url, scheme in
           try await webAuthenticationSession.authenticate(
             using: url, callbackURLScheme: scheme, preferredBrowserSession: .shared)
+        }
+        if signedIn {
+          onSignedIn()
         }
       }
     } label: {
       label
     }
-    .disabled(model.signingIn)
+    .disabled(app.signingIn)
   }
 }
 
-/// "Sign In with Google" with the G mark, as a Sunflower button.
+/// Google's own "Sign in with Google" button: its four-colour mark on a
+/// neutral fill, white in light and near-black in dark, as Google's sign-in
+/// branding asks. Every place that offers the sign-in uses it.
 struct GoogleSignInButton: View {
-  let model: AppModel
+  let app: AppModel
   var fullWidth = false
+  /// Called once someone is signed in.
+  var onSignedIn: () -> Void = {}
 
   var body: some View {
-    SignInButton(model: model) {
-      HStack(spacing: 8) {
-        if model.signingIn {
-          ProgressView().controlSize(.small)
+    SignInButton(app: app, onSignedIn: onSignedIn) {
+      HStack(spacing: 12) {
+        if app.signingIn {
+          ProgressView().controlSize(.small).frame(width: 18, height: 18)
         } else {
-          GoogleMark()
+          Image("GoogleG")
+            .resizable()
+            .frame(width: 18, height: 18)
+            .accessibilityHidden(true)
         }
         Text(Strings.signIn)
       }
     }
-    .buttonStyle(ProminentButtonStyle(fullWidth: fullWidth))
+    .buttonStyle(GoogleButtonStyle(fullWidth: fullWidth))
+  }
+}
+
+/// The neutral box of Google's sign-in button, sized like the app's main button.
+private struct GoogleButtonStyle: ButtonStyle {
+  var fullWidth = false
+  @Environment(\.isEnabled) private var isEnabled
+  @Environment(\.colorScheme) private var colorScheme
+
+  // Google's light and dark button colours
+  private var fill: Color {
+    colorScheme == .dark
+      ? Color(red: 0x13 / 255, green: 0x13 / 255, blue: 0x14 / 255) : .white
+  }
+
+  private var stroke: Color {
+    colorScheme == .dark
+      ? Color(red: 0x8E / 255, green: 0x91 / 255, blue: 0x8F / 255)
+      : Color(red: 0x74 / 255, green: 0x77 / 255, blue: 0x75 / 255)
+  }
+
+  private var text: Color {
+    colorScheme == .dark
+      ? Color(red: 0xE3 / 255, green: 0xE3 / 255, blue: 0xE3 / 255)
+      : Color(red: 0x1F / 255, green: 0x1F / 255, blue: 0x1F / 255)
+  }
+
+  func makeBody(configuration: Configuration) -> some View {
+    let shape = RoundedRectangle(cornerRadius: fullWidth ? 25 : 6, style: .continuous)
+    configuration.label
+      .font(fullWidth ? .headline.weight(.medium) : .body.weight(.medium))
+      .foregroundStyle(text)
+      .padding(.horizontal, 12)
+      .frame(maxWidth: fullWidth ? .infinity : nil)
+      .frame(minHeight: fullWidth ? 50 : 40)
+      .background(fill, in: shape)
+      .overlay { shape.strokeBorder(stroke, lineWidth: 1) }
+      .opacity(configuration.isPressed ? 0.8 : (isEnabled ? 1 : 0.5))
+      .contentShape(Rectangle())
   }
 }

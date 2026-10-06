@@ -1,17 +1,22 @@
 <script lang="ts">
-  import { onMount, tick, untrack } from "svelte";
+  import { Popover } from "bits-ui";
+  import { onMount, untrack } from "svelte";
+  import { prefersReducedMotion } from "svelte/motion";
+  import { fade } from "svelte/transition";
   import { AUTOPLAY_OPTIONS } from "../lib/autoplay";
   import { TIME_CHIP_OPTIONS } from "../lib/chips";
   import { videoCount } from "../lib/duration";
   import { FeedController } from "../lib/feed.svelte";
   import { feedItemId } from "../lib/feed-item";
   import { FEED_SORT_OPTIONS } from "../lib/feed-order";
-  import type { RouteItem } from "../lib/router";
+  import { chipTitle } from "../lib/groups";
+  import { MINIMIZED_ROOM } from "../lib/player";
+  import { PlayerController } from "../lib/player.svelte";
   import type { Router } from "../lib/router.svelte";
   import type { Session } from "../lib/session.svelte";
+  import { readText, writeText } from "../lib/storage";
   import type { SyncStore } from "../lib/sync-store";
   import { cycleTheme, readTheme, type Theme } from "../lib/theme";
-  import type { FeedItem } from "../lib/types";
   import { WATCHED_MODE_OPTIONS } from "../lib/watched-mode";
   import Avatar from "./Avatar.svelte";
   import ChannelSidebar from "./ChannelSidebar.svelte";
@@ -20,10 +25,10 @@
   import FeedCard from "./FeedCard.svelte";
   import FeedCardSkeleton from "./FeedCardSkeleton.svelte";
   import FilterEditor from "./FilterEditor.svelte";
+  import GroupEditor from "./GroupEditor.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
   import LoadBar from "./LoadBar.svelte";
-  import Player from "./Player.svelte";
-  import PlayerFrame from "./PlayerFrame.svelte";
+  import PlayerHost from "./PlayerHost.svelte";
   import Settings from "./Settings.svelte";
   import YouTubeAttribution from "./YouTubeAttribution.svelte";
 
@@ -56,25 +61,33 @@
   /** localStorage key: set while the left sidebar is collapsed to its icons. */
   const SIDEBAR_COLLAPSED = "subtube.sidebarCollapsed";
   const NARROW = window.matchMedia("(max-width: 760px)");
-  const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-  function readCollapsed(): boolean {
-    try {
-      return localStorage.getItem(SIDEBAR_COLLAPSED) !== null;
-    } catch {
-      return false;
-    }
-  }
+  /** The width of the details panel, which the minimized player sits beside. */
+  const DETAILS_WIDTH = 320;
+  /** How long the window may keep its full-screen size after full screen has ended. */
+  const FULL_SCREEN_SETTLE_MS = 500;
+  let fullScreenEnded = Number.NEGATIVE_INFINITY;
+  // svelte-ignore state_referenced_locally
+  const player = new PlayerController(
+    feed,
+    router,
+    () => NARROW.matches,
+    () =>
+      document.fullscreenElement !== null ||
+      performance.now() - fullScreenEnded < FULL_SCREEN_SETTLE_MS,
+  );
 
   // the left sidebar as a drawer, in windows too narrow to keep it in place
   let showSidebar = $state(false);
   let narrow = $state(NARROW.matches);
   // the left sidebar as a rail of icons that widens over the grid on hover
-  let collapsed = $state(readCollapsed());
+  let collapsed = $state(readText(SIDEBAR_COLLAPSED) !== null);
   let showDetails = $state(false);
   let showSettings = $state(false);
-  // the card playing in place of its thumbnail, in a narrow window
-  let inlineItem: RouteItem | null = $state(null);
+  // the group editor, which takes the filter editor's place in the right panel
+  // until it closes or the page changes: the group's name (null for a new
+  // one) and a count that makes each opening a fresh editor
+  let groupEdit: { group: string | null; opening: number } | null =
+    $state(null);
   let theme: Theme = $state(readTheme());
 
   const account = $derived(session.account);
@@ -88,12 +101,25 @@
       (feed.loading || session.checking || feed.channelLoading),
   );
 
+  // the row's selected groups and topics; a channel's page has no group chips
+  const selection = $derived(
+    chipTitle(
+      route.channel ? [] : feed.groups,
+      feed.settings.groupChips,
+      feed.topicChips,
+      feed.settings.topicChips,
+    ),
+  );
+
+  // they take the feed's title's place; a channel's page keeps its name
   const title = $derived(
     route.channel
       ? (feed.channelEntry?.title ??
           feed.channelItems?.items[0]?.channelTitle ??
           "")
-      : "Feed",
+      : selection.names.length > 0
+        ? selection.names.join(", ")
+        : "Feed",
   );
 
   // changes whenever the user goes somewhere, which lets the channel list be put in order again
@@ -106,46 +132,10 @@
     ]),
   );
 
-  function routeItem(item: FeedItem): RouteItem {
-    return { kind: item.kind, id: feedItemId(item) };
-  }
-
   function cardOf(id: string): HTMLElement | null {
     return document.querySelector<HTMLElement>(
       `[data-card="${CSS.escape(id)}"]`,
     );
-  }
-
-  /** Play a card: in place of its thumbnail in a narrow window, otherwise in the player over the app. */
-  function play(item: FeedItem): void {
-    if (narrow) {
-      inlineItem = routeItem(item);
-    } else {
-      inlineItem = null;
-      router.open({ channel: router.route.channel, item: routeItem(item) });
-    }
-  }
-
-  /** The card playing in place ended: auto-play's next card takes over, scrolled into view. */
-  function inlineEnded(endedId: string): void {
-    const next = feed.autoplayNext(endedId);
-    inlineItem = next ? routeItem(next) : null;
-    if (next) {
-      void tick().then(() => {
-        cardOf(feedItemId(next))?.scrollIntoView({
-          block: "nearest",
-          behavior: REDUCED_MOTION.matches ? "auto" : "smooth",
-        });
-      });
-    }
-  }
-
-  /** The player over the app ended: auto-play's next item plays in it. */
-  function overlayEnded(endedId: string): void {
-    const next = feed.autoplayNext(endedId);
-    if (next) {
-      router.replace({ channel: router.route.channel, item: routeItem(next) });
-    }
   }
 
   /** Show the feed (null) or a channel's page. */
@@ -178,20 +168,29 @@
     refresh();
   }
 
+  /** Open the group editor in the right panel: for a group by its name, or for a new one (null). */
+  function editGroup(group: string | null): void {
+    groupEdit = { group, opening: (groupEdit?.opening ?? 0) + 1 };
+    showDetails = true;
+    showSidebar = false;
+  }
+
+  /** The details button: closing the panel ends a group edit, so it opens on the filter editor. */
+  function toggleDetails(): void {
+    if (showDetails) {
+      showDetails = false;
+    } else {
+      groupEdit = null;
+      showDetails = true;
+    }
+  }
+
   function toggleSidebar(): void {
     if (narrow) {
       showSidebar = !showSidebar;
     } else {
       collapsed = !collapsed;
-      try {
-        if (collapsed) {
-          localStorage.setItem(SIDEBAR_COLLAPSED, "1");
-        } else {
-          localStorage.removeItem(SIDEBAR_COLLAPSED);
-        }
-      } catch {
-        // applies for this visit only
-      }
+      writeText(SIDEBAR_COLLAPSED, collapsed ? "1" : null);
     }
   }
 
@@ -202,9 +201,24 @@
       narrow = NARROW.matches;
       showSidebar = false;
     };
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    const onFullScreen = () => {
+      if (document.fullscreenElement === null) {
+        fullScreenEnded = performance.now();
+        clearTimeout(settleTimer);
+        // a window still wide by then is wide
+        settleTimer = setTimeout(
+          () => player.pageChanged(),
+          FULL_SCREEN_SETTLE_MS,
+        );
+      }
+    };
     NARROW.addEventListener("change", onNarrow);
+    document.addEventListener("fullscreenchange", onFullScreen);
     return () => {
       NARROW.removeEventListener("change", onNarrow);
+      document.removeEventListener("fullscreenchange", onFullScreen);
+      clearTimeout(settleTimer);
       stop();
     };
   });
@@ -216,12 +230,16 @@
     }
   });
 
-  // a card that left the list stops playing; unmounting it saved its position
   $effect(() => {
-    const playing = inlineItem;
-    if (playing && !feed.feed.some((item) => feedItemId(item) === playing.id)) {
-      inlineItem = null;
-    }
+    const item = router.route.item;
+    untrack(() => player.routeChanged(item));
+  });
+
+  $effect(() => {
+    void router.route.channel;
+    void feed.feed;
+    void narrow;
+    untrack(() => player.pageChanged());
   });
 
   // focus goes back to the card of whatever the closed player last played
@@ -239,9 +257,17 @@
     void feed.channels;
     untrack(() => void feed.ensureChannelItems());
   });
+
+  // going to another page leaves the group editor, unsaved edits and all
+  $effect(() => {
+    void router.route.channel;
+    untrack(() => {
+      groupEdit = null;
+    });
+  });
 </script>
 
-<div class="app">
+<div class="app" inert={player.playing?.place === "large"}>
   <div class="left" class:open={showSidebar} class:collapsed>
     <div class="panel">
       <ChannelSidebar
@@ -252,6 +278,7 @@
         onhome={home}
         collapsed={!narrow && collapsed}
         ontoggle={toggleSidebar}
+        oneditgroup={editGroup}
       />
     </div>
   </div>
@@ -260,6 +287,7 @@
       type="button"
       class="scrim"
       aria-label="Close channels"
+      transition:fade={{ duration: prefersReducedMotion.current ? 0 : 200 }}
       onclick={() => {
         showSidebar = false;
       }}
@@ -267,111 +295,149 @@
   {/if}
 
   <div class="main">
-    <header>
-      {#if narrow}
-        <button
-          type="button"
-          class="icon-button sidebar-toggle"
-          aria-label="Channels"
-          title="Channels"
-          aria-expanded={showSidebar}
-          onclick={toggleSidebar}
-        >
-          <Icon name="sidebarLeft" />
-        </button>
-      {/if}
-      <div class="titles">
-        <h1 id="page-title">{title}</h1>
-        {#if !route.channel && !firstLoad}
-          <span class="secondary subtitle">{videoCount(feed.feed.length)}</span>
+    <Popover.Root bind:open={showSettings}>
+      <header>
+        {#if narrow}
+          <button
+            type="button"
+            class="icon-button sidebar-toggle"
+            aria-label="Channels"
+            title="Channels"
+            aria-expanded={showSidebar}
+            onclick={toggleSidebar}
+          >
+            <Icon name="sidebarLeft" />
+          </button>
         {/if}
-      </div>
-      <div class="tools">
-        <button
-          type="button"
-          class="icon-button"
-          aria-label={`Theme: ${THEME_NAME[theme]}`}
-          title={`Theme: ${THEME_NAME[theme]}`}
-          onclick={() => {
-            theme = cycleTheme(theme);
-          }}
-        >
-          <Icon name={THEME_ICON[theme]} />
-        </button>
-        <button
-          type="button"
-          class="icon-button"
-          aria-label={showDetails ? "Hide details" : "Show details"}
-          title={showDetails ? "Hide details" : "Show details"}
-          aria-expanded={showDetails}
-          onclick={() => {
-            showDetails = !showDetails;
-          }}
-        >
-          <Icon name="sidebarRight" />
-        </button>
-      </div>
-      {#if account}
-        <button
-          type="button"
-          class="account"
-          class:open={showSettings}
-          aria-label="Account and settings"
-          aria-expanded={showSettings}
-          data-settings-toggle
-          onclick={() => {
-            showSettings = !showSettings;
-          }}
-        >
-          <Avatar
-            title={account.title}
-            thumbnail={account.thumbnail}
-            size={28}
-            tint
-          />
-        </button>
-      {/if}
-    </header>
+        <div class="titles">
+          <h1 id="page-title">{title}</h1>
+          {#if selection.names.length > 0}
+            {#if selection.edit !== null}
+              {@const group = selection.edit}
+              <button
+                type="button"
+                class="icon-button"
+                aria-label="Edit group"
+                title="Edit group"
+                onclick={() => editGroup(group)}
+              >
+                <Icon name="pencil" />
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="icon-button"
+              aria-label="Clear"
+              title="Clear"
+              onclick={() => {
+                if (route.channel) {
+                  feed.setSetting("topicChips", []);
+                } else {
+                  feed.clearChips("feed");
+                }
+              }}
+            >
+              <Icon name="close" />
+            </button>
+          {/if}
+          {#if !route.channel && !firstLoad}
+            <span class="secondary subtitle"
+              >{videoCount(feed.feed.length)}</span
+            >
+          {/if}
+        </div>
+        <div class="tools">
+          <button
+            type="button"
+            class="icon-button"
+            aria-label={`Theme: ${THEME_NAME[theme]}`}
+            title={`Theme: ${THEME_NAME[theme]}`}
+            onclick={() => {
+              theme = cycleTheme(theme);
+            }}
+          >
+            <Icon name={THEME_ICON[theme]} />
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            aria-label={showDetails ? "Hide details" : "Show details"}
+            title={showDetails ? "Hide details" : "Show details"}
+            aria-expanded={showDetails}
+            onclick={toggleDetails}
+          >
+            <Icon name="sidebarRight" />
+          </button>
+        </div>
+        {#if account}
+          <Popover.Trigger aria-label="Account and settings">
+            {#snippet child({
+              props,
+            })}
+              <button
+                {...props}
+                type="button"
+                class="account"
+                class:open={showSettings}
+              >
+                <Avatar
+                  title={account.title}
+                  thumbnail={account.thumbnail}
+                  size={28}
+                  tint
+                />
+              </button>
+            {/snippet}
+          </Popover.Trigger>
+        {/if}
+      </header>
 
-    {#if showSettings && account}
-      <Settings
-        {account}
-        lastSynced={store.lastSynced}
-        onclose={() => {
-          showSettings = false;
-        }}
-        onsignout={() => {
-          showSettings = false;
-          void session.signOut();
-        }}
-        ondelete={() => session.deleteProfile()}
-      />
-    {/if}
+      {#if account}
+        <Settings
+          {account}
+          lastSynced={store.lastSynced}
+          onsignout={() => {
+            showSettings = false;
+            void session.signOut();
+          }}
+          ondelete={() => session.deleteProfile()}
+        />
+      {/if}
+    </Popover.Root>
 
     <ChipRow
+      groups={route.channel ? [] : feed.groups}
+      selectedGroups={feed.settings.groupChips}
+      ongroup={(group) => feed.toggleGroupChip(group)}
+      onnewgroup={!route.channel && feed.loadCount > 0
+        ? () => editGroup(null)
+        : undefined}
       topics={feed.topicChips}
       selected={feed.settings.topicChips}
       ontopic={(categoryId) => feed.toggleTopicChip(categoryId)}
-      onclear={() => feed.setSetting("topicChips", [])}
     >
       {#snippet leading()}
         <CycleChip
+          label="Playback"
           options={AUTOPLAY_OPTIONS}
           value={feed.settings.autoplay ? "on" : "off"}
           onchange={(autoplay) =>
             feed.setSetting("autoplay", autoplay === "on")}
         />
         <CycleChip
+          label="Sort"
           options={FEED_SORT_OPTIONS}
           value={feed.settings.feedSort}
           onchange={(feedSort) => feed.setSetting("feedSort", feedSort)}
         />
         <CycleChip
+          label="Time"
           options={TIME_CHIP_OPTIONS}
           value={feed.settings.timeChip}
           onchange={(timeChip) => feed.setSetting("timeChip", timeChip)}
         />
         <CycleChip
+          label="Show"
           options={WATCHED_MODE_OPTIONS}
           value={feed.watchedMode}
           onchange={(mode) => feed.setWatchedMode(mode)}
@@ -381,7 +447,13 @@
 
     <div class="body">
       <div class="pane">
-        <div class="content">
+        <div
+          class="content"
+          data-player-view
+          style:padding-bottom={player.playing?.place === "minimized"
+            ? `${MINIMIZED_ROOM}px`
+            : undefined}
+        >
           {#if !session.ready && !session.checking && !session.connecting}
             <div class="banner">
               <span>
@@ -436,8 +508,10 @@
                 {item}
                 watched={feed.watched.has(id)}
                 progress={feed.bars.get(id) ?? null}
-                player={inlineItem?.id === id ? inlinePlayer : undefined}
-                onopen={() => play(item)}
+                playing={player.isPlaying(id)}
+                holdsPlayer={player.inCard(id)}
+                onopen={() => player.play(item)}
+                onmark={() => feed.setWatched(id, !feed.watched.has(id))}
                 onopenchannel={() => open(item.channelId)}
               />
             {/each}
@@ -448,10 +522,10 @@
               <!-- the skeleton cards above stand in for the list -->
             {:else if feed.channelError}
               <p class="empty error-text">{feed.channelError}</p>
-            {:else if session.ready}
+            {:else if session.ready && !feed.error && !session.error}
               <p class="empty secondary">
                 {feed.emptiedBySelection
-                  ? "No videos for selected filter"
+                  ? "No videos for the selected filter."
                   : "Nothing new. You're caught up."}
               </p>
             {/if}
@@ -472,12 +546,26 @@
         class="right"
         class:open={showDetails}
         inert={!showDetails}
-        aria-label={feed.channelEntry
-          ? `Filters for ${feed.channelEntry.title}`
-          : "Details"}
+        aria-label={groupEdit
+          ? groupEdit.group === null
+            ? "New group"
+            : "Edit group"
+          : feed.channelEntry
+            ? `Filters for ${feed.channelEntry.title}`
+            : "Details"}
       >
         <div class="right-panel">
-          {#if feed.channelEntry}
+          {#if groupEdit}
+            {#key groupEdit.opening}
+              <GroupEditor
+                {feed}
+                group={groupEdit.group}
+                onclose={() => {
+                  showDetails = false;
+                }}
+              />
+            {/key}
+          {:else if feed.channelEntry}
             {#key feed.channelEntry.channelId}
               <FilterEditor {feed} channel={feed.channelEntry} />
             {/key}
@@ -490,27 +578,12 @@
   </div>
 </div>
 
-{#snippet inlinePlayer()}
-  {#if inlineItem}
-    {@const playing = inlineItem}
-    <PlayerFrame
-      item={playing}
-      {feed}
-      focusPlayer
-      onended={() => inlineEnded(playing.id)}
-    />
-  {/if}
-{/snippet}
-
-{#if route.item}
-  {@const playing = route.item}
-  <Player
-    item={playing}
-    {feed}
-    onclose={() => router.close()}
-    onended={() => overlayEnded(playing.id)}
-  />
-{/if}
+<PlayerHost
+  {player}
+  {feed}
+  {narrow}
+  beside={!narrow && showDetails ? DETAILS_WIDTH : 0}
+/>
 
 <style>
   .app {
@@ -581,12 +654,12 @@
   .titles {
     min-width: 0;
     display: flex;
-    align-items: baseline;
-    gap: 10px;
+    align-items: center;
+    gap: 4px;
   }
 
   h1 {
-    margin: 0;
+    margin: 0 4px 0 0;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -597,6 +670,7 @@
 
   .subtitle {
     flex-shrink: 0;
+    margin-left: 6px;
     font-size: 13px;
   }
 
@@ -763,7 +837,9 @@
       width: min(280px, 85vw);
       transform: translateX(-100%);
       visibility: hidden;
-      transition: none;
+      transition:
+        transform 0.2s,
+        visibility 0s 0.2s;
     }
 
     .left .panel,
@@ -779,6 +855,7 @@
       transform: none;
       visibility: visible;
       box-shadow: 8px 0 32px var(--shadow);
+      transition: transform 0.2s;
     }
 
     .scrim {
@@ -798,6 +875,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .left,
+    .left.collapsed,
+    .left.open,
     .panel,
     .right,
     .right.open {

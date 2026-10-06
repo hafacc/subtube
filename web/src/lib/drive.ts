@@ -1,4 +1,9 @@
-import { InsufficientScopeError, TokenExpiredError } from "./youtube";
+import {
+  GoogleRequestError,
+  InsufficientScopeError,
+  isMissingScope,
+  TokenExpiredError,
+} from "./youtube";
 
 /* The Drive app folder: files only this app's OAuth clients can see. */
 const FILES_ENDPOINT = "https://www.googleapis.com/drive/v3/files";
@@ -15,10 +20,12 @@ export interface DriveFile {
   modifiedTime: string;
 }
 
+/** A Drive request; `allowed` lists statuses besides 2xx that are answers, not failures. */
 async function driveFetch(
   url: string,
   token: string,
   init: RequestInit = {},
+  allowed: readonly number[] = [],
 ): Promise<Response> {
   const response = await fetch(url, {
     ...init,
@@ -26,16 +33,17 @@ async function driveFetch(
   });
   if (response.status === 401) {
     throw new TokenExpiredError();
-  }
-  if (!response.ok) {
+  } else if (response.ok || allowed.includes(response.status)) {
+    return response;
+  } else {
     const body = await response.text();
-    if (response.status === 403 && body.includes("insufficient")) {
+    if (isMissingScope(response.status, body)) {
       throw new InsufficientScopeError();
+    } else {
+      console.error(`Google Drive request failed: ${response.status} ${body}`);
+      throw new GoogleRequestError(response.status);
     }
-    console.error(`Google Drive request failed: ${response.status} ${body}`);
-    throw new Error(`Google request failed: ${response.status}`);
   }
-  return response;
 }
 
 /** The Google account behind a token, as Drive reports it. */
@@ -44,11 +52,13 @@ export interface DriveUser {
   displayName: string;
   /** the account's address, when Drive shares it */
   emailAddress?: string;
+  /** the account's id in Drive, the same for every app and device */
+  permissionId?: string;
 }
 
 /** The signed-in Google account's name and address; the app-folder scope is enough to ask. */
 export async function fetchDriveUser(token: string): Promise<DriveUser> {
-  const url = `${ABOUT_ENDPOINT}?fields=${encodeURIComponent("user(displayName,emailAddress)")}`;
+  const url = `${ABOUT_ENDPOINT}?fields=${encodeURIComponent("user(displayName,emailAddress,permissionId)")}`;
   const data = (await (await driveFetch(url, token)).json()) as {
     user: DriveUser;
   };
@@ -79,15 +89,26 @@ export async function listAppFiles(token: string): Promise<DriveFile[]> {
 
 /** Delete a file from the app folder; one already gone counts as deleted. */
 export async function deleteFile(fileId: string, token: string): Promise<void> {
-  const response = await fetch(
+  await driveFetch(
     `${FILES_ENDPOINT}/${encodeURIComponent(fileId)}`,
-    { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
+    token,
+    { method: "DELETE" },
+    [404],
   );
-  if (response.status === 401) {
-    throw new TokenExpiredError();
-  } else if (!response.ok && response.status !== 404) {
-    throw new Error(`Google request failed: ${response.status}`);
-  }
+}
+
+/** Whether a file is still in the app folder, asked by its id. */
+export async function fileExists(
+  fileId: string,
+  token: string,
+): Promise<boolean> {
+  const response = await driveFetch(
+    `${FILES_ENDPOINT}/${encodeURIComponent(fileId)}?fields=id`,
+    token,
+    {},
+    [404],
+  );
+  return response.ok;
 }
 
 /** A file's content, parsed as JSON. */

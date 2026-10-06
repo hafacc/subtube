@@ -16,6 +16,11 @@ and those one folder down (the patterns' `*` stops at a `/`, so a deeper
 folder needs one more pattern). Settings that differ by platform are
 `[sdk=macosx*]` / `[sdk=iphone*]` conditionals on the target.
 
+`App/Resources/PrivacyInfo.xcprivacy` is the privacy manifest for both apps:
+no tracking, no collected data, and the two required-reason APIs the code
+uses — `UserDefaults` (CA92.1) and the system uptime the player's save timer
+reads (35F9.1). A new use of such an API needs its line there.
+
 `Config/` holds what must stay out of the synced folders (the macOS
 entitlements, `Info-macOS.plist`, `Info-iOS.plist`, `Versions.xcconfig`,
 `Signing.xcconfig`) and `make-icons.sh`. The two Info plists carry only the
@@ -51,7 +56,14 @@ the pbxproj.
   `SyncStore` (Drive app-folder sync, debounced uploads, local pending copy
   uploaded again after a load finds Drive behind it or when the app leaves
   the foreground; never writes over its own Drive file if that couldn't be
-  read; `watchedEntries`, `setWatched`, and `setProgress`, which keeps a
+  read; uploads run one after another, each chained to the one before and
+  clearing `saving` itself — never wait for one in a `while let running =
+  saving` loop that someone else must clear, which spins the actor for good
+  (`SyncStoreTests`); every Drive call goes through `withDrive`, which
+  renews a refused token once; a listing without this device's file wipes
+  the profile only after `ownFileIsGone` confirms it — asked for by id, or
+  listed again — and never when an upload ran while the listing was asked
+  for; `watchedEntries`, `setWatched`, and `setProgress`, which keeps a
   position on the device at once and starts an upload only when told to;
   `noteLoaded`, which `FeedModel` calls with every full load's item ids —
   refresh, then prune, and an upload only when either changed something; a
@@ -60,12 +72,16 @@ the pbxproj.
   followed channels' names cached per account), `Drive`, `YouTube`
   (`GoogleAPIError.dailyLimit`: a 403 whose body has `error.errors[].reason`
   `quotaExceeded` or `dailyLimitExceeded`, `isDailyLimit`, read only on
-  YouTube answers; never retried, renews no token, and its description is
-  the text shown), `Shorts` (`withoutShortsList`: a video that can't be a
-  Short is not one, a candidate stays unjudged), `ShortsProbe`,
+  YouTube answers; never retried, renews no token; the errors carry no text
+  of their own, `Strings.message(for:signedOut:)` words them; an uploads list
+  that is "not found" is an empty one; `shortIds` is empty for a Shorts list
+  that is "not found" and nil when the list couldn't be read — a 5xx twice,
+  or a failed request), `Shorts` (`withoutShortsList`: a video that can't be
+  a Short is not one, a candidate stays unjudged; `classifyShorts` probes
+  only when the list couldn't be read), `ShortsProbe`,
   `Settings` (`SyncedSettings`: `feedSort`, `channelSort`,
-  `autoplay`, `timeChip`, `topicChips`, and the channel list's own
-  `channelTimeChip` and `channelTopicChips`, read out of the device files'
+  `autoplay`, `timeChip`, `topicChips`, `groupChips`, and the channel list's own
+  `channelTimeChip`, `channelTopicChips` and `channelGroupChips`, read out of the device files'
   `settings` map, which merges like the other maps; a missing or unknown
   value reads as the default and the entry is kept. `SyncStore.settings()` /
   `settingEntries()` / `setSetting(_:value:)`; a file without the section is
@@ -95,11 +111,34 @@ the pbxproj.
   filter, watched or not — what that row's topic chips are counted over —
   and `chipKeptChannels`, the channels with one of those inside the span and
   in a selected topic, nil when neither is chosen;
-  setup's starting point, `startMarks`, kept in UserDefaults by
-  `keepPendingStart` / `takePendingStart` until the first load after setup),
+  setup's starting point, `startMarks`, kept per account in UserDefaults as
+  a `PendingStart` (shared/fixtures/setup-start.json) — the choice, when setup finished and the channels that
+  were on — by `keepPendingStart` / `pendingStart`; `applyPendingStart`
+  marks a waiting channel's older items the first time a load fetches it and
+  takes it off the list, so a channel that failed keeps waiting),
+  `Groups` (shared/fixtures/groups.json: `groupName`, a typed name trimmed
+  of the listed white space, 1 to 24 code points, nil for a longer one, which
+  the name field keeps as typed with "Save" off; `filterGroups`, a saved
+  filter's `groups`, which `ChannelFilter.groups` mirrors and writes only
+  when changed; `groupNames`, the groups that exist, in chip order;
+  `chipTitle`, what a row's title shows while chips are selected;
+  `groupKeptChannels` / `groupFiltered` / `keptByBoth`, the group chips'
+  filter; the edits `setMembers`, `renameGroup`, `deleteGroup` and the
+  editor's `saveGroup`, each a `GroupEdit` of whole filters and the two
+  selections, which `SyncStore.applyGroupEdit` saves as one edit with one
+  time; `groupEdited`, the listed channels an edit changes, which
+  `keepingEdits` puts over a running load's older copy;
+  `SyncStore.savedFilters` is every saved filter, listed or not; names are
+  compared by code point everywhere, in the app too, never with `==`),
   `WatchedMode` (the watched chip: `modeFiltered`, `autoplayAdvances`,
   `emptiedBySelection`), `Autoplay`
-  (`nextUnwatched`: what plays after an item ends), `Playback` (one item in
+  (`nextUnwatched`: what plays after an item ends; and the player's rules,
+  shared/fixtures/player.json: `PlayerPlace` — large, card, minimized —
+  `PlayQueue`, the page's list and watched chip as they were when an item
+  was started, `nextInQueue`, `endOutcome` — with nothing next a card's
+  player closes, the large and the minimized one stay on the ended item —
+  `minimizedPlayerSize`, `largePlayerSize`),
+  `Playback` (one item in
   one player, no web view: from the player's reports it says what to save —
   a video's position every 5 s on the device, for Drive on pause and on
   `save(upload:)`, `watched` at the reported end; nothing for a playlist or
@@ -116,60 +155,133 @@ the pbxproj.
   still named, adds the Shorts list when a filter has come to need it,
   queues the new ones and takes the others out of the queue; the load given
   it builds on `items(_:)`),
-  `Auth` (ASWebAuthenticationSession, PKCE, refresh token in the Keychain).
+  `Auth` (PKCE against the iOS client, refresh token in the Keychain; the
+  sign-in page always asks which account, `prompt=select_account`;
+  `signOut(revoke:)` forgets the sign-in here and withdraws Google's grant
+  only when asked; declining the permissions is `AuthError.declined`, shown
+  as nothing; a Keychain that won't keep the token fails the sign-in).
 - `App/Shared/` — SwiftUI shared by both apps: `AppModel` (sign-in, first
-  run, theme; after sign-in on a device that hasn't finished the first run
-  it lists the Drive app folder and skips the rest of setup when any
-  `device-*.json` is there; Delete Profile empties the app folder and local
-  state, then signs out; a load that finds this device's uploaded file gone
-  — `SyncError.profileDeleted` — wipes local state and restarts setup,
-  unless a fresh listing shows another device set the account up again),
+  run, theme; the web authentication session is started by `SignInButton`;
+  "setup done" is kept per account, `subtube.onboarded.<channel id>`, and
+  `introSeen` says whether any account finished it here, which opens setup
+  on its sign-in screen; an account without the mark gets setup unless the
+  Drive app folder holds another device's file — this device's own, written
+  by a setup not finished, doesn't count (`setUpElsewhere`); Sign Out
+  uploads, forgets the account here and leaves Google's grant alone, so
+  other devices stay signed in; Delete Profile empties the app folder and
+  local state, then signs out and revokes the grant; a load that finds this
+  device's uploaded file gone — `SyncError.profileDeleted` — wipes local
+  state and restarts setup, unless a fresh listing shows another device set
+  the account up again; a sign-in the app can't use — no YouTube channel, a
+  permission left off — is not kept),
   `FeedModel` (the feed: `shown` is everything fetched that passes the
   filters, the watched chip — `watchedMode`, kept for the visit — and the
   time and topic chips, in the `feedSort` order; `topicChips` are counted
   after the filters and the watched chip, `unwatchedByChannel` ignores the
   chips; an item that becomes watched or unwatched on screen stays until a
-  full load, a filter edit or a change of the watched, time or topic chip,
+  full load, a filter edit, a change of the watched, time, topic or group
+  chip, or a group save or delete that changes the feed's selected groups,
   not when moving between pages; `watched` and `bars` are worked out from a
   mirror of the store's entries, `entries`, and each video's length;
   everything asked of the store about entries and settings goes through one
   queue, `storeCalls`, so saves land in the order made; `recordProgress`
   saves the player's position, `resumeAt` is where a video opens;
-  `autoplayNext`; `player` is the one `PlayerSession`, and replacing it
-  saves the old one's position; during a load the previous feed stays,
+  `player` is the one `PlayerSession`, and replacing it
+  saves the old one's position: `open` starts a card, large on a Mac and in
+  the card on a phone, keeping the page's list for what plays next;
+  `minimize`, `minimizeCard` (a page change, and a rebuild that drops the
+  card, call it), `enlarge`, `expandToCard` (only on the page the item was
+  started on, while that lists it; `cardIsListed` says whether that page
+  still does, whatever page shows), `closePlayer`; `playbackEnded` follows
+  `nextInQueue` and `endOutcome`; `playStarts` and `cardScrolls` count
+  cards started by hand and cards to scroll into view;
+  `groups` are the groups that exist, `toggleGroupChip` /
+  `toggleChannelGroupChip` select them, `feedTitle` / `channelListTitle`
+  are the two rows' titles, `clearFeedChips` / `clearChannelChips` their
+  "Clear", which writes only the settings that had something selected, `saveGroup` / `deleteGroup` the editor's two writes; the group
+  chips wait for a full load (`fullLoadShown`); during a load the previous feed stays,
   greyed out, and filters edited meanwhile win over the load's copy; an
   edit to a shown channel that lacks something its filter needs —
   `isMissing`: its mode's items, or the Shorts list — fetches just that,
   after the load if one runs, six fetches at a time; the daily limit shows
   its text in place of the partial-load notice, or as the error, and drops
   the fetches still waiting; refreshing on an off channel's page refetches
-  it; the first load after setup marks what was fetched from before the
-  starting point watched in one edit; `loadProgress` is the running full
+  it; after setup each load, and each channel fetched by itself, marks what
+  the channels still waiting for the starting point have from before it
+  (`markBeforeStart`); a failed load shows `Strings.message(for:signedOut:)`
+  — never an exception's own text — and the sign-in button only when
+  signing in fixes it; a load that was called off shows nothing and fails no
+  channel; `loadProgress` is the running full
   load's fraction, nil otherwise and for a channel fetched by itself;
   `orderedChannels` is the held rows, those the channel list's chips keep:
   `reorderChannels()` works them out again — a full load and a change of
-  the channel sort, time or topic chips call it, a list calls it when it
+  the channel sort, time, topic or group chips call it, a list calls it when it
   appears and when its search changes — and between those an edit, a count
   or a single channel's fetch moves no row and takes none away, and a
   channel that comes to be kept goes last; `channelTopicChips` is that
   row's topics; `explainsNoChannels` is true once a full load is shown
-  and a span or topic is chosen: a list then empty, by the chips alone or
-  with its search, shows "No channels for selected filter"), `Player` (`PlayerSession`: one video
-  or one real playlist; it owns its WKWebView — IFrame API, element full screen
+  and a span, a topic or a group is chosen: a list then empty, by the chips alone or
+  with its search, shows "No channels for the selected filter."), `Player` (`PlayerSession`: one video
+  or one real playlist, its `place`, the page it was `startedOn` and its
+  `queue`; it owns its WKWebView — IFrame API, element full screen
   and inline playback on; the page's base URL and the player's `origin` and
   `widget_referrer` are `PlayerPage.identity`, `https://<bundle id>` read
   from the bundle, as YouTube asks of a native app —
   so a view showing it can go and come back without restarting it; the page
   posts the player's state and, each second while playing, its position;
-  `YouTubePlayerView` is the bare 16:9 player), `ChipViews` (`Chip`, a
-  toggle or a removable phrase; `CycleChip`, as wide as its widest label
-  and never drawn selected; `AutoplayChip`, a `CycleChip` reading "Play one"
+  every 250 ms it checks whether the web view is in no window, in a hidden
+  or minimized window, or under a sheet or anything else presented, and
+  pauses the video through the page's `cover()`, which plays it again once
+  clear; a `cover()` that comes before YouTube's player is ready is kept
+  and pauses the video as it starts, and one the page had no script for yet
+  is asked again; a card's player in no window for a second is minimized;
+  for half a second after it starts in a card, and after YouTube's full
+  screen ends, a card under half showing keeps the player (`isSettling`)
+  while its list scrolls it into view; `PlayerNavigation` opens a link
+  pressed in YouTube's player in the browser, and loads the page again
+  where the video was when the web view's process dies; the page's
+  `onError` ends a video like its end does, without marking it;
+  the checks end with the session, and `webView` is nil once it is closed;
+  `isFullScreen`: the web view is in a view that is not a `PlayerHolder`,
+  so YouTube's full screen has it — until it is back there is no covered
+  check, a card going out of view doesn't minimize (the session does that
+  afterwards if the card still doesn't show), and a holder asking for the
+  web view waits;
+  `showsFrame` is set while the last tap or hover was on the video, and
+  `isFramed` is that outside a card — a card's player never has a frame
+  and looks like the card with the video in it: on iOS
+  a `TouchWatcher` on the window sees every touch begin and takes none
+  (a touch anywhere else, so also the start of a scroll, hides the frame),
+  on a Mac the overlay tracks the pointer and a `ScrollWatcher` hides the
+  frame on any scroll; the frame fades in and out over 0.15 s, not under
+  reduced motion; its buttons are 44 pt targets on iOS, reaching up out of
+  the bar, and "Expand" or "Minimize" and "Close" are also accessibility
+  actions of the player, there without a hover or a tap;
+  `YouTubePlayerView` fills the box it is given and draws `PlayerFrame` —
+  a 37 pt bar with the title, "Expand" (minimized) or "Minimize" (Mac's
+  large player), and "Close", and a
+  hairline — as its background, larger than the box, so nothing is ever
+  over the video and it neither moves nor resizes;
+  `minimizedPlayerRoom`: while the player is minimized, a bottom inset as
+  high as it and its margins after a list's last row — the feed, a
+  channel's page, the Channels list and Settings on iOS, the feed grid on
+  a Mac), `GroupEditor` (a
+  draft, saved only by "Save", which needs a name and one channel on; on
+  iOS a sheet with "Cancel" and "Save" in its bar, the name, "Search
+  channels", the rows, and "Delete Group" under them; on macOS it fills
+  the details panel with one bottom row, "Delete Group" leading and
+  Cancel / Save trailing; only the rows scroll; `ChipTitleButtons`, the
+  pencil "Edit group" and the × "Clear"), `ChipViews` (`Chip`, a
+  toggle or a removable phrase, which VoiceOver names "Remove {phrase}";
+  `CycleChip`, as wide as its widest label and never drawn selected, which
+  VoiceOver names by what it sets and its choice: "Playback: Play one",
+  "Sort: Latest", "Time: All time", "Show: Unwatched"; `AutoplayChip`, a `CycleChip` reading "Play one"
   with auto-play off and "Auto-play" with it on; `ChipRow`, which fades out
   over 40 pt at an edge with chips beyond it and shows no scroll indicator:
-  its leading chips, then, when it has topics, a divider, `ClearTopicsChip`
-  — round, a × alone, dimmed and disabled while no topic is selected — and
-  the topic toggles; `FeedChipRow` and `ChannelChipRow` (sort, time, topics)
-  are the two rows; `NoChannelsForFilter`; `FlowLayout`), `FeedViews` (also `LoadProgressBar`: 3 pt
+  its leading chips, a divider, `NewGroupChip` — round, a + alone — and the
+  group toggles, a divider, then the topic toggles; there is no clear chip;
+  `FeedChipRow` (no group chips on a channel's page) and `ChannelChipRow`
+  (sort, time, groups, topics) are the two rows; `NoChannelsForFilter`; `FlowLayout`), `FeedViews` (also `LoadProgressBar`: 3 pt
   of Sunflower over the top edge of the feed while `loadProgress` is set,
   running to the end and fading out when the load finishes; no animation
   under reduced motion; to accessibility a progress value), `FilterForm` (`PhraseFields`: the pattern as phrase chips
@@ -181,28 +293,62 @@ the pbxproj.
   a label with the segments at natural width on the right, under the label
   when they don't fit),
   `NuxView` (the first run uses the app's own controls; its screens are
-  intro, sign-in, "Choose channels", "Shorts", "Where to start", done.
+  intro, sign-in, "Choose channels", "Shorts", "Where to start", done; Back
+  is on every screen but the first and the last, and from "Choose channels"
+  it goes to the sign-in screen, where signing in again moves on.
+  `GoogleSignInButton` is Google's own button on both platforms: the
+  four-colour mark (`GoogleG` in the asset catalog, Google's paths, never
+  recoloured), "Sign in with Google" in exactly that capitalisation, as the
+  heading over it too, on white with a #747775 stroke in light and #131314
+  with #8E918F in dark; it is never Sunflower.
+  On Mac it sits centred under the sign-in screen's text with the agreement
+  line below it, and the bottom row there holds only the dots and Back.
   `SignInAgreement`, the line "By signing in, you agree to SubTube's Terms
   and Privacy Policy." with its two links, sits directly under every
   `GoogleSignInButton`: setup's and the Mac Settings window's when signed
   out.
+  "Choose channels" shows only skeleton rows while it loads, its rows by
+  name (`channelsByName`), and under a failed load "Refresh", or the sign-in
+  when only that helps.
   "Choose channels" loads channels only; its Next saves the switches and
   calls `FeedModel.prefetchEnabled()`, which fetches only the channels left
   on, so one turned off costs no quota; "Shorts"' Next saves the choice and
   calls it again, so a Hide or Only choice adds the Shorts lists; the first
   full load takes the prefetch when the feed opens; the starting point is
-  kept on the device for that load; the decisions are in `Setup.swift`),
+  kept on the device, with the channels that were on, until each has been
+  fetched; the decisions are in `Setup.swift`),
   `SettingsViews` (also `Links`, the three addresses the apps open;
   `LegalLinks`, "Privacy Policy" and "Terms" side by side in Settings;
   `YouTubeAttribution`, "Videos from YouTube" as a small muted link to
   youtube.com, text only: after the last card or the empty text of the feed
   and of a channel's page, not while `FeedModel.showsSkeletons`, and at the
-  end of the channel list), `Brand` (also `LogoMark`, sized by its hull so only the
+  end of the channel list;
+  `ItemCard`'s progress bar is also the control that marks an item watched
+  or unwatched (`FeedModel.toggleWatched`; the card stays where it is until
+  the list is next built; none on the card of the item the player has, in
+  any place — card, minimized or large — since the player's own saves
+  would undo the mark): a clear button
+  over the bar, never over the player — on a Mac an 18 pt strip inside the
+  thumbnail's bottom edge, which shows a grey track and a 7 pt bar under
+  the pointer, on iOS a 44 pt target centred on the bar, half over the
+  thumbnail and half over the text, with no track, only the fill; the
+  fill animates unless motion is reduced; on iOS `watchedSwipe()` also puts
+  the toggle on the card's list row as the system's swipe actions, the same
+  grey button on both edges with an icon over "Mark watched" or "Mark
+  unwatched": a full swipe toggles and the row slides back, a short one
+  leaves the button showing to be tapped; how far a full swipe is, its
+  haptic, the edge swipe back and VoiceOver's row action are the system's;
+  not on the card of the item the player has, nor during a load), `Brand` (also `LogoMark`, sized by its hull so only the
   hull takes layout room, and `Wordmark`, the logo beside the name with the
   hull as tall as the name's line; the one shimmer, `shimmering()`, and
   `skeleton()` for stand-ins: a first load shows skeleton cards, a reload
   sweeps the greyed feed with a dark band on light and a light band on dark;
-  still under reduced motion), `Strings`.
+  still under reduced motion; the card that holds the player is never
+  greyed, swept or disabled), `channelsMatching` (the one "Search
+  channels" filter, ignoring case and nothing else: the Channels tab, the
+  group editor and setup), `channelsByName` (the one by-name order, the
+  shared compare), `offChannelOpacity` (0.45, every list),
+  `Strings`.
 - `App/macOS/` — `NavigationSplitView` (sidebar: Feed + channels, each with
   its unwatched count, the channel chip row under the "Channels" header,
   scrolling inside the sidebar's width, and
@@ -213,9 +359,25 @@ the pbxproj.
   channel is selected, when the player opens or closes and when the
   Settings window appears or goes; detail:
   the chip row, Auto-play first, over the grid, the load bar over both; inspector: filters, opened
-  only from the toolbar; no Refresh button: clicking the sidebar row already
-  showing refreshes, as does Feed → Refresh, Cmd-R), the player is the
-  video alone over the dimmed app, closed by a click beside it or Escape
+  only from the toolbar, and the group editor takes the same panel: opening
+  one replaces the other and a change of page drops the draft; while a
+  row's chips are selected the sidebar's "Channels" header and the window's
+  title show the names, with the pencil and × after them — the window's
+  names are a toolbar item in the removed title's place, with the video
+  count the subtitle had under them; a channel's page keeps its name and
+  gets only the ×; no Refresh
+  button: clicking the sidebar row already
+  showing refreshes, as does Feed → Refresh, Cmd-R), `MacPlayerOverlay`
+  draws the one player in both places with one view, so the web view never
+  changes parent, and the change between the two animates over 0.2 s, not
+  under reduced motion: large over the dimmed app (a button), where a click
+  beside it or Escape minimizes, and minimized, 356 by 200 at the window's bottom
+  trailing corner, sized by the whole window and only moved left of the
+  details panel while that is open, with the
+  app in use behind; the frame shows while the pointer is over the video
+  or its bar — a deliberate difference from the web app, which also shows
+  it on pause, on a first click and on keyboard focus: the page here
+  reports none of those to the overlay
   (the window's toolbar stays above it), `FeedCommands` (Feed menu),
   Settings scene (General, Account).
 - `App/iOS/` — tab bar (Feed, Channels, Settings; tapping Feed while the feed shows
@@ -224,15 +386,33 @@ the pbxproj.
   first row is its chip row, then `ChannelSearchField`, which narrows what
   the chips keep. The chip row, Auto-play
   first, is the first row of the feed and of a channel's page; a channel's
-  page has an inline title, the channel's name, with only the Filters button
-  beside it; the load bar lies over the top edge of both lists, so under the
-  Feed tab's large title until that collapses, then under the bar. A channel's page is
+  page has an inline title, the channel's name, with the Filters button
+  beside it and, while it has topics selected, the × "Clear" before that;
+  the load bar lies over the top edge of both lists, so under the
+  Feed tab's large title until that collapses, then under the bar, and is
+  not drawn while a card holds the player, which it could lie over. A channel's page is
   pushed from a feed card or the Channels list (unwatched count left of each
   switch), and its Filters
   button, the filter symbol `line.3.horizontal.decrease.circle`, opens the
   filter sheet over it; a card plays in place of its
-  thumbnail, one at a time, and stops when its card leaves the list or the
-  page changes.
+  thumbnail, one at a time (never under 200 pt high, so on a narrow phone
+  the playing card is a little taller than its thumbnail). When less than
+  half of it shows (`onScrollVisibilityChange`), the page or tab changes,
+  or the card leaves the list, the same web view moves to the overlay on
+  the tab view (a card pressed while under half of it shows is first
+  scrolled into view, no further than brings it in, and plays there):
+  bottom trailing, 16 pt in and 16 pt above the tab bar (the
+  Feed tab reports its bottom safe area for that); that move changes the
+  web view's parent, so it is not animated. "Expand" restores the
+  tab and stack the card was started on (`playerOrigin`), then
+  `expandToCard`; a list that appears with the player in a card scrolls to
+  it. When that page no longer lists the item, "Expand" does nothing and
+  the player stays minimized — a deliberate difference from the web app,
+  which plays it large, and from Android, which goes to the starting page:
+  a phone has no large player. The app leaving the foreground saves and
+  uploads inside a background task; the video is not paused by the app, as
+  on the web and unlike Android. While a row's chips are selected its tab's title is
+  inline, the names, with the pencil and × as trailing bar buttons.
 
 ## Shared behaviour
 
@@ -251,17 +431,38 @@ from `../design/icons/sub-play.svg`.
 
 ## Copy
 
-All user-facing text is in `App/Shared/Strings.swift`. New wording waiting for
+All user-facing text is in `App/Shared/Strings.swift`, error messages
+included: SubtubeCore's errors carry none. The one exception is the fifteen
+topic labels, `categoryNames` in SubtubeCore, which the shared fixtures
+check and the chip order sorts by. New wording waiting for
 approval is marked `COPY-DRAFT`. The same thing is worded the same on every
-platform (web, Android); only capitalization follows the platform.
+platform (web, Android); only capitalization follows the platform, except
+"Sign in with Google", which is Google's wording everywhere.
+
+Capitalization by kind of control: buttons and links you can see, and row
+and section labels in a form, are title case on both platforms; headings of
+a screen, sheet or panel, and the tooltips and VoiceOver names of icon
+buttons, are title case on a Mac and sentence case on an iPhone; chips,
+placeholders, body text, messages, summaries and a dialog's question are
+sentence case on both.
+
+The iOS channel rows' one-line summary is `filterSummary` (`FeedViews`):
+`filterSummaryParts` in SubtubeCore decides the parts, in the editor's order
+with the topics last ("Only Music, Gaming", names by name ignoring case),
+and `Strings.summary` words each.
 
 ## Run and look
 
-- `xcodebuild -project SubTube.xcodeproj -scheme SubTube -destination 'platform=macOS' build CODE_SIGN_IDENTITY=-`
+- `xcodebuild -project SubTube.xcodeproj -scheme SubTube -destination 'platform=macOS' -allowProvisioningUpdates build`
 - `xcodebuild -project SubTube.xcodeproj -scheme SubTube -destination 'generic/platform=iOS Simulator' build CODE_SIGN_IDENTITY=-`
-- `CODE_SIGN_IDENTITY=-` signs ad hoc, so a machine without the team's
-  certificate can build; the macOS build fails without it, the simulator
-  build doesn't need it.
+- The Mac app keeps the refresh token in the data protection keychain
+  (`kSecUseDataProtectionKeychain`, as on iOS), so rebuilding doesn't sign
+  it out; that needs the `keychain-access-groups` entitlement, which only
+  the team's development certificate can sign. A machine without it, or a
+  copy to take pictures of, builds with `CODE_SIGN_IDENTITY=-
+  CODE_SIGN_ENTITLEMENTS=` and its own `-derivedDataPath`: that copy runs
+  `-demo` but can't keep a sign-in. Never build ad hoc into Xcode's own
+  DerivedData: it replaces the signed copy.
 - Debug builds take launch arguments to show screens without a Google
   sign-in: `-demo` (mockup data, no network), plus `-select:<channelId>`,
   `-play` (with `-video:<videoId>` the card plays that real video, which
@@ -270,13 +471,22 @@ platform (web, Android); only capitalization follows the platform.
   `-tab:channels|settings`, `-channel:<channelId>` (with `-tab:channels`,
   opens that channel's page), `-filter:<channelId>` (the page, then its filter
   sheet), `-channelTime:<none|day|week|month>` and `-channelTopics:<id,id>` (the
-  Channels list's time and topic chips; both platforms), `-bottom` (the filter sheet, the feed, the Channels list and Settings
+  Channels list's time and topic chips; both platforms), `-topics:<id,id>`
+  (the feed's), `-groups` (the demo channels in three groups),
+  `-groupChips:<name,name>` and `-channelGroupChips:<name,name>`,
+  `-newGroup`, `-editGroup:<name>`, `-toggleWatched:<index>` (presses the
+  bar of that card of the feed), macOS `-barHover` (every card's bar as
+  under the pointer); with `-play`: `-minimized`,
+  `-playerFrame`, `-minimizeAfter:<seconds>`, iOS `-expandAfter:<seconds>`,
+  and `-mute`, which mutes the player as soon as it is ready — always pass
+  it with `-video:`, `-bottom` (the filter sheet, the feed, the Channels list and Settings
   start scrolled to the end); macOS also `-sidebarCollapsed`; both platforms
   take `-loading` (the feed as
   during a reload, its bar stopped at three channels of eight; with `-empty`,
   as during the first load), `-unwatched` (the
   watched chip on Unwatched; the demo otherwise opens on All) and `-confirmDelete` (the Delete
-  Profile confirmation, once Settings shows). Values ride in the same
+  Profile confirmation, once Settings shows); macOS `-settings` with
+  `-snapshot:` opens the Settings window first. Values ride in the same
   argument: macOS opens any bare argument as a file and then skips the main
   window.
 - macOS screenshots without screen-recording permission:
@@ -321,4 +531,13 @@ macOS and iOS are cut separately; each has its own version line in
   drop its large title and show nothing in its place, so no control sits
   beside a large title.
 - A list row scrolled off screen is torn down, so the playing web view
-  belongs to its `PlayerSession`, not to the row.
+  belongs to its `PlayerSession`, not to the row. Moved from the card's
+  holder to the overlay's and back in one update, it kept playing on the
+  iPhone 17 simulator (2026-10-05).
+- Nothing may be drawn over the player, not even an invisible view: the
+  frame is a background, taps are watched from the window, and hover from
+  a region that only reads the pointer.
+- `~/Library/Containers/cc.hafa.subtube` can be unreadable from a terminal.
+  A copy built with `CODE_SIGN_ENTITLEMENTS=` and its own
+  `-derivedDataPath` is not sandboxed and writes `-snapshot:` to
+  `$(getconf DARWIN_USER_TEMP_DIR)snapshots/<name>`.

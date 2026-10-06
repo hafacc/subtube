@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Switch } from "bits-ui";
+
   let {
     checked,
     label,
@@ -13,17 +15,26 @@
   } = $props();
 </script>
 
-<button
-  type="button"
-  role="switch"
-  aria-checked={checked}
+<Switch.Root
   aria-label={label}
-  class="switch"
-  class:on={checked}
-  onclick={() => onchange(!checked)}
+  bind:checked={() => checked, (next) => onchange(next)}
 >
-  <span class="track"><span class="knob"></span></span>
-</button>
+  {#snippet child({
+    props,
+  })}
+    <button {...props} type="button" class="switch">
+      <span class="track">
+        <Switch.Thumb>
+          {#snippet child({
+            props: thumb,
+          })}
+            <span {...thumb} class="knob"></span>
+          {/snippet}
+        </Switch.Thumb>
+      </span>
+    </button>
+  {/snippet}
+</Switch.Root>
 
 <style>
   .switch {
@@ -55,10 +66,21 @@
     border-radius: 50%;
     background: #ffffff;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s;
   }
 
-  .on .track {
-    justify-content: flex-end;
+  .switch[data-state="checked"] .track {
     background: var(--sunflower);
+  }
+
+  .knob[data-state="checked"] {
+    transform: translateX(16px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .track,
+    .knob {
+      transition: none;
+    }
   }
 </style>

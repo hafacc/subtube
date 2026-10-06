@@ -1,4 +1,10 @@
-import type { FilterMode, FilterScope, ShortsFilter } from "./types";
+import type {
+  ContentMode,
+  FilterMode,
+  FilterScope,
+  LiveFilter,
+  ShortsFilter,
+} from "./types";
 
 /** Whether a pattern's matches are hidden or the only ones shown, in order. */
 export const MODE_OPTIONS = [
@@ -33,3 +39,22 @@ export const SHORTS_OPTIONS = [
   { value: "normal", label: "Hide" },
   { value: "shorts", label: "Only" },
 ] as const satisfies readonly { value: ShortsFilter; label: string }[];
+
+/** What a channel shows, in order. */
+export const CONTENT_OPTIONS = [
+  { value: "videos", label: "Uploads" },
+  { value: "playlists", label: "Playlists" },
+] as const satisfies readonly { value: ContentMode; label: string }[];
+
+/** Whether a pattern's letters match in either case, in order. */
+export const CASE_OPTIONS = [
+  { value: "ignore", label: "Ignore" },
+  { value: "match", label: "Match" },
+] as const satisfies readonly { value: "ignore" | "match"; label: string }[];
+
+/** The live broadcast choices, in order. */
+export const LIVE_OPTIONS = [
+  { value: "all", label: "Show" },
+  { value: "normal", label: "Hide" },
+  { value: "vod", label: "Only" },
+] as const satisfies readonly { value: LiveFilter; label: string }[];

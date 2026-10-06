@@ -8,6 +8,7 @@ import type {
   LiveFilter,
   ShortsFilter,
 } from "./types";
+import { oneOf } from "./values";
 
 const DIGITS = "0123456789";
 const LOWER = "abcdefghijklmnopqrstuvwxyz";
@@ -183,16 +184,6 @@ export interface CompiledFilter {
   shortsFilter: ShortsFilter;
   /** the categories kept; empty keeps every one */
   topics: ReadonlySet<string>;
-  /** why the saved pattern was ignored, if it was */
-  error: string | null;
-}
-
-function oneOf<Value extends string>(
-  value: unknown,
-  allowed: readonly Value[],
-  fallback: Value,
-): Value {
-  return allowed.includes(value as Value) ? (value as Value) : fallback;
 }
 
 /**
@@ -228,87 +219,58 @@ export function compileFilter(filter: ChannelFilter): CompiledFilter {
     ),
   };
   const pattern = typeof raw.regex === "string" ? raw.regex : "";
-  if (pattern === "") {
-    return { ...base, regex: null, error: null };
-  } else if (!isValidPattern(pattern)) {
-    return { ...base, regex: null, error: "unsupported pattern" };
-  } else if (patternToPhrases(pattern) === null) {
-    return { ...base, regex: null, error: "not phrases" };
-  } else {
-    return {
-      ...base,
-      regex: compilePattern(pattern, raw.caseSensitive === true),
-      error: null,
-    };
-  }
+  const applies =
+    pattern !== "" &&
+    isValidPattern(pattern) &&
+    patternToPhrases(pattern) !== null;
+  return {
+    ...base,
+    regex: applies ? compilePattern(pattern, raw.caseSensitive === true) : null,
+  };
 }
 
-/** Whether a compiled filter keeps an item. */
+/** Whether a video gets through a filter's Shorts, broadcast, length and topic gates. */
+function videoPassesGates(
+  item: Exclude<FeedItem, { kind: "playlist" }>,
+  compiled: CompiledFilter,
+): boolean {
+  const { minDurationSeconds, liveFilter, shortsFilter, topics } = compiled;
+  const status = item.liveStatus ?? "normal";
+  // a channel that gates on Shorts also hides what it couldn't judge, so a
+  // Short never shows in a feed that drops them
+  const shortsPass =
+    shortsFilter === "all" ||
+    (item.isShort !== undefined &&
+      item.isShort === (shortsFilter === "shorts"));
+  // upcoming videos are always hidden
+  const broadcastPass =
+    status !== "upcoming" &&
+    !(liveFilter === "vod" && status === "normal") &&
+    !(liveFilter === "normal" && status !== "normal");
+  // a video of unknown length (0: live) is kept
+  const lengthPass =
+    !item.durationSeconds || item.durationSeconds >= minDurationSeconds;
+  const topicPass =
+    topics.size === 0 ||
+    (item.categoryId !== undefined && topics.has(item.categoryId));
+  return shortsPass && broadcastPass && lengthPass && topicPass;
+}
+
+/** Whether a compiled filter keeps an item; the gates are for videos, the pattern for playlists too. */
 export function videoPassesFilter(
   item: FeedItem,
   compiled: CompiledFilter,
 ): boolean {
-  const {
-    regex,
-    mode,
-    scope,
-    minDurationSeconds,
-    liveFilter,
-    shortsFilter,
-    topics,
-  } = compiled;
-  // The broadcast/Shorts/duration gates are video-only; playlists skip them.
-  // (Treat a missing kind — e.g. an older cached video — as a video.)
-  if (item.kind !== "playlist") {
-    // Shorts gate: keep only Shorts, only non-Shorts, or everything. A channel
-    // that gates on Shorts also hides what it couldn't judge, so a Short never
-    // shows in a feed that drops them.
-    if (shortsFilter !== "all") {
-      if (item.isShort === undefined) {
-        return false;
-      }
-      if (shortsFilter === "normal" && item.isShort) {
-        return false;
-      }
-      if (shortsFilter === "shorts" && !item.isShort) {
-        return false;
-      }
-    }
-    // Broadcast gate. Upcoming videos are always hidden; otherwise keep only the
-    // kinds the channel's live filter allows.
-    const status = item.liveStatus ?? "normal";
-    if (status === "upcoming") {
-      return false;
-    }
-    if (liveFilter === "vod" && status === "normal") {
-      return false;
-    }
-    if (liveFilter === "normal" && status !== "normal") {
-      return false;
-    }
-    // Duration gate, independent of the regex. Videos with an unknown duration
-    // (0, e.g. live/upcoming) are kept.
-    if (
-      minDurationSeconds > 0 &&
-      item.durationSeconds &&
-      item.durationSeconds < minDurationSeconds
-    ) {
-      return false;
-    }
-    if (
-      topics.size > 0 &&
-      (item.categoryId === undefined || !topics.has(item.categoryId))
-    ) {
-      return false;
-    }
-  }
-  if (!regex) {
+  const { regex, mode, scope } = compiled;
+  if (item.kind !== "playlist" && !videoPassesGates(item, compiled)) {
+    return false;
+  } else if (!regex) {
     return true;
+  } else {
+    // title and description are searched apart: joined, a match could span both
+    const matches =
+      (scope !== "description" && regex.test(item.title)) ||
+      (scope !== "title" && regex.test(item.description));
+    return mode === "include" ? matches : !matches;
   }
-  // Test the title and description independently and OR them, rather than
-  // matching against a concatenation (which could match across the boundary).
-  const matches =
-    (scope !== "description" && regex.test(item.title)) ||
-    (scope !== "title" && regex.test(item.description));
-  return mode === "include" ? matches : !matches;
 }

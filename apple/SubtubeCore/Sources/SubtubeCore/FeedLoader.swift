@@ -42,8 +42,10 @@ public struct ChannelItems: Sendable, Hashable {
   /// Whether the channel's Shorts list was read for them, so `isShort` is set
   /// wherever it can be.
   public var shorts: Bool
+  /// The items, as fetched.
   public var items: [FeedItem]
 
+  /// A channel's items fetched in `mode`.
   public init(mode: ContentMode, shorts: Bool = false, items: [FeedItem]) {
     self.mode = mode
     self.shorts = shorts
@@ -76,6 +78,7 @@ public struct FeedLoadSink: Sendable {
   /// order, and start over when the load is retried.
   public var progress: @Sendable (_ finished: Int, _ total: Int) async -> Void
 
+  /// A sink that hands the reports to these two.
   public init(
     channels: @escaping @Sendable ([ChannelFilter]) async -> Void,
     progress: @escaping @Sendable (_ finished: Int, _ total: Int) async -> Void = { _, _ in }
@@ -339,6 +342,8 @@ public func fetchChannels(
       return true
     } catch let error as GoogleAPIError where error == .tokenExpired || error == .insufficientScope {
       throw error
+    } catch where isCancellation(error) {
+      throw error
     } catch {
       loaderLog.error(
         "channel \(channel.channelId, privacy: .public) failed: \(String(describing: error), privacy: .public)")
@@ -352,6 +357,11 @@ public func fetchChannels(
     }
   }
   return await tally.tally
+}
+
+/// Whether an error only says the work was called off.
+public func isCancellation(_ error: Error) -> Bool {
+  error is CancellationError || (error as? URLError)?.code == .cancelled
 }
 
 private func loadOnce(

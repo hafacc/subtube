@@ -87,3 +87,55 @@ import Testing
         playlistLength: 2) == [.markWatched, .ended])
   }
 }
+
+@Suite struct PlayerPlaceTests {
+  private func video(_ id: String) -> FeedItem {
+    .video(
+      Video(
+        videoId: id, channelId: "UC1", channelTitle: "", title: id, description: "",
+        publishedAt: "", thumbnail: "", durationSeconds: 60, liveStatus: .normal, isShort: false,
+        categoryId: ""))
+  }
+
+  @Test func theMinimizedPlayerIsNeverSmallerThanYouTubeAllows() {
+    for viewWidth in stride(from: 0.0, through: 1400.0, by: 7.0) {
+      let (width, height) = minimizedPlayerSize(viewWidth: viewWidth)
+      #expect(width >= minimumPlayerSide && width <= minimizedPlayerWidth)
+      #expect(height >= minimumPlayerSide)
+    }
+    let (width, height) = minimizedPlayerSize(viewWidth: 402)
+    #expect(width == 356 && height == 200)
+  }
+
+  @Test func theNextItemComesFromTheListThePlayerWasStartedFrom() {
+    let queue = PlayQueue(items: ["a", "b", "c"].map(video), mode: .unwatched)
+    #expect(nextInQueue(queue, after: "a", watched: ["b"], autoplay: true)?.id == "c")
+    #expect(nextInQueue(queue, after: "a", watched: [], autoplay: false) == nil)
+    #expect(nextInQueue(queue, after: "c", watched: [], autoplay: true) == nil)
+    let watchedList = PlayQueue(items: queue.items, mode: .watched)
+    #expect(nextInQueue(watchedList, after: "a", watched: [], autoplay: true) == nil)
+  }
+
+  @Test func aCardThatIsNotShowingHandsTheNextItemToTheMinimizedPlayer() {
+    #expect(endOutcome(place: .card, hasNext: true, nextCardShowing: false) == .next(.minimized))
+    #expect(endOutcome(place: .card, hasNext: true, nextCardShowing: true) == .next(.card))
+    #expect(endOutcome(place: .large, hasNext: false, nextCardShowing: false) == .stay)
+    #expect(endOutcome(place: .minimized, hasNext: false, nextCardShowing: false) == .stay)
+    #expect(endOutcome(place: .card, hasNext: false, nextCardShowing: true) == .close)
+  }
+}
+
+@Suite struct MarkFromTheBarTests {
+  @Test func aMarkFillsTheBarAndAnUnmarkEmptiesIt() {
+    let played = playedEntry(nil, now: 1, position: 120, ended: false)
+    let partly = progressFraction(played, durationSeconds: 600) ?? 0
+    #expect(partly > 0 && partly < 1)
+    let marked = markedEntry(played, now: 2, watched: true)
+    #expect(isWatched(marked, durationSeconds: 600))
+    #expect(progressFraction(marked, durationSeconds: 600) == 1)
+    let unmarked = markedEntry(marked, now: 3, watched: false)
+    #expect(!isWatched(unmarked, durationSeconds: 600))
+    #expect((progressFraction(unmarked, durationSeconds: 600) ?? 0) == 0)
+    #expect(resumePosition(unmarked, durationSeconds: 600) == 0)
+  }
+}

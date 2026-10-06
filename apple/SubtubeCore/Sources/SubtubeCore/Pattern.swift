@@ -130,7 +130,10 @@ public func enginePattern(_ pattern: String, caseSensitive: Bool) -> String {
 
 /// Compile a pattern for searching; nil when it isn't valid.
 public func compilePattern(_ pattern: String, caseSensitive: Bool) -> NSRegularExpression? {
-  guard isValidPattern(pattern) else { return nil }
-  return try? NSRegularExpression(
-    pattern: enginePattern(pattern, caseSensitive: caseSensitive))
+  if isValidPattern(pattern) {
+    return try? NSRegularExpression(
+      pattern: enginePattern(pattern, caseSensitive: caseSensitive))
+  } else {
+    return nil
+  }
 }

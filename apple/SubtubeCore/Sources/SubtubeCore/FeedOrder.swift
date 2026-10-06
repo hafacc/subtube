@@ -1,8 +1,12 @@
 /// The orders the feed can be read in.
 public enum FeedSort: String, Codable, Sendable, CaseIterable {
+  /// Newest first.
   case newest
+  /// Shortest first; playlists and videos without a length last.
   case shortest
+  /// By title, ignoring case.
   case title
+  /// In an order fixed by a seed.
   case random
 }
 

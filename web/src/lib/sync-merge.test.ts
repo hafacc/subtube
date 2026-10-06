@@ -8,7 +8,6 @@ import {
   channelsFor,
   type DeviceFile,
   defaultFilter,
-  deletedElsewhere,
   deviceIdFromName,
   editedEntry,
   editedFilter,
@@ -16,6 +15,7 @@ import {
   hasProfile,
   markedEntry,
   mergeDeviceFiles,
+  mergeOwnCopies,
   parseDeviceFile,
   playedEntry,
   pruneDeviceFile,
@@ -130,24 +130,6 @@ describe("editedEntry", () => {
       at: 5,
       watched: true,
     });
-  });
-});
-
-describe("deletedElsewhere", () => {
-  const own = "device-me.json";
-
-  test("a device that never uploaded has nothing to miss", () => {
-    expect(deletedElsewhere(false, [], own)).toBe(false);
-    expect(deletedElsewhere(false, ["device-other.json"], own)).toBe(false);
-  });
-
-  test("an uploaded file still listed is not a delete", () => {
-    expect(deletedElsewhere(true, ["device-other.json", own], own)).toBe(false);
-  });
-
-  test("an uploaded file gone from the listing is a delete", () => {
-    expect(deletedElsewhere(true, [], own)).toBe(true);
-    expect(deletedElsewhere(true, ["device-other.json"], own)).toBe(true);
   });
 });
 
@@ -376,6 +358,23 @@ describe("written device files match the shared schema", () => {
       expect(validate(content)).toBe(name.startsWith("valid-"));
     });
   }
+
+  for (const name of readdirSync(deviceFilesDir).filter((file) =>
+    file.startsWith("valid-"),
+  )) {
+    test(`example ${name} is read and written back unchanged`, () => {
+      const content = JSON.parse(
+        readFileSync(new URL(name, deviceFilesDir), "utf8"),
+      );
+      const read = parseDeviceFile(content);
+      expect(read).not.toBeNull();
+      const written = JSON.parse(
+        JSON.stringify(sanitizeDeviceFile(read as DeviceFile)),
+      );
+      expect(written).toStrictEqual(content);
+      expect(validate(written)).toBe(true);
+    });
+  }
 });
 
 describe("shared merge fixtures", () => {
@@ -406,4 +405,48 @@ describe("shared prune fixtures", () => {
       );
     });
   }
+});
+
+describe("mergeOwnCopies", () => {
+  const copy = (watched: DeviceFile["watched"]): DeviceFile => ({
+    version: 1,
+    channels: {},
+    watched,
+  });
+
+  test("keeps every key, and of one key the entry saved last", () => {
+    const merged = mergeOwnCopies(
+      copy({ a: { at: 5, watched: true }, b: { at: 1, watched: false } }),
+      copy({ b: { at: 2, watched: true }, c: { at: 3, watched: true } }),
+    );
+    expect(merged.watched).toEqual({
+      a: { at: 5, watched: true },
+      b: { at: 2, watched: true },
+      c: { at: 3, watched: true },
+    });
+  });
+
+  test("of two entries saved at once, the one seen in a load last, else the first copy's", () => {
+    const merged = mergeOwnCopies(
+      copy({
+        a: { at: 1, watched: true, seen: 4 },
+        b: { at: 1, watched: true, position: 7 },
+      }),
+      copy({
+        a: { at: 1, watched: true, seen: 9 },
+        b: { at: 1, watched: true },
+      }),
+    );
+    expect(merged.watched.a.seen).toBe(9);
+    expect(merged.watched.b.position).toBe(7);
+  });
+
+  test("keeps settings and fields it doesn't know from either copy", () => {
+    const merged = mergeOwnCopies(
+      { ...copy({}), later: 1 },
+      { ...copy({}), settings: { autoplay: { at: 1, value: true } } },
+    );
+    expect(merged.later).toBe(1);
+    expect(merged.settings).toEqual({ autoplay: { at: 1, value: true } });
+  });
 });

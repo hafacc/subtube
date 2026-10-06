@@ -27,9 +27,6 @@ export interface ChannelInfo {
   thumbnail: string;
 }
 
-/** A YouTube subscription: the channel as YouTube names it. */
-export type Subscription = ChannelInfo;
-
 /**
  * A channel's saved filter, as kept in the Drive file
  * (shared/schema/device-file.schema.json). It never holds the channel's
@@ -58,6 +55,8 @@ export interface ChannelFilter {
   topics?: string[];
   /** added in subtube rather than subscribed to on YouTube; listed while true */
   followed?: boolean;
+  /** names of the groups the channel is in (`groups.ts`) */
+  groups?: string[];
   /** fields from a newer client, kept as they were */
   [unknown: string]: unknown;
 }

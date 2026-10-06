@@ -4,7 +4,7 @@ public func commonShorts(_ channels: [ChannelFilter]) -> ShortsFilter {
   for channel in channels {
     counts[channel.shortsFilter, default: 0] += 1
   }
-  guard let top = counts.values.max() else { return .all }
+  let top = counts.values.max()
   let leaders = counts.filter { $0.value == top }
   if leaders.count == 1, let leader = leaders.first {
     return leader.key

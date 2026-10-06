@@ -2,16 +2,27 @@ import { getValidToken, silentRefresh, withToken } from "./auth";
 import { nextUnwatched } from "./autoplay";
 import { chipKeptChannels, kindFor, passingItems } from "./channel-chips";
 import { channelInfo } from "./channel-info";
-import { chipFiltered, chipRow, startMarks, takePendingStart } from "./chips";
+import { chipFiltered, chipRow } from "./chips";
+import { SignInRequiredError, shownMessage } from "./errors";
 import { feedItemId } from "./feed-item";
 import { newShuffleSeed, sortFeed } from "./feed-order";
 import { compileFilter, videoPassesFilter } from "./filters";
+import {
+  deleteGroup,
+  type GroupEdit,
+  type GroupSetting,
+  groupKeptChannels,
+  groupNames,
+  keptByBoth,
+  saveGroup,
+} from "./groups";
 import { loadFraction } from "./load-progress";
 import { platform } from "./platform";
 import { isWatchedEntry, progressFraction, resumePosition } from "./progress";
 import type { Router } from "./router.svelte";
 import type { Session } from "./session.svelte";
 import { readSettings, type Settings } from "./settings";
+import { takeStartMarks } from "./setup-start";
 import { defaultFilter } from "./sync-merge";
 import { ProfileDeletedError, type SyncStore } from "./sync-store";
 import type {
@@ -41,6 +52,9 @@ import {
 /** 50 is the most one playlistItems page returns, still for 1 quota unit. */
 export const UPLOADS_PER_CHANNEL = 50;
 const FETCH_CONCURRENCY = 6;
+/** What a load says when some channels couldn't be fetched. */
+export const PARTIAL_MESSAGE =
+  "Some channels couldn't be loaded; showing partial results.";
 /** Returning to the tab after this long away loads the feed again. */
 export const STALE_AFTER_MS = 15 * 60_000;
 
@@ -572,13 +586,29 @@ export class FeedController {
     chipRow(this.listed, this.settings.channelTopicChips),
   );
 
+  /** Every listed channel's filter, by channel id. */
+  private filters: Map<string, ChannelFilter> = $derived(
+    new Map(
+      Array.from(this.channels.values(), (channel) => [
+        channel.channelId,
+        channel.filter,
+      ]),
+    ),
+  );
+
+  /** The groups that exist, in chip order. */
+  groups: string[] = $derived(groupNames(this.filters.values()));
+
   /** The channels the channel list's chips keep, by id; null while they keep every channel. */
   chipChannels: Set<string> | null = $derived(
-    chipKeptChannels(
-      this.listed,
-      this.settings.channelTimeChip,
-      this.settings.channelTopicChips,
-      this.chipClock,
+    keptByBoth(
+      groupKeptChannels(this.filters, this.settings.channelGroupChips),
+      chipKeptChannels(
+        this.listed,
+        this.settings.channelTimeChip,
+        this.settings.channelTopicChips,
+        this.chipClock,
+      ),
     ),
   );
 
@@ -605,11 +635,20 @@ export class FeedController {
     chipRow(this.beforeChips, this.settings.topicChips),
   );
 
+  /** The channels the feed's group chips keep, by id; null on a channel's page and while none is selected. */
+  private groupChannels: Set<string> | null = $derived(
+    this.channelView === null
+      ? groupKeptChannels(this.filters, this.settings.groupChips)
+      : null,
+  );
+
   /** The items on screen, in the chosen order. */
   feed: FeedItem[] = $derived(
     sortFeed(
       chipFiltered(
-        this.beforeChips,
+        this.beforeChips.filter(
+          (item) => this.groupChannels?.has(item.channelId) ?? true,
+        ),
         this.settings.timeChip,
         this.settings.topicChips,
         this.chipClock,
@@ -626,7 +665,7 @@ export class FeedController {
   ): void {
     this.settings = { ...this.settings, [name]: value };
     this.chipClock = Date.now();
-    if (name === "timeChip" || name === "topicChips") {
+    if (name === "timeChip" || name === "topicChips" || name === "groupChips") {
       this.dropStaying();
     }
     this.store.setSetting(name, value);
@@ -638,6 +677,7 @@ export class FeedController {
       this.watchedMode,
       this.settings.timeChip,
       this.settings.topicChips,
+      this.groupChannels !== null,
     );
   }
 
@@ -658,25 +698,94 @@ export class FeedController {
 
   /** Select a topic chip by its category id, or deselect it. */
   toggleTopicChip(categoryId: string): void {
-    this.toggleTopicIn("topicChips", categoryId);
+    this.toggleChipIn("topicChips", categoryId);
   }
 
   /** Select one of the channel list's topic chips by its category id, or deselect it. */
   toggleChannelTopicChip(categoryId: string): void {
-    this.toggleTopicIn("channelTopicChips", categoryId);
+    this.toggleChipIn("channelTopicChips", categoryId);
   }
 
-  private toggleTopicIn(
-    name: "topicChips" | "channelTopicChips",
-    categoryId: string,
+  /** Select a group chip by its name, or deselect it. */
+  toggleGroupChip(group: string): void {
+    this.toggleChipIn("groupChips", group);
+  }
+
+  /** Select one of the channel list's group chips by its name, or deselect it. */
+  toggleChannelGroupChip(group: string): void {
+    this.toggleChipIn("channelGroupChips", group);
+  }
+
+  private toggleChipIn(
+    name: "topicChips" | "channelTopicChips" | GroupSetting,
+    chip: string,
   ): void {
     const selected = this.settings[name];
     this.setSetting(
       name,
-      selected.includes(categoryId)
-        ? selected.filter((other) => other !== categoryId)
-        : [...selected, categoryId],
+      selected.includes(chip)
+        ? selected.filter((other) => other !== chip)
+        : [...selected, chip],
     );
+  }
+
+  /** Deselect a chip row's groups and topics: the channel list's, or the feed's. */
+  clearChips(row: "feed" | "channels"): void {
+    const names =
+      row === "feed"
+        ? (["groupChips", "topicChips"] as const)
+        : (["channelGroupChips", "channelTopicChips"] as const);
+    for (const name of names) {
+      if (this.settings[name].length > 0) {
+        this.setSetting(name, []);
+      }
+    }
+  }
+
+  /** Save the group editor's draft in one save: `group` (null for a new one) gets `name` and exactly the channels `members`. */
+  saveGroup(
+    group: string | null,
+    name: string,
+    members: readonly string[],
+  ): void {
+    this.applyGroupEdit(
+      saveGroup(
+        this.store.savedFilters(),
+        Array.from(this.channels.keys()),
+        this.settings,
+        group,
+        name,
+        members,
+      ),
+    );
+  }
+
+  /** Delete a group: no channel is in it any more, and it leaves the selected chips. */
+  deleteGroup(group: string): void {
+    this.applyGroupEdit(
+      deleteGroup(this.store.savedFilters(), this.settings, group),
+    );
+  }
+
+  private applyGroupEdit(edit: GroupEdit): void {
+    const changed = Object.entries(edit.channels);
+    if (changed.length > 0) {
+      const channels = new Map(this.channels);
+      for (const [channelId, filter] of changed) {
+        const channel = channels.get(channelId);
+        if (channel) {
+          channels.set(channelId, { ...channel, filter });
+        }
+      }
+      this.channels = channels;
+      this.store.setFilters(edit.channels);
+    }
+    for (const name of ["groupChips", "channelGroupChips"] as const) {
+      const value = edit.settings[name];
+      if (value !== undefined) {
+        this.setSetting(name, value);
+      }
+    }
   }
 
   /** Everything fetched for a channel, whatever its filter keeps. */
@@ -857,7 +966,7 @@ export class FeedController {
     this.settings = readSettings(this.store.settings());
     this.shuffleSeed = newShuffleSeed();
     this.chipClock = Date.now();
-    this.markBeforeStart(fresh);
+    this.markBeforeStart(data.fetched.keys(), fresh);
     this.store.noteLoaded(fresh.map(feedItemId));
     this.applyWatchedBatch(fresh);
     for (const channelId of data.failed) {
@@ -868,13 +977,18 @@ export class FeedController {
     this.loadCount += 1;
   }
 
-  /** After setup, mark what was fetched from before its starting point watched, as one save. */
-  private markBeforeStart(fetched: FeedItem[]): void {
-    const ids = startMarks(
-      fetched,
-      takePendingStart(this.accountId),
-      Date.now(),
-    ).filter((id) => this.store.watchedEntry(id)?.watched !== true);
+  /**
+   * After setup, mark what was fetched from before its starting point
+   * watched, as one save: for each channel that was on then, the first time
+   * its items are fetched in full.
+   */
+  private markBeforeStart(
+    channelIds: Iterable<string>,
+    fetched: FeedItem[],
+  ): void {
+    const ids = takeStartMarks(this.accountId, channelIds, fetched).filter(
+      (id) => this.store.watchedEntry(id)?.watched !== true,
+    );
     if (ids.length > 0) {
       this.store.setWatchedAll(ids, true);
     }
@@ -889,6 +1003,7 @@ export class FeedController {
     this.loading = true;
     this.loadProgress = loadFraction(0, null);
     this.error = null;
+    this.notice = null;
     try {
       let token: string;
       try {
@@ -906,13 +1021,16 @@ export class FeedController {
           throw caught;
         }
         // the token died mid-load: renew silently and retry once
-        data = await this.fetchEverything(await silentRefresh(), prefetched);
+        data = await this.fetchEverything(
+          await silentRefresh(true),
+          prefetched,
+        );
       }
       this.applyLoad(data);
       this.notice = data.dailyLimit
         ? DAILY_LIMIT_MESSAGE
         : data.failed.size > 0
-          ? "Some channels couldn't be loaded; showing partial results."
+          ? PARTIAL_MESSAGE
           : null;
     } catch (caught) {
       this.handleError(caught);
@@ -925,16 +1043,29 @@ export class FeedController {
     }
   }
 
+  /** Whether a failure is one that signing in again fixes; the session is then told. */
+  private needsSignIn(caught: unknown): boolean {
+    if (
+      caught instanceof TokenExpiredError ||
+      caught instanceof SignInRequiredError ||
+      caught instanceof InsufficientScopeError
+    ) {
+      this.session.tokenLost();
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   private handleError(caught: unknown): void {
     if (caught instanceof ProfileDeletedError) {
       // the session is already on its way back to setup
-    } else if (caught instanceof TokenExpiredError) {
-      this.session.tokenLost();
-    } else if (caught instanceof InsufficientScopeError) {
-      this.session.tokenLost();
-      this.error = caught.message;
+    } else if (this.needsSignIn(caught)) {
+      this.error =
+        caught instanceof InsufficientScopeError ? caught.message : null;
     } else {
-      this.error = (caught as Error).message;
+      console.error(caught);
+      this.error = shownMessage(caught);
     }
   }
 
@@ -946,6 +1077,9 @@ export class FeedController {
       void this.ensureChannelItems();
     }
   }
+
+  // the newest channel page fetch, which alone says when loading is over
+  private channelRequest = 0;
 
   /** Fetch a channel page's items when the feed doesn't load that channel. */
   async ensureChannelItems(): Promise<void> {
@@ -963,6 +1097,8 @@ export class FeedController {
     if (have && covers(have, channel.filter)) {
       return;
     }
+    this.channelRequest += 1;
+    const request = this.channelRequest;
     this.channelLoading = true;
     this.channelError = null;
     try {
@@ -987,11 +1123,14 @@ export class FeedController {
         }
       }
     } catch (caught) {
-      if (this.channelView === channelId) {
-        this.channelError = (caught as Error).message;
+      if (!this.needsSignIn(caught) && this.channelView === channelId) {
+        console.error(caught);
+        this.channelError = shownMessage(caught);
       }
     } finally {
-      this.channelLoading = false;
+      if (request === this.channelRequest) {
+        this.channelLoading = false;
+      }
     }
   }
 
@@ -1042,8 +1181,8 @@ export class FeedController {
   }
 
   /**
-   * Add items fetched elsewhere, e.g. for a preview, so they needn't be
-   * fetched again; `shorts` says whether the channel's Shorts list was read
+   * Add items fetched outside a full load, so they needn't be fetched
+   * again; `shorts` says whether the channel's Shorts list was read
    * for them.
    */
   addChannelItems(
@@ -1075,6 +1214,7 @@ export class FeedController {
         fetchItemsWithToken,
         addShortsMarksWithToken,
       );
+      this.markBeforeStart([channel.channelId], fetched.items);
       this.addChannelItems(
         channel.channelId,
         fetched.mode,
@@ -1085,8 +1225,12 @@ export class FeedController {
       if (caught instanceof DailyLimitError) {
         // every waiting channel would be refused too
         this.channelQueue.clear();
+        this.notice = DAILY_LIMIT_MESSAGE;
+      } else if (!this.needsSignIn(caught)) {
+        // one channel's failure is not the page's: the feed stays as it is
+        console.error(caught);
+        this.notice ??= PARTIAL_MESSAGE;
       }
-      this.handleError(caught);
     }
   }
 

@@ -30,45 +30,54 @@ export function withoutShortsList(videos: Video[]): Video[] {
   );
 }
 
+/** A channel's Shorts list as read: its ids, null when the channel has none, "failed" when it couldn't be read. */
+export type ShortsList = ReadonlySet<string> | null | "failed";
+
 /**
- * Set `isShort` on one channel's uploads. The verdict comes from the channel's
- * Shorts list (`loadShortIds`, null when the channel has none). Should that list
- * ever stop being served, every channel would look Short-free, so a platform
- * that can ask `/shorts/{id}` directly (`probe`) does so instead; an
- * inconclusive answer leaves the verdict unknown, which a channel filtering on
- * Shorts holds back.
+ * Set `isShort` on one channel's uploads (shared/fixtures/shorts.json). The
+ * verdict comes from the channel's Shorts list (`loadShortIds`); a channel
+ * with no list has no Shorts. Only when the list couldn't be read does a
+ * platform that can ask `/shorts/{id}` directly (`probe`) do so instead; an
+ * inconclusive answer leaves the verdict unknown, which a channel filtering
+ * on Shorts holds back.
  */
 export async function classifyShorts(
   videos: Video[],
-  loadShortIds: () => Promise<Set<string> | null>,
+  loadShortIds: () => Promise<ShortsList>,
   probe?: (videoId: string) => Promise<boolean | null>,
 ): Promise<Video[]> {
   const candidates = videos.filter(isShortsCandidate);
   if (candidates.length === 0) {
     return videos.map((video) => ({ ...video, isShort: false }));
-  }
-  const shortIds = await loadShortIds();
-  if (shortIds || !probe) {
-    return videos.map((video) => ({
-      ...video,
-      isShort: isShortsCandidate(video) && !!shortIds?.has(video.videoId),
-    }));
-  }
-  const verdicts = new Map<string, boolean | null>();
-  for (let start = 0; start < candidates.length; start += PROBE_CONCURRENCY) {
-    const batch = candidates.slice(start, start + PROBE_CONCURRENCY);
-    const answers = await Promise.all(
-      batch.map((video) => probe(video.videoId).catch(() => null)),
-    );
-    batch.forEach((video, index) => {
-      verdicts.set(video.videoId, answers[index]);
-    });
-  }
-  return videos.map((video) => {
-    if (!isShortsCandidate(video)) {
-      return { ...video, isShort: false };
+  } else {
+    const shortIds = await loadShortIds();
+    if (shortIds !== "failed" || !probe) {
+      const listed = shortIds === "failed" ? null : shortIds;
+      return videos.map((video) => ({
+        ...video,
+        isShort: isShortsCandidate(video) && !!listed?.has(video.videoId),
+      }));
     } else {
-      return { ...video, isShort: verdicts.get(video.videoId) ?? undefined };
+      const verdicts = new Map<string, boolean | null>();
+      for (
+        let start = 0;
+        start < candidates.length;
+        start += PROBE_CONCURRENCY
+      ) {
+        const batch = candidates.slice(start, start + PROBE_CONCURRENCY);
+        const answers = await Promise.all(
+          batch.map((video) => probe(video.videoId).catch(() => null)),
+        );
+        batch.forEach((video, index) => {
+          verdicts.set(video.videoId, answers[index]);
+        });
+      }
+      return videos.map((video) => ({
+        ...video,
+        isShort: isShortsCandidate(video)
+          ? (verdicts.get(video.videoId) ?? undefined)
+          : false,
+      }));
     }
-  });
+  }
 }

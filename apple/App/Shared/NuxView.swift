@@ -28,15 +28,13 @@ struct NuxView: View {
     self.app = app
     if app.feed != nil {
       _step = State(initialValue: .channels)
-    } else if app.onboarded {
+    } else if app.introSeen {
       _step = State(initialValue: .signIn)
     } else {
       _step = State(initialValue: .intro)
     }
     #if DEBUG
-      if let argument = CommandLine.arguments.first(where: { $0.hasPrefix("-nuxStep:") }),
-        let forced = Int(argument.dropFirst("-nuxStep:".count)).flatMap(Step.init(rawValue:))
-      {
+      if let forced = debugArgument("nuxStep").flatMap(Int.init).flatMap(Step.init(rawValue:)) {
         _step = State(initialValue: forced)
       }
     #endif
@@ -77,10 +75,15 @@ struct NuxView: View {
     go(.start)
   }
 
-  /// Keep the starting point for the first feed load, and open the feed.
+  /// Keep the starting point for the channels that are on, each until a load
+  /// fetches it, and open the feed.
   private func finish() {
     if let feed = app.feed {
-      keepPendingStart(accountId: feed.account.channelId, start: startFrom)
+      keepPendingStart(
+        accountId: feed.account.channelId,
+        PendingStart(
+          start: startFrom, cutoff: epochMilliseconds(),
+          channels: feed.channels.filter(\.enabled).map(\.channelId)))
     }
     app.finishOnboarding()
   }
@@ -92,8 +95,6 @@ struct NuxView: View {
   private var showsBack: Bool {
     switch step {
     case .intro, .done: false
-    // signing out and back in doesn't undo the sign-in
-    case .channels: app.feed == nil
     default: true
     }
   }
@@ -105,17 +106,21 @@ struct NuxView: View {
           .frame(maxWidth: 560, maxHeight: .infinity)
           .padding(.horizontal, 40)
           .padding(.top, 20)
-        VStack(alignment: .trailing, spacing: 8) {
-          HStack(spacing: 10) {
-            StepDots(index: step.rawValue, count: Step.allCases.count)
-            Spacer()
-            if showsBack {
-              Button(Strings.back, action: retreat)
-            }
+        if step == .signIn {
+          VStack(spacing: 10) {
             primaryButton
+            SignInAgreement().multilineTextAlignment(.center)
           }
-          if step == .signIn {
-            SignInAgreement()
+          .padding(.horizontal, 40)
+        }
+        HStack(spacing: 10) {
+          StepDots(index: step.rawValue, count: Step.allCases.count)
+          Spacer()
+          if showsBack {
+            Button(Strings.back, action: retreat)
+          }
+          if step != .signIn {
+            primaryButton
           }
         }
         .padding(20)
@@ -169,13 +174,9 @@ struct NuxView: View {
         .buttonStyle(ProminentButtonStyle(fullWidth: wide))
         .keyboardShortcut(.defaultAction)
     case .signIn:
-      GoogleSignInButton(model: app, fullWidth: wide)
+      // a first sign-in replaces this whole view; one after Back moves on from here
+      GoogleSignInButton(app: app, fullWidth: wide, onSignedIn: { go(.channels) })
         .keyboardShortcut(.defaultAction)
-        .onChange(of: app.feed != nil, initial: true) { _, signedIn in
-          if signedIn && step == .signIn {
-            go(.channels)
-          }
-        }
     case .channels:
       Button(Strings.next, action: advance)
         .buttonStyle(ProminentButtonStyle(fullWidth: wide))
@@ -199,7 +200,7 @@ struct NuxView: View {
     case .signIn: signIn
     case .channels:
       if let feed = app.feed {
-        NuxChannels(feed: feed, search: $channelSearch, enabled: $enabledDraft)
+        NuxChannels(app: app, feed: feed, search: $channelSearch, enabled: $enabledDraft)
       }
     case .shorts:
       if let feed = app.feed {
@@ -267,7 +268,7 @@ struct NuxView: View {
 
   private var signIn: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text(Strings.signInHeading).font(.title.bold())
+      Text(Strings.signIn).font(.title.bold())
       Text(Strings.permissionsIntro).foregroundStyle(.secondary)
       permission("play.rectangle", Strings.permissionYouTube, Strings.permissionYouTubeDetail)
       permission("externaldrive", Strings.permissionDrive, Strings.permissionDriveDetail)
@@ -330,6 +331,7 @@ struct NuxView: View {
 
 /// Turn subscriptions on or off before the first feed.
 private struct NuxChannels: View {
+  let app: AppModel
   let feed: FeedModel
   @Binding var search: String
   @Binding var enabled: [String: Bool]
@@ -340,12 +342,44 @@ private struct NuxChannels: View {
   }
 
   private var matching: [ChannelFilter] {
-    let query = search.trimmingCharacters(in: .whitespaces)
-    if query.isEmpty {
-      return drafts
-    } else {
-      return drafts.filter { $0.title.localizedCaseInsensitiveContains(query) }
+    channelsByName(channelsMatching(drafts, search: search))
+  }
+
+  /// A load that failed, with "Refresh" to try it again and, when only that
+  /// helps, the sign-in.
+  @ViewBuilder
+  private var loadError: some View {
+    if let error = feed.error {
+      HStack(alignment: .firstTextBaseline, spacing: 12) {
+        Text(error).font(.callout).foregroundStyle(.red)
+        Spacer(minLength: 0)
+        if feed.needsReconnect {
+          SignInButton(app: app) { Text(Strings.signInShort) }
+        } else {
+          Button(Strings.refresh) {
+            Task { await feed.loadChannels() }
+          }
+          .disabled(feed.loading)
+        }
+      }
+      .buttonStyle(.borderless)
+      .foregroundStyle(Color.gold)
     }
+  }
+
+  private var skeletonRows: some View {
+    VStack(spacing: 0) {
+      ForEach(0..<16, id: \.self) { _ in
+        HStack(spacing: 12) {
+          Circle().fill(Color.secondary.opacity(0.15)).frame(width: 28, height: 28)
+          SkeletonLine(width: 180)
+          Spacer()
+        }
+        .padding(.vertical, 10)
+        Divider()
+      }
+    }
+    .skeleton()
   }
 
   private func isOn(_ channel: ChannelFilter) -> Binding<Bool> {
@@ -353,8 +387,24 @@ private struct NuxChannels: View {
   }
 
   var body: some View {
+    Group {
+      if !feed.channelsLoaded && feed.channels.isEmpty && feed.error == nil {
+        // while loading, the rows' stand-ins alone
+        skeletonRows.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+      } else {
+        loaded
+      }
+    }
+    .task {
+      if !feed.channelsLoaded {
+        await feed.loadChannels()
+      }
+    }
+  }
+
+  private var loaded: some View {
     let onCount = drafts.count(where: \.enabled)
-    VStack(alignment: .leading, spacing: 12) {
+    return VStack(alignment: .leading, spacing: 12) {
       Text(Strings.chooseChannels).font(.title.bold())
       Text(Strings.chooseChannelsDetail).foregroundStyle(.secondary)
       HStack {
@@ -369,35 +419,17 @@ private struct NuxChannels: View {
         .foregroundStyle(Color.gold)
         .disabled(feed.channels.isEmpty)
       }
-      if let error = feed.error {
-        Text(error).font(.callout).foregroundStyle(.red)
-      }
-      if !feed.channelsLoaded && feed.channels.isEmpty {
-        VStack(spacing: 0) {
-          ForEach(0..<8, id: \.self) { _ in
-            HStack(spacing: 12) {
-              Circle().fill(Color.secondary.opacity(0.15)).frame(width: 28, height: 28)
-              SkeletonLine(width: 180)
-              Spacer()
-            }
-            .padding(.vertical, 10)
-            Divider()
-          }
+      loadError
+      if feed.channels.isEmpty {
+        if feed.channelsLoaded {
+          Text(Strings.noSubscriptions).foregroundStyle(.secondary)
         }
-        .skeleton()
-      } else if feed.channels.isEmpty {
-        Text(Strings.noSubscriptions).foregroundStyle(.secondary)
       } else {
         channelList
       }
       Text(Strings.onCount(onCount, of: feed.channels.count))
         .font(.footnote)
         .foregroundStyle(.secondary)
-    }
-    .task {
-      if !feed.channelsLoaded {
-        await feed.loadChannels()
-      }
     }
   }
 
@@ -417,7 +449,7 @@ private struct NuxChannels: View {
             }
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
-            .opacity(channel.enabled ? 1 : 0.5)
+            .opacity(channel.enabled ? 1 : offChannelOpacity)
             Divider()
           }
         }
@@ -433,7 +465,7 @@ private struct NuxChannels: View {
             ChannelSwitch(title: channel.title, isOn: isOn(channel))
           }
           .padding(.vertical, 10)
-          .opacity(channel.enabled ? 1 : 0.5)
+          .opacity(channel.enabled ? 1 : offChannelOpacity)
           Divider()
         }
       }

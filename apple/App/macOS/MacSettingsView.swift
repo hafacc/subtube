@@ -39,7 +39,7 @@ private struct MacAccountPane: View {
         }
         Section {
           VStack(alignment: .leading, spacing: 6) {
-            Button(Strings.signOut) {
+            Button(Strings.signOut, role: .destructive) {
               Task { await app.signOut() }
             }
             Text(Strings.signOutFootnote)
@@ -57,8 +57,11 @@ private struct MacAccountPane: View {
         }
       } else {
         VStack(alignment: .leading, spacing: 6) {
-          GoogleSignInButton(model: app)
+          GoogleSignInButton(app: app)
           SignInAgreement()
+          if let error = app.error {
+            Text(error).font(.callout).foregroundStyle(.red)
+          }
         }
       }
       Section {

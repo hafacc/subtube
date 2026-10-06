@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { SHORTS_OPTIONS } from "../lib/channel-summary";
+  import {
+    CASE_OPTIONS,
+    CONTENT_OPTIONS,
+    LIVE_OPTIONS,
+    SHORTS_OPTIONS,
+  } from "../lib/channel-summary";
   import { editorTopics, topicLabel } from "../lib/chips";
   import type { FeedController } from "../lib/feed.svelte";
   import { compileFilter } from "../lib/filters";
@@ -8,12 +13,7 @@
     phrasePatternOnly,
     phrasesToPattern,
   } from "../lib/phrases";
-  import type {
-    Channel,
-    ChannelFilter,
-    ContentMode,
-    LiveFilter,
-  } from "../lib/types";
+  import type { Channel, ChannelFilter } from "../lib/types";
   import Chip from "./Chip.svelte";
   import ChoiceRow from "./ChoiceRow.svelte";
   import PatternFields from "./PatternFields.svelte";
@@ -28,20 +28,6 @@
     /** the channel whose filter is edited */
     channel: Channel;
   } = $props();
-
-  const CONTENT_OPTIONS = [
-    { value: "videos", label: "Uploads" },
-    { value: "playlists", label: "Playlists" },
-  ] as const satisfies readonly { value: ContentMode; label: string }[];
-  const CASE_OPTIONS = [
-    { value: "ignore", label: "Ignore" },
-    { value: "match", label: "Match" },
-  ] as const satisfies readonly { value: "ignore" | "match"; label: string }[];
-  const LIVE_OPTIONS = [
-    { value: "all", label: "Show" },
-    { value: "normal", label: "Hide" },
-    { value: "vod", label: "Only" },
-  ] as const satisfies readonly { value: LiveFilter; label: string }[];
 
   const filter = $derived(channel.filter);
   const isPlaylists = $derived(filter.contentMode === "playlists");

@@ -1,3 +1,5 @@
+import { readText, writeText } from "./storage";
+
 /** The colour theme: follow the system, or force light or dark. */
 export type Theme = "system" | "light" | "dark";
 
@@ -10,12 +12,8 @@ const NEXT: Record<Theme, Theme> = {
 
 /** The theme picked on this browser. */
 export function readTheme(): Theme {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === "light" || stored === "dark" ? stored : "system";
-  } catch {
-    return "system";
-  }
+  const stored = readText(STORAGE_KEY);
+  return stored === "light" || stored === "dark" ? stored : "system";
 }
 
 /** Apply and remember the theme after `theme`, returning it. */
@@ -26,14 +24,6 @@ export function cycleTheme(theme: Theme): Theme {
   } else {
     document.documentElement.dataset.theme = next;
   }
-  try {
-    if (next === "system") {
-      localStorage.removeItem(STORAGE_KEY);
-    } else {
-      localStorage.setItem(STORAGE_KEY, next);
-    }
-  } catch {
-    // applies for this visit only
-  }
+  writeText(STORAGE_KEY, next === "system" ? null : next);
   return next;
 }
