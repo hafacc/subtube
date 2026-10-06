@@ -1,0 +1,478 @@
+{
+  "description": "Reading the synced settings. `settings` is the merged view's `settings` map (shared/fixtures/merge.json); `expected` is what the client acts on. `feedSort`: one of newest (default), shortest, title, random (shared/fixtures/feed-order.json); oldest and longest, which older versions saved, read as the default like any other unknown value. `channelSort`: one of newest (default), name, unwatched (shared/fixtures/channel-order.json). `autoplay`: a boolean, default false. `timeChip`: one of none (default), day, week, month (shared/fixtures/feed-chips.json). `topicChips`: an array of strings, the selected topic chips' YouTube video category ids (shared/fixtures/feed-chips.json), default []; it is read as written, with no sorting or de-duplication, and ids that are in no table are kept here (the chips ignore them). `channelTimeChip` and `channelTopicChips`: the channel list's own time chip and topic chips (shared/fixtures/channel-chips.json), read exactly as `timeChip` and `topicChips` are and independent of them. A setting that is missing, or whose value is anything else (another string, another type, an array holding a non-string), reads as its default; the entry itself stays in the file untouched. Names not listed here are ignored. A change writes `{at: now, value}` under the setting's name in the device's own file, keeping any unknown fields the entry had.",
+  "cases": [
+    {
+      "name": "no settings: every default",
+      "settings": {},
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "every setting set",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": "random"
+        },
+        "channelSort": {
+          "at": 1759500000000,
+          "value": "unwatched"
+        },
+        "autoplay": {
+          "at": 1759500000000,
+          "value": true
+        },
+        "timeChip": {
+          "at": 1759500000000,
+          "value": "month"
+        },
+        "topicChips": {
+          "at": 1759500000000,
+          "value": [
+            "10",
+            "20"
+          ]
+        },
+        "channelTimeChip": {
+          "at": 1759500000000,
+          "value": "week"
+        },
+        "channelTopicChips": {
+          "at": 1759500000000,
+          "value": [
+            "27"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "random",
+        "channelSort": "unwatched",
+        "autoplay": true,
+        "timeChip": "month",
+        "topicChips": [
+          "10",
+          "20"
+        ],
+        "channelTimeChip": "week",
+        "channelTopicChips": [
+          "27"
+        ]
+      }
+    },
+    {
+      "name": "feed sort oldest, saved by an older version, reads as the default",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": "oldest"
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "feed sort title",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": "title"
+        }
+      },
+      "expected": {
+        "feedSort": "title",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "feed sort shortest",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": "shortest"
+        }
+      },
+      "expected": {
+        "feedSort": "shortest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "feed sort longest, saved by an older version, reads as the default",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": "longest"
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "channel sort name",
+      "settings": {
+        "channelSort": {
+          "at": 1759500000000,
+          "value": "name"
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "name",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "time chip day",
+      "settings": {
+        "timeChip": {
+          "at": 1759500000000,
+          "value": "day"
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "day",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "time chip week",
+      "settings": {
+        "timeChip": {
+          "at": 1759500000000,
+          "value": "week"
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "week",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "unknown values of known settings read as their defaults",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": "by-channel"
+        },
+        "channelSort": {
+          "at": 1759500000000,
+          "value": "Name"
+        },
+        "autoplay": {
+          "at": 1759500000000,
+          "value": "yes"
+        },
+        "timeChip": {
+          "at": 1759500000000,
+          "value": "year"
+        },
+        "topicChips": {
+          "at": 1759500000000,
+          "value": "Music"
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "values of the wrong type read as their defaults",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": 1
+        },
+        "channelSort": {
+          "at": 1759500000000,
+          "value": null
+        },
+        "autoplay": {
+          "at": 1759500000000,
+          "value": 1
+        },
+        "timeChip": {
+          "at": 1759500000000,
+          "value": false
+        },
+        "topicChips": {
+          "at": 1759500000000,
+          "value": {
+            "Music": true
+          }
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "a topic list holding anything but strings reads as empty",
+      "settings": {
+        "topicChips": {
+          "at": 1759500000000,
+          "value": [
+            "10",
+            3
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "topic ids are kept as they are: order, repeats and unknown ones",
+      "settings": {
+        "topicChips": {
+          "at": 1759500000000,
+          "value": [
+            "20",
+            "10",
+            "20",
+            "99"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [
+          "20",
+          "10",
+          "20",
+          "99"
+        ],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "unknown settings are ignored",
+      "settings": {
+        "playbackSpeed": {
+          "at": 1759500000000,
+          "value": 1.5
+        },
+        "autoplay": {
+          "at": 1759500000000,
+          "value": true
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": true,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "the channel list's chips are read apart from the feed's",
+      "settings": {
+        "timeChip": {
+          "at": 1759500000000,
+          "value": "day"
+        },
+        "topicChips": {
+          "at": 1759500000000,
+          "value": [
+            "10"
+          ]
+        },
+        "channelTimeChip": {
+          "at": 1759500000000,
+          "value": "month"
+        },
+        "channelTopicChips": {
+          "at": 1759500000000,
+          "value": [
+            "20",
+            "28"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "day",
+        "topicChips": [
+          "10"
+        ],
+        "channelTimeChip": "month",
+        "channelTopicChips": [
+          "20",
+          "28"
+        ]
+      }
+    },
+    {
+      "name": "the feed's chips alone leave the channel list's at their defaults",
+      "settings": {
+        "timeChip": {
+          "at": 1759500000000,
+          "value": "week"
+        },
+        "topicChips": {
+          "at": 1759500000000,
+          "value": [
+            "10"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "week",
+        "topicChips": [
+          "10"
+        ],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "unknown or wrongly typed channel list chips read as their defaults",
+      "settings": {
+        "channelTimeChip": {
+          "at": 1759500000000,
+          "value": "year"
+        },
+        "channelTopicChips": {
+          "at": 1759500000000,
+          "value": "20"
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "a channel list topic list holding anything but strings reads as empty",
+      "settings": {
+        "channelTimeChip": {
+          "at": 1759500000000,
+          "value": 7
+        },
+        "channelTopicChips": {
+          "at": 1759500000000,
+          "value": [
+            "20",
+            10
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": []
+      }
+    },
+    {
+      "name": "channel list topic ids are kept as they are: order, repeats and unknown ones",
+      "settings": {
+        "channelTopicChips": {
+          "at": 1759500000000,
+          "value": [
+            "20",
+            "10",
+            "20",
+            "99"
+          ]
+        }
+      },
+      "expected": {
+        "feedSort": "newest",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": [
+          "20",
+          "10",
+          "20",
+          "99"
+        ]
+      }
+    }
+  ]
+}

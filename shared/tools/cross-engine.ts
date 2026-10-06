@@ -1,5 +1,6 @@
 /*
- * Runs the pattern fixtures, plus seeded random patterns, through JavaScript,
+ * Runs the pattern fixtures, the patterns the phrase fixtures build, plus
+ * seeded random patterns, through JavaScript,
  * ICU (NSRegularExpression via the swift CLI) and java.util.regex, and fails
  * unless all three agree with each other and with the fixtures — both on which
  * patterns the meta regex accepts and on what the valid ones match.
@@ -163,8 +164,26 @@ const fixture: { cases: PatternCase[] } = JSON.parse(
   readFileSync(join(SHARED, "fixtures", "patterns.json"), "utf8"),
 );
 
+// the patterns built from phrases are valid patterns, checked like the others
+const phrases: {
+  cases: {
+    name: string;
+    op: string;
+    pattern: string;
+    matches?: PatternCase["matches"];
+  }[];
+} = JSON.parse(readFileSync(join(SHARED, "fixtures", "phrases.json"), "utf8"));
+const built: PatternCase[] = phrases.cases
+  .filter((testCase) => testCase.op === "build")
+  .map((testCase) => ({
+    name: `phrases / ${testCase.name}`,
+    pattern: testCase.pattern,
+    valid: true,
+    matches: testCase.matches,
+  }));
+
 const jobs: Job[] = [];
-for (const testCase of fixture.cases) {
+for (const testCase of [...fixture.cases, ...built]) {
   jobs.push({
     kind: "V",
     pattern: testCase.pattern,

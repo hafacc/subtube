@@ -1,0 +1,807 @@
+{
+  "description": "The chips at the top of the feed and of a channel's page, the topics in a channel's filter editor, and setup's starting point. A topic is one of YouTube's video categories, identified everywhere (on a video, in the `topicChips` setting, in a filter's `topics`) by YouTube's category id, a string, taken as written from videos.list `snippet.categoryId`; a video has at most one, a playlist none. Only these fifteen ids are topics, shown under these labels: 1 Film & Animation, 2 Autos & Vehicles, 10 Music, 15 Pets & Animals, 17 Sports, 19 Travel & Events, 20 Gaming, 22 People & Blogs, 23 Comedy, 24 Entertainment, 25 News & Politics, 26 Howto & Style, 27 Education, 28 Science & Technology, 29 Nonprofits & Activism. `op` says what a case checks. `label`: the label of `categoryId` (absent means the video has none); `expected` is the label, or null for an id not in the table. The chip row holds, in this order: the auto-play chip, which shows \"Play one\" when the `autoplay` setting is off (the default) and \"Auto-play\" when it is on, and on each press switches to the other; the sort chip, which shows the `feedSort` setting's label and on each press moves to the next of Latest (newest), Shortest (shortest), Title (title), Random (random), then back to Latest; the time chip, which shows the `timeChip` setting's label and on each press moves to the next of All time (none), Past day (day), Past week (week), Past month (month), then back to All time; the watched chip, which on each press moves to the next of Unwatched (the default: only items that are not watched), Watched (only watched items), All (both), then back to Unwatched, and is kept on the device for the visit, not synced; then the topic chips, each a toggle, any number selected. Between the divider and the first topic chip the row has a round chip showing only an ×, named \"Clear topics\", whenever it has at least one topic chip: a press sets the row's topic setting to [] and changes nothing else; while no id of the table is selected it stays in its place, dimmed and disabled, so no topic chip moves when one is toggled. The cycling chips are never drawn as selected. An item that becomes watched or unwatched while its list is on screen stays listed, whatever the watched chip says, until the next full load, a filter edit, or a change of the watched, time or topic chips. Auto-play moves on to the next unwatched item under Unwatched and All, and not at all under Watched. The channel list's sort chip moves the same way through the `channelSort` setting: Latest (newest), Name (name), Unwatched (unwatched). `chips`: the topic chips shown for a list, as ids in order. `items` is the current list after the per-channel filters and the watched chip and before the chips' own filtering; each has its `categoryId` (absent means none). A chip is shown for every id in the table that at least one item has, and for every id in the table that is in `selected` (the `topicChips` setting) even when no item has it; an id not in the table gets no chip. Order: by the number of items having the id, most first; ties by label ignoring case (lowercased code point by code point as the feed's `title` sort does, shared/fixtures/feed-order.json). `filter`: what the chips keep; `expected` is the kept ids in the order given (sorting is separate). `timeChip` none keeps every item; day, week and month keep an item when `now` minus its `publishedAt` is at most 86400000, 604800000 and 2592000000 ms (24 hours, 7 days, 30 days); `now` is in milliseconds since the Unix epoch, `publishedAt` is an RFC 3339 UTC time that may carry fractional seconds, and here it must be read as an instant. Of `topicChips` only the ids in the table count; with none of those every item passes, otherwise an item passes when its `categoryId` is one of them, so a playlist, a video without a category and a video whose category is not in the table do not. An item must pass both. A page with nothing to list says \"Nothing new. You're caught up.\" when the watched chip is on Unwatched, the time chip on All time and no topic chip is selected; otherwise it says \"No videos for selected filter\". The chips do not change the channel list's unwatched counts. `editor`: the topics in a channel's filter editor, where every one of the fifteen is a toggle for the filter's `topics` (shared/fixtures/filters.json); `items` is everything fetched for the channel, and `expected` all fifteen ids in order: by the number of the channel's videos having the id, most first, ties by label ignoring case. `start`: setup's \"Where to start\" choice (all, the default; day; week). At the first feed load after setup, every fetched item of the channels that are on, whether or not it passes a filter, with `now` minus `publishedAt` greater than the span (the items the same time chip would drop) is marked watched in one save; `expected` is those ids in the order given. `all` marks nothing. The choice is kept on the device, not synced.",
+  "cases": [
+    {
+      "name": "label: category 1",
+      "op": "label",
+      "categoryId": "1",
+      "expected": "Film & Animation"
+    },
+    {
+      "name": "label: category 2",
+      "op": "label",
+      "categoryId": "2",
+      "expected": "Autos & Vehicles"
+    },
+    {
+      "name": "label: category 10",
+      "op": "label",
+      "categoryId": "10",
+      "expected": "Music"
+    },
+    {
+      "name": "label: category 15",
+      "op": "label",
+      "categoryId": "15",
+      "expected": "Pets & Animals"
+    },
+    {
+      "name": "label: category 17",
+      "op": "label",
+      "categoryId": "17",
+      "expected": "Sports"
+    },
+    {
+      "name": "label: category 19",
+      "op": "label",
+      "categoryId": "19",
+      "expected": "Travel & Events"
+    },
+    {
+      "name": "label: category 20",
+      "op": "label",
+      "categoryId": "20",
+      "expected": "Gaming"
+    },
+    {
+      "name": "label: category 22",
+      "op": "label",
+      "categoryId": "22",
+      "expected": "People & Blogs"
+    },
+    {
+      "name": "label: category 23",
+      "op": "label",
+      "categoryId": "23",
+      "expected": "Comedy"
+    },
+    {
+      "name": "label: category 24",
+      "op": "label",
+      "categoryId": "24",
+      "expected": "Entertainment"
+    },
+    {
+      "name": "label: category 25",
+      "op": "label",
+      "categoryId": "25",
+      "expected": "News & Politics"
+    },
+    {
+      "name": "label: category 26",
+      "op": "label",
+      "categoryId": "26",
+      "expected": "Howto & Style"
+    },
+    {
+      "name": "label: category 27",
+      "op": "label",
+      "categoryId": "27",
+      "expected": "Education"
+    },
+    {
+      "name": "label: category 28",
+      "op": "label",
+      "categoryId": "28",
+      "expected": "Science & Technology"
+    },
+    {
+      "name": "label: category 29",
+      "op": "label",
+      "categoryId": "29",
+      "expected": "Nonprofits & Activism"
+    },
+    {
+      "name": "label: an id in no table has none",
+      "op": "label",
+      "categoryId": "30",
+      "expected": null
+    },
+    {
+      "name": "label: ids match as written",
+      "op": "label",
+      "categoryId": "01",
+      "expected": null
+    },
+    {
+      "name": "label: an empty id has none",
+      "op": "label",
+      "categoryId": "",
+      "expected": null
+    },
+    {
+      "name": "label: no category has none",
+      "op": "label",
+      "expected": null
+    },
+    {
+      "name": "chips: most items first",
+      "op": "chips",
+      "selected": [],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "10"
+        },
+        {
+          "id": "2",
+          "categoryId": "10"
+        },
+        {
+          "id": "3",
+          "categoryId": "20"
+        },
+        {
+          "id": "4",
+          "categoryId": "10"
+        },
+        {
+          "id": "5",
+          "categoryId": "20"
+        },
+        {
+          "id": "6",
+          "categoryId": "27"
+        },
+        {
+          "id": "7"
+        },
+        {
+          "id": "list",
+          "kind": "playlist"
+        }
+      ],
+      "expected": [
+        "10",
+        "20",
+        "27"
+      ]
+    },
+    {
+      "name": "chips: equal counts go by label, not by id",
+      "op": "chips",
+      "selected": [],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "28"
+        },
+        {
+          "id": "2",
+          "categoryId": "1"
+        },
+        {
+          "id": "3",
+          "categoryId": "10"
+        },
+        {
+          "id": "4",
+          "categoryId": "2"
+        },
+        {
+          "id": "5",
+          "categoryId": "26"
+        }
+      ],
+      "expected": [
+        "2",
+        "1",
+        "26",
+        "10",
+        "28"
+      ]
+    },
+    {
+      "name": "chips: a selected chip with no item stays, after the others",
+      "op": "chips",
+      "selected": [
+        "17",
+        "10",
+        "23"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "10"
+        },
+        {
+          "id": "2",
+          "categoryId": "20"
+        },
+        {
+          "id": "3",
+          "categoryId": "20"
+        }
+      ],
+      "expected": [
+        "20",
+        "10",
+        "23",
+        "17"
+      ]
+    },
+    {
+      "name": "chips: selecting does not change the order",
+      "op": "chips",
+      "selected": [
+        "20"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "10"
+        },
+        {
+          "id": "2",
+          "categoryId": "10"
+        },
+        {
+          "id": "3",
+          "categoryId": "20"
+        }
+      ],
+      "expected": [
+        "10",
+        "20"
+      ]
+    },
+    {
+      "name": "chips: an id in no table gets no chip, on an item or selected",
+      "op": "chips",
+      "selected": [
+        "99",
+        "Music",
+        "20"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "30"
+        },
+        {
+          "id": "2",
+          "categoryId": "30"
+        },
+        {
+          "id": "3",
+          "categoryId": "10"
+        },
+        {
+          "id": "4",
+          "categoryId": "01"
+        }
+      ],
+      "expected": [
+        "10",
+        "20"
+      ]
+    },
+    {
+      "name": "chips: nothing to show",
+      "op": "chips",
+      "selected": [],
+      "items": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "list",
+          "kind": "playlist"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "filter: no chip keeps everything",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "none",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "old",
+          "publishedAt": "2015-01-01T00:00:00Z"
+        },
+        {
+          "id": "list",
+          "kind": "playlist",
+          "publishedAt": "2015-01-01T00:00:00Z"
+        },
+        {
+          "id": "new",
+          "publishedAt": "2026-09-21T14:13:19Z",
+          "categoryId": "10"
+        }
+      ],
+      "expected": [
+        "old",
+        "list",
+        "new"
+      ]
+    },
+    {
+      "name": "filter: past day is 24 hours back, the boundary included",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "day",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "hour",
+          "publishedAt": "2026-09-21T13:13:20Z"
+        },
+        {
+          "id": "exact",
+          "publishedAt": "2026-09-20T14:13:20Z"
+        },
+        {
+          "id": "second-over",
+          "publishedAt": "2026-09-20T14:13:19Z"
+        },
+        {
+          "id": "week",
+          "publishedAt": "2026-09-15T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "hour",
+        "exact"
+      ]
+    },
+    {
+      "name": "filter: past week is 7 days back",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "week",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "hour",
+          "publishedAt": "2026-09-21T13:13:20Z"
+        },
+        {
+          "id": "exact",
+          "publishedAt": "2026-09-14T14:13:20Z"
+        },
+        {
+          "id": "second-over",
+          "publishedAt": "2026-09-14T14:13:19Z"
+        },
+        {
+          "id": "list",
+          "kind": "playlist",
+          "publishedAt": "2026-09-19T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "hour",
+        "exact",
+        "list"
+      ]
+    },
+    {
+      "name": "filter: past month is 30 days back",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "month",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "day-29",
+          "publishedAt": "2026-08-23T14:13:20Z"
+        },
+        {
+          "id": "exact",
+          "publishedAt": "2026-08-22T14:13:20Z"
+        },
+        {
+          "id": "second-over",
+          "publishedAt": "2026-08-22T14:13:19Z"
+        },
+        {
+          "id": "day-31",
+          "publishedAt": "2026-08-21T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "day-29",
+        "exact"
+      ]
+    },
+    {
+      "name": "filter: times with fractional seconds, and items published after now",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "day",
+      "topicChips": [],
+      "items": [
+        {
+          "id": "fraction-in",
+          "publishedAt": "2026-09-20T14:13:20.500Z"
+        },
+        {
+          "id": "fraction-out",
+          "publishedAt": "2026-09-20T14:13:19.500Z"
+        },
+        {
+          "id": "future",
+          "publishedAt": "2026-09-21T15:13:20Z"
+        }
+      ],
+      "expected": [
+        "fraction-in",
+        "future"
+      ]
+    },
+    {
+      "name": "filter: a selected topic keeps the items in it",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "none",
+      "topicChips": [
+        "10"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "10",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "2",
+          "categoryId": "20",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "3",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "list",
+          "kind": "playlist",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "1"
+      ]
+    },
+    {
+      "name": "filter: several selected topics keep items in any of them",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "none",
+      "topicChips": [
+        "10",
+        "20",
+        "17"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "10",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "2",
+          "categoryId": "20",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "3",
+          "categoryId": "27",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "name": "filter: ids match as written",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "none",
+      "topicChips": [
+        "10"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "010",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "2",
+          "categoryId": "1",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "3",
+          "categoryId": "10",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "3"
+      ]
+    },
+    {
+      "name": "filter: a selected id in no table is ignored, so alone it keeps everything",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "none",
+      "topicChips": [
+        "99",
+        "Music"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "10",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "2",
+          "categoryId": "99",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "3",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "list",
+          "kind": "playlist",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "1",
+        "2",
+        "3",
+        "list"
+      ]
+    },
+    {
+      "name": "filter: a video whose category is in no table never matches a selected topic",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "none",
+      "topicChips": [
+        "99",
+        "10"
+      ],
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "10",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        },
+        {
+          "id": "2",
+          "categoryId": "99",
+          "publishedAt": "2026-09-21T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "1"
+      ]
+    },
+    {
+      "name": "filter: the time chip and topics both apply",
+      "op": "filter",
+      "now": 1790000000000,
+      "timeChip": "week",
+      "topicChips": [
+        "10"
+      ],
+      "items": [
+        {
+          "id": "new-music",
+          "categoryId": "10",
+          "publishedAt": "2026-09-20T14:13:20Z"
+        },
+        {
+          "id": "old-music",
+          "categoryId": "10",
+          "publishedAt": "2026-09-13T14:13:20Z"
+        },
+        {
+          "id": "new-gaming",
+          "categoryId": "20",
+          "publishedAt": "2026-09-20T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "new-music"
+      ]
+    },
+    {
+      "name": "editor: with nothing fetched, every topic by label",
+      "op": "editor",
+      "items": [],
+      "expected": [
+        "2",
+        "23",
+        "27",
+        "24",
+        "1",
+        "20",
+        "26",
+        "10",
+        "25",
+        "29",
+        "22",
+        "15",
+        "28",
+        "17",
+        "19"
+      ]
+    },
+    {
+      "name": "editor: most of the channel's videos first, then by label",
+      "op": "editor",
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "28"
+        },
+        {
+          "id": "2",
+          "categoryId": "28"
+        },
+        {
+          "id": "3",
+          "categoryId": "27"
+        },
+        {
+          "id": "4",
+          "categoryId": "28"
+        },
+        {
+          "id": "5",
+          "categoryId": "10"
+        },
+        {
+          "id": "6",
+          "categoryId": "27"
+        },
+        {
+          "id": "7",
+          "categoryId": "99"
+        },
+        {
+          "id": "8"
+        },
+        {
+          "id": "list",
+          "kind": "playlist"
+        }
+      ],
+      "expected": [
+        "28",
+        "27",
+        "10",
+        "2",
+        "23",
+        "24",
+        "1",
+        "20",
+        "26",
+        "25",
+        "29",
+        "22",
+        "15",
+        "17",
+        "19"
+      ]
+    },
+    {
+      "name": "editor: equal counts go by label",
+      "op": "editor",
+      "items": [
+        {
+          "id": "1",
+          "categoryId": "17"
+        },
+        {
+          "id": "2",
+          "categoryId": "1"
+        }
+      ],
+      "expected": [
+        "1",
+        "17",
+        "2",
+        "23",
+        "27",
+        "24",
+        "20",
+        "26",
+        "10",
+        "25",
+        "29",
+        "22",
+        "15",
+        "28",
+        "19"
+      ]
+    },
+    {
+      "name": "start: all time marks nothing",
+      "op": "start",
+      "now": 1790000000000,
+      "start": "all",
+      "items": [
+        {
+          "id": "old",
+          "publishedAt": "2015-01-01T00:00:00Z"
+        },
+        {
+          "id": "new",
+          "publishedAt": "2026-09-21T14:13:19Z"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "name": "start: past day marks what is more than 24 hours old",
+      "op": "start",
+      "now": 1790000000000,
+      "start": "day",
+      "items": [
+        {
+          "id": "hour",
+          "publishedAt": "2026-09-21T13:13:20Z"
+        },
+        {
+          "id": "exact",
+          "publishedAt": "2026-09-20T14:13:20Z"
+        },
+        {
+          "id": "second-over",
+          "publishedAt": "2026-09-20T14:13:19Z"
+        },
+        {
+          "id": "list",
+          "kind": "playlist",
+          "publishedAt": "2025-08-17T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "second-over",
+        "list"
+      ]
+    },
+    {
+      "name": "start: past week marks what is more than 7 days old",
+      "op": "start",
+      "now": 1790000000000,
+      "start": "week",
+      "items": [
+        {
+          "id": "day-6",
+          "publishedAt": "2026-09-15T14:13:20Z"
+        },
+        {
+          "id": "exact",
+          "publishedAt": "2026-09-14T14:13:20Z"
+        },
+        {
+          "id": "second-over",
+          "publishedAt": "2026-09-14T14:13:19Z"
+        },
+        {
+          "id": "year",
+          "publishedAt": "2025-09-21T14:13:20Z"
+        }
+      ],
+      "expected": [
+        "second-over",
+        "year"
+      ]
+    }
+  ]
+}

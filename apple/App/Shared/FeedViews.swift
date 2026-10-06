@@ -1,14 +1,18 @@
 import SubtubeCore
 import SwiftUI
 
-/// One feed entry: thumbnail with its badges, title, channel and date.
+/// One feed entry: thumbnail with its badges and progress bar, title,
+/// channel and date. While it plays, the player takes the thumbnail's place.
 struct ItemCard: View {
   let item: FeedItem
   let watched: Bool
+  /// How full its progress bar is, from 0 to 1; nil for no bar.
+  let progress: Double?
+  /// The session playing this card in place, if it is.
+  var player: PlayerSession?
   let onOpen: () -> Void
   let onOpenChannel: () -> Void
-  let onToggleWatched: () -> Void
-  /// Phones draw bigger cards and mark watched by swiping instead of a button.
+  /// Phones draw bigger cards.
   var large = false
 
   private var isShort: Bool {
@@ -19,58 +23,122 @@ struct ItemCard: View {
     }
   }
 
+  private var corners: RoundedRectangle {
+    RoundedRectangle(cornerRadius: large ? 14 : 8, style: .continuous)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: large ? 10 : 6) {
-      Button(action: onOpen) {
-        Thumbnail(url: item.thumbnail, cornerRadius: large ? 14 : 8)
-          .overlay(alignment: .topLeading) {
-            if isShort {
-              ThumbnailBadge { Text(Strings.shortBadge) }.padding(6)
+      if let player {
+        YouTubePlayerView(session: player).clipShape(corners)
+      } else {
+        Button(action: onOpen) {
+          Thumbnail(url: item.thumbnail, cornerRadius: large ? 14 : 8)
+            .overlay(alignment: .topLeading) {
+              if isShort {
+                ThumbnailBadge { Text(Strings.shortBadge) }.padding(6)
+              }
             }
-          }
-          .overlay(alignment: .bottomLeading) {
-            if watched {
-              ThumbnailBadge { Text(Strings.watchedBadge) }.padding(6)
+            .overlay(alignment: .bottomLeading) {
+              if watched {
+                ThumbnailBadge { Text(Strings.watchedBadge) }.padding(6)
+              }
             }
-          }
-          .overlay(alignment: .bottomTrailing) {
-            ItemBadge(item: item).padding(6)
-          }
+            .overlay(alignment: .bottomTrailing) {
+              ItemBadge(item: item).padding(6)
+            }
+            .overlay(alignment: .bottomLeading) {
+              if let progress, progress > 0 {
+                ProgressBar(fraction: progress)
+              }
+            }
+            .clipShape(corners)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Strings.play(item.title))
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel(Strings.play(item.title))
-      HStack(alignment: .top, spacing: 6) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(item.title)
-            .font(large ? .body.weight(.semibold) : .callout.weight(.medium))
-            .lineLimit(2)
-          HStack(spacing: 4) {
-            Button(item.channelTitle, action: onOpenChannel)
-              .buttonStyle(.plain)
-            if let date = item.publishedDate {
-              Text("·")
-              Text(date.shortFeedDate)
-            }
+      VStack(alignment: .leading, spacing: 2) {
+        Text(item.title)
+          .font(large ? .body.weight(.semibold) : .callout.weight(.medium))
+          .lineLimit(2)
+        HStack(spacing: 8) {
+          Button(action: onOpenChannel) {
+            Text(item.channelTitle).lineLimit(1).truncationMode(.tail)
           }
-          .font(large ? .footnote : .caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-        }
-        Spacer(minLength: 0)
-        if !large {
-          Button(action: onToggleWatched) {
-            Image(systemName: "eye")
+          .buttonStyle(.plain)
+          Spacer(minLength: 0)
+          if let date = item.publishedDate {
+            Text(date.shortFeedDate).lineLimit(1).fixedSize()
           }
-          .buttonStyle(.borderless)
-          .foregroundStyle(.secondary)
-          .accessibilityLabel(watched ? Strings.markAsUnwatched : Strings.markAsWatched)
-          .help(watched ? Strings.markAsUnwatched : Strings.markAsWatched)
         }
+        .font(large ? .footnote : .caption)
+        .foregroundStyle(.secondary)
       }
     }
-    .opacity(watched ? 0.4 : 1)
-    .contextMenu {
-      Button(watched ? Strings.markAsUnwatched : Strings.markAsWatched, action: onToggleWatched)
+  }
+}
+
+/// The Sunflower bar along a thumbnail's bottom edge: how far it was played.
+private struct ProgressBar: View {
+  let fraction: Double
+
+  var body: some View {
+    Color.clear
+      .frame(height: 4)
+      .overlay(alignment: .leading) {
+        GeometryReader { proxy in
+          Color.sunflower.frame(width: proxy.size.width * min(1, fraction))
+        }
+      }
+      .accessibilityHidden(true)
+  }
+}
+
+/// The thin Sunflower bar along the top of the feed while a full load runs.
+///
+/// It moves on with `progress`, and when that goes back to nil it runs to
+/// the end and fades out. Under reduced motion it jumps instead of moving.
+struct LoadProgressBar: View {
+  /// How far the load is, from 0 to 1; nil when none runs.
+  let progress: Double?
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var shown = 0.0
+  @State private var visible = false
+
+  var body: some View {
+    GeometryReader { proxy in
+      Color.sunflower.frame(width: proxy.size.width * shown)
+    }
+    .frame(height: 3)
+    .opacity(visible ? 1 : 0)
+    .allowsHitTesting(false)
+    .accessibilityElement()
+    .accessibilityRepresentation { ProgressView(value: shown) }
+    .accessibilityHidden(!visible)
+    .onChange(of: progress, initial: true) { _, now in
+      if let now {
+        visible = true
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.3)) { shown = now }
+      } else if visible {
+        finish()
+      }
+    }
+  }
+
+  private func finish() {
+    if reduceMotion {
+      visible = false
+      shown = 0
+    } else {
+      withAnimation(.easeOut(duration: 0.2)) { shown = 1 }
+      withAnimation(.easeOut(duration: 0.3).delay(0.25)) {
+        visible = false
+      } completion: {
+        // back to the start unseen, unless the next load already moved it
+        if progress == nil {
+          shown = 0
+        }
+      }
     }
   }
 }
@@ -124,8 +192,8 @@ struct FeedBanners: View {
   }
 }
 
-/// A card's shape while its feed loads: thumbnail, two title lines, the
-/// channel line.
+/// A card's shape while its feed loads: thumbnail, two title lines, then
+/// the channel and the date on one line.
 struct SkeletonCard: View {
   var large = false
 
@@ -134,19 +202,23 @@ struct SkeletonCard: View {
       Thumbnail(url: "", cornerRadius: large ? 14 : 8)
       SkeletonLine(height: large ? 15 : 12)
       SkeletonLine(width: large ? 220 : 140, height: large ? 15 : 12)
-      SkeletonLine(width: large ? 150 : 100, height: large ? 11 : 9)
+      HStack {
+        SkeletonLine(width: large ? 150 : 100, height: large ? 11 : 9)
+        Spacer(minLength: 8)
+        SkeletonLine(width: large ? 48 : 36, height: large ? 11 : 9)
+      }
     }
   }
 }
 
 /// What the grid shows when it has nothing: skeleton cards while loading,
-/// otherwise that there is nothing new.
+/// otherwise that there is nothing new, or nothing for what is selected.
 struct FeedEmptyState: View {
   let feed: FeedModel
 
   var body: some View {
     if feed.shown.isEmpty {
-      if feed.loading || feed.channelLoading {
+      if feed.showsSkeletons {
         #if os(macOS)
           LazyVGrid(
             columns: [GridItem(.adaptive(minimum: 220), spacing: 16, alignment: .top)],
@@ -163,7 +235,7 @@ struct FeedEmptyState: View {
           .skeleton()
         #endif
       } else if feed.error == nil {
-        Text(Strings.noMatches)
+        Text(feed.emptyText)
           .foregroundStyle(.secondary)
           .frame(maxWidth: .infinity)
           #if os(macOS)
@@ -194,6 +266,39 @@ struct ChannelRowLabel: View {
   }
 }
 
+/// How many of a channel's unwatched items pass its filter; nothing for
+/// none, or for a channel that is off.
+struct UnwatchedCount: View {
+  let channel: ChannelFilter
+  let feed: FeedModel
+
+  var body: some View {
+    let count = channel.enabled ? feed.unwatchedByChannel[channel.channelId] ?? 0 : 0
+    if count > 0 {
+      Text("\(count)")
+        .font(.caption.weight(.semibold))
+        .monospacedDigit()
+        .accessibilityLabel(Strings.unwatchedCount(count))
+    }
+  }
+}
+
+/// The "Search channels" field over a channel list.
+struct ChannelSearchField: View {
+  @Binding var text: String
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+      TextField(Strings.searchChannels, text: $text)
+        .textFieldStyle(.plain)
+    }
+    .padding(.horizontal, 10)
+    .frame(minHeight: 32)
+    .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+  }
+}
+
 /// The switch that shows a channel in the feed or leaves it out.
 struct ChannelSwitch: View {
   let title: String
@@ -216,12 +321,13 @@ func filterSummary(_ channel: ChannelFilter, followedOnly: Bool) -> String {
   if channel.contentMode == .playlists {
     parts.append(Strings.summaryPlaylists)
   }
-  if !channel.regex.isEmpty {
+  let phrases = (patternToPhrases(channel.regex) ?? []).joined(separator: ", ")
+  if !phrases.isEmpty {
     let scope = channel.searchScope
     parts.append(
       channel.mode == .exclude
-        ? Strings.summaryHidesMatching(channel.regex, scope: scope)
-        : Strings.summaryOnlyMatching(channel.regex, scope: scope))
+        ? Strings.summaryHidesMatching(phrases, scope: scope)
+        : Strings.summaryOnlyMatching(phrases, scope: scope))
   }
   if channel.contentMode != .playlists {
     switch channel.shortsFilter {

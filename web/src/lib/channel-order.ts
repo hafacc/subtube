@@ -1,5 +1,15 @@
-import { compileFilter, videoPassesFilter } from "./filters";
+import { compareIgnoringCase } from "./text-order";
 import type { Channel, FeedItem } from "./types";
+
+/** The orders the channel list can be read in. */
+export type ChannelSort = "newest" | "name" | "unwatched";
+
+/** The channel list's orders, in menu order. */
+export const CHANNEL_SORT_OPTIONS = [
+  { value: "newest", label: "Latest" },
+  { value: "name", label: "Name" },
+  { value: "unwatched", label: "Unwatched" },
+] as const satisfies readonly { value: ChannelSort; label: string }[];
 
 /** What a channel list orders a channel by. */
 export interface ChannelOrderKey {
@@ -9,69 +19,83 @@ export interface ChannelOrderKey {
   title: string;
   /** whether the channel is on */
   enabled: boolean;
-  /** `publishedAt` of its newest item passing its filter; absent when none passes */
-  newestPassing?: string;
+  /** `publishedAt` of its newest fetched item; absent when it has none */
+  newest?: string;
+  /** how many of its unwatched items pass its filter; absent reads as 0 */
+  unwatched?: number;
 }
 
 function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-// on with something passing, on with nothing passing, off
+// on with something fetched, on with nothing fetched, off
 function group(key: ChannelOrderKey): number {
   if (!key.enabled) {
     return 2;
-  } else if (key.newestPassing === undefined) {
+  } else if (key.newest === undefined) {
     return 1;
   } else {
     return 0;
   }
 }
 
-/**
- * The order of every channel list: channels that are on with an item passing
- * their filter first, by the newest such item; then on with nothing passing;
- * then off. Ties and the last two groups go by title ignoring case, then id.
- */
-export function compareChannelOrder(
-  left: ChannelOrderKey,
-  right: ChannelOrderKey,
-): number {
-  const leftGroup = group(left);
+function byName(left: ChannelOrderKey, right: ChannelOrderKey): number {
   return (
-    leftGroup - group(right) ||
-    (leftGroup === 0
-      ? compareCodeUnits(right.newestPassing ?? "", left.newestPassing ?? "")
-      : 0) ||
-    compareCodeUnits(left.title.toLowerCase(), right.title.toLowerCase()) ||
+    compareIgnoringCase(left.title, right.title) ||
     compareCodeUnits(left.id, right.id)
   );
 }
 
-/** Channels in list order, given the items loaded for them; watched items count. */
+function byNewestVideo(left: ChannelOrderKey, right: ChannelOrderKey): number {
+  const leftGroup = group(left);
+  return (
+    leftGroup - group(right) ||
+    (leftGroup === 0
+      ? compareCodeUnits(right.newest ?? "", left.newest ?? "")
+      : 0) ||
+    byName(left, right)
+  );
+}
+
+/**
+ * The order of every channel list (shared/fixtures/channel-order.json).
+ * Channels that are off go last, by name, in every sort. Those that are on go
+ * by newest fetched item (then the ones with nothing fetched), by name, or by
+ * unwatched count with ties in newest-item order.
+ */
+export function compareChannelOrder(
+  left: ChannelOrderKey,
+  right: ChannelOrderKey,
+  sort: ChannelSort = "newest",
+): number {
+  if (!left.enabled || !right.enabled) {
+    return (
+      Number(!left.enabled) - Number(!right.enabled) || byName(left, right)
+    );
+  } else if (sort === "name") {
+    return byName(left, right);
+  } else if (sort === "unwatched") {
+    return (
+      (right.unwatched ?? 0) - (left.unwatched ?? 0) ||
+      byNewestVideo(left, right)
+    );
+  } else {
+    return byNewestVideo(left, right);
+  }
+}
+
+/** Channels in list order, given the items fetched for them and each one's unwatched count. */
 export function orderChannels(
   channels: readonly Channel[],
   items: Iterable<FeedItem>,
+  sort: ChannelSort = "newest",
+  unwatched: ReadonlyMap<string, number> = new Map(),
 ): Channel[] {
-  const compiled = new Map(
-    channels.map((channel) => [
-      channel.channelId,
-      {
-        kind: channel.filter.contentMode === "playlists" ? "playlist" : "video",
-        filter: compileFilter(channel.filter),
-      },
-    ]),
-  );
   const newest = new Map<string, string>();
   for (const item of items) {
-    const entry = compiled.get(item.channelId);
     const prior = newest.get(item.channelId);
-    if (
-      entry &&
-      item.kind === entry.kind &&
-      (prior === undefined || item.publishedAt > prior) &&
-      videoPassesFilter(item, entry.filter)
-    ) {
+    if (prior === undefined || item.publishedAt > prior) {
       newest.set(item.channelId, item.publishedAt);
     }
   }
@@ -79,9 +103,66 @@ export function orderChannels(
     id: channel.channelId,
     title: channel.title,
     enabled: channel.filter.enabled,
-    newestPassing: newest.get(channel.channelId),
+    newest: newest.get(channel.channelId),
+    unwatched: unwatched.get(channel.channelId),
   });
   return channels.toSorted((left, right) =>
-    compareChannelOrder(key(left), key(right)),
+    compareChannelOrder(key(left), key(right), sort),
   );
+}
+
+/**
+ * `fresh` in the order of the ids in `held`: a channel among them keeps its
+ * place, and the others follow in the order `fresh` has them.
+ */
+export function inHeldOrder(
+  fresh: readonly Channel[],
+  held: readonly string[],
+): Channel[] {
+  const places = new Map(held.map((channelId, index) => [channelId, index]));
+  const place = (channel: Channel): number =>
+    places.get(channel.channelId) ?? held.length;
+  // toSorted is stable, so the channels with no place stay in fresh order
+  return fresh.toSorted((left, right) => place(left) - place(right));
+}
+
+/**
+ * A channel list's order, held while the list is worked in: the list is put
+ * in order only when the moment it is shown for changes, so a switch, a mark
+ * or a filter edit in between changes a row without moving it or taking it
+ * out.
+ */
+export class HeldChannelOrder {
+  private moment: string | null = null;
+  private held: string[] = [];
+
+  /**
+   * The channels as the list shows them. `fresh` is every channel in sorted
+   * order and `kept` the ids the list's chips keep (null for all of them).
+   * When `moment` differs from the last call's, the kept channels are taken
+   * as they are; otherwise the channels shown then stay, joined by any kept
+   * since, rearranged by {@link inHeldOrder}.
+   */
+  arrange(
+    fresh: readonly Channel[],
+    moment: string,
+    kept: ReadonlySet<string> | null = null,
+  ): Channel[] {
+    const isKept = ({ channelId }: Channel): boolean =>
+      kept === null || kept.has(channelId);
+    if (moment === this.moment) {
+      const shown = new Set(this.held);
+      return inHeldOrder(
+        fresh.filter(
+          (channel) => shown.has(channel.channelId) || isKept(channel),
+        ),
+        this.held,
+      );
+    } else {
+      const listed = fresh.filter(isKept);
+      this.moment = moment;
+      this.held = listed.map(({ channelId }) => channelId);
+      return listed;
+    }
+  }
 }

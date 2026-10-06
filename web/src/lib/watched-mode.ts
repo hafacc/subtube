@@ -1,0 +1,55 @@
+import { knownTopics, type TimeChip } from "./chips";
+import { feedItemId } from "./feed-item";
+import type { FeedItem } from "./types";
+
+/** Which of watched and unwatched items a page lists. */
+export type WatchedMode = "unwatched" | "watched" | "all";
+
+/** The watched modes, in the order their chip moves through them. */
+export const WATCHED_MODE_OPTIONS = [
+  { value: "unwatched", label: "Unwatched" },
+  { value: "watched", label: "Watched" },
+  { value: "all", label: "All" },
+] as const satisfies readonly { value: WatchedMode; label: string }[];
+
+/**
+ * The items a watched mode lists. An item in `staying`, one that changed
+ * sides while it was on screen, is listed in every mode.
+ */
+export function modeFiltered(
+  items: readonly FeedItem[],
+  mode: WatchedMode,
+  watched: ReadonlySet<string>,
+  staying: ReadonlySet<string>,
+): FeedItem[] {
+  return items.filter((item) => {
+    const id = feedItemId(item);
+    return (
+      mode === "all" ||
+      watched.has(id) === (mode === "watched") ||
+      staying.has(id)
+    );
+  });
+}
+
+/** Whether auto-play moves on in a mode: not among watched items only. */
+export function autoplayAdvances(mode: WatchedMode): boolean {
+  return mode !== "watched";
+}
+
+/**
+ * Whether an empty list is empty because of what is selected, rather than
+ * because nothing is left to watch: any mode but unwatched, a time chip, or
+ * a topic chip.
+ */
+export function emptiedBySelection(
+  mode: WatchedMode,
+  timeChip: TimeChip,
+  topicChips: readonly string[],
+): boolean {
+  return (
+    mode !== "unwatched" ||
+    timeChip !== "none" ||
+    knownTopics(topicChips).size > 0
+  );
+}

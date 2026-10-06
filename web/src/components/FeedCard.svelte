@@ -1,25 +1,30 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import { formatDuration } from "../lib/duration";
+  import { feedItemId } from "../lib/feed-item";
   import type { FeedItem } from "../lib/types";
   import Icon from "./Icon.svelte";
 
   let {
     item,
     watched,
+    progress,
+    player,
     onopen,
     onopenchannel,
-    ontogglewatched,
   }: {
     /** the video or playlist */
     item: FeedItem;
-    /** whether it is marked watched (dims the card) */
+    /** whether it is watched */
     watched: boolean;
+    /** how full its progress bar is, from 0 to 1; null for no bar */
+    progress: number | null;
+    /** the playing video, drawn in place of the thumbnail */
+    player?: Snippet;
     /** play it */
     onopen: () => void;
     /** go to its channel's page */
     onopenchannel: () => void;
-    /** flip its watched mark */
-    ontogglewatched: () => void;
   } = $props();
 
   const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
@@ -36,47 +41,45 @@
   );
 </script>
 
-<div class="card" class:watched>
-  <button
-    type="button"
-    class="thumb"
-    aria-label={`Play ${item.title}`}
-    onclick={onopen}
-  >
-    {#if item.thumbnail}
-      <img src={item.thumbnail} alt="" loading="lazy">
-    {/if}
-    {#if item.kind === "video" && item.isShort}
-      <span class="tag top-left">Short</span>
-    {/if}
-    {#if watched}
-      <span class="tag bottom-left">watched</span>
-    {/if}
-    {#if badge}
-      <span class="tag bottom-right">
-        {#if item.kind === "playlist"}
-          <Icon name="playAll" size={14} />
-        {/if}
-        {badge}
-      </span>
-    {/if}
-  </button>
+<div class="card" data-card={feedItemId(item)}>
+  {#if player}
+    <div class="thumb">{@render player()}</div>
+  {:else}
+    <button
+      type="button"
+      class="thumb"
+      aria-label={`Play ${item.title}`}
+      onclick={onopen}
+    >
+      {#if item.thumbnail}
+        <img src={item.thumbnail} alt="" loading="lazy">
+      {/if}
+      {#if item.kind === "video" && item.isShort}
+        <span class="tag top-left">Short</span>
+      {/if}
+      {#if watched}
+        <span class="tag bottom-left">watched</span>
+      {/if}
+      {#if badge}
+        <span class="tag bottom-right">
+          {#if item.kind === "playlist"}
+            <Icon name="playAll" size={14} />
+          {/if}
+          {badge}
+        </span>
+      {/if}
+      {#if progress !== null && progress > 0}
+        <span class="progress" style:width={`${progress * 100}%`}></span>
+      {/if}
+    </button>
+  {/if}
   <div class="text">
     <p class="title" title={item.title}>{item.title}</p>
-    <button type="button" class="channel" onclick={onopenchannel}>
-      {item.channelTitle}
-    </button>
-    <div class="meta">
-      <span>{DATE_FORMAT.format(new Date(item.publishedAt))}</span>
-      <button
-        type="button"
-        class="watch"
-        aria-label={watched ? "Mark as unwatched" : "Mark as watched"}
-        title={watched ? "Mark as unwatched" : "Mark as watched"}
-        onclick={ontogglewatched}
-      >
-        <Icon name={watched ? "eyeOff" : "eye"} />
+    <div class="byline">
+      <button type="button" class="channel" onclick={onopenchannel}>
+        {item.channelTitle}
       </button>
+      <span class="date">{DATE_FORMAT.format(new Date(item.publishedAt))}</span>
     </div>
   </div>
 </div>
@@ -88,10 +91,6 @@
     overflow: hidden;
     border-radius: 8px;
     background: var(--surface);
-  }
-
-  .watched {
-    opacity: 0.4;
   }
 
   .thumb {
@@ -130,14 +129,22 @@
   }
 
   .bottom-left {
-    bottom: 4px;
+    bottom: 8px;
     left: 4px;
     padding: 2px 6px;
   }
 
   .bottom-right {
     right: 4px;
-    bottom: 4px;
+    bottom: 8px;
+  }
+
+  .progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    background: var(--sunflower);
   }
 
   .text {
@@ -160,17 +167,26 @@
     overflow: hidden;
   }
 
+  .byline {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
   .channel {
-    align-self: flex-start;
-    max-width: 100%;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     border: 0;
     padding: 0;
     background: transparent;
-    color: var(--text-secondary);
-    font-size: 12px;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
     text-align: left;
   }
 
@@ -179,26 +195,9 @@
     text-decoration: underline;
   }
 
-  .meta {
-    margin-top: auto;
-    padding-top: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: var(--text-secondary);
-    font-size: 12px;
-  }
-
-  .watch {
-    display: flex;
-    align-items: center;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: var(--text-secondary);
-  }
-
-  .watch:hover {
-    color: var(--text);
+  .date {
+    flex-shrink: 0;
+    margin-left: auto;
+    white-space: nowrap;
   }
 </style>

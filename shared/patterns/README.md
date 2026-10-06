@@ -62,6 +62,16 @@ case folding (ICU folds `ß` to `ss`, Java compares single characters, JS uses
 simple case folding), so the language doesn't use any engine's case-insensitive
 mode; the rewrite spells the cases out instead.
 
+### Phrases
+
+Clients don't show the pattern itself: a user types phrases, and the client
+builds the pattern from them and reads a saved pattern back into them
+(`fixtures/phrases.json` has the exact rules). A filter's pattern is applied
+only when it reads back as phrases; any other pattern, valid or not, is
+treated as no pattern and written as `""` the next time that filter is saved.
+The built patterns use only literals, `\` escapes of the special characters,
+`\s+`, `\b` and `|`.
+
 ## Why this subset
 
 It covers what title and description filters need — words, alternatives,

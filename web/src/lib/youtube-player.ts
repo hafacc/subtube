@@ -14,17 +14,18 @@ export interface YouTubePlayer {
   destroy(): void;
   /** The player's iframe. */
   getIframe(): HTMLIFrameElement;
-  /** Load and play a list of video ids in order, starting at `index`. */
-  loadPlaylist(playlist: string[], index?: number): void;
+  /** Load and play a list of video ids in order, starting at `index`, `startSeconds` into it. */
+  loadPlaylist(playlist: string[], index?: number, startSeconds?: number): void;
+  /** How far the playing video has played, in seconds. */
+  getCurrentTime(): number;
+  /** The playing video's length in seconds; 0 until it is known. */
+  getDuration(): number;
   /** The playing video. */
   getVideoData(): VideoData;
   /** The ids the player loaded for a playlist. */
   getPlaylist(): string[] | null;
   /** The playing position within {@link getPlaylist}. */
   getPlaylistIndex(): number;
-  /** Skip to the next video of the loaded playlist. */
-  nextVideo(): void;
-  /** Play the video at `index` of the loaded playlist. */
 }
 
 /** A player state change. */
@@ -51,7 +52,7 @@ export interface YouTubeNamespace {
     },
   ) => YouTubePlayer;
   /** Player states. */
-  PlayerState: { PLAYING: number; ENDED: number };
+  PlayerState: { PLAYING: number; PAUSED: number; ENDED: number };
 }
 
 declare global {

@@ -13,6 +13,7 @@
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/src/app.css" />
+    <link rel="stylesheet" href="/src/policy.css" />
     <script>
       try {
         const theme = localStorage.getItem("subtube.theme");
@@ -21,67 +22,11 @@
         }
       } catch {}
     </script>
-    <style>
-      .policy-header {
-        padding: 16px 24px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .policy-header a {
-        width: fit-content;
-        color: var(--text);
-        text-decoration: none;
-      }
-
-      .policy {
-        max-width: 65ch;
-        margin: 0 auto;
-        padding: 40px 24px 80px;
-        font-size: 16px;
-        line-height: 1.6;
-        overflow-wrap: break-word;
-      }
-
-      .policy h1 {
-        margin: 0;
-        font-size: 30px;
-        line-height: 36px;
-      }
-
-      .policy h2 {
-        margin: 32px 0 8px;
-        font-size: 18px;
-        line-height: 26px;
-      }
-
-      .policy p {
-        margin: 12px 0;
-      }
-
-      .policy .updated {
-        margin: 8px 0 24px;
-        color: var(--text-secondary);
-        font-size: 14px;
-      }
-
-      .policy ul {
-        margin: 0;
-        padding-left: 1.25em;
-      }
-
-      .policy li {
-        margin: 8px 0;
-      }
-
-      .policy a {
-        user-select: text;
-      }
-    </style>
   </head>
   <body>
     <header class="policy-header">
       <a class="brand" href="/">
-        <img src="/logo.svg" width="20" height="20" alt="" />
+        <img src="/logo.svg" alt="" />
         SubTube
       </a>
     </header>
@@ -105,17 +50,25 @@
           The name and picture of your YouTube channel, to show which account is
           signed in.
         </li>
+        <li>
+          The name and email address of your Google account, to show which
+          account is signed in.
+        </li>
       </ul>
 
       <h2>What SubTube stores, and where</h2>
       <ul>
         <li>
-          Your filters and which videos you've watched, in a hidden folder in
-          your own Google Drive that only SubTube can open. This is how they
-          follow you between devices. SubTube can't see your other Drive files.
+          Your filters, which videos you've watched and how far you've played
+          each one, in a hidden folder in your own Google Drive that only
+          SubTube can open. This is how they follow you between devices.
+          SubTube can't see your other Drive files.
         </li>
         <li>
           A copy of the same on each device, so the app opens quickly.
+        </li>
+        <li>
+          A watched mark is deleted 30 days after SubTube last loaded its video.
         </li>
         <li>Your Google sign-in, on the device only.</li>
       </ul>
@@ -133,11 +86,14 @@
         <li>
           Videos play in YouTube's own player, so YouTube may collect data and
           show ads as it does on any site. Google's privacy policy applies:
-          <a href="https://policies.google.com/privacy"
+          <a href="http://www.google.com/policies/privacy"
             >https://policies.google.com/privacy</a
           >. By using SubTube you also agree to the YouTube Terms of Service:
           <a href="https://www.youtube.com/t/terms"
             >https://www.youtube.com/t/terms</a
+          >. SubTube's own terms are at
+          <a href="https://subtube.hafa.cc/terms"
+            >https://subtube.hafa.cc/terms</a
           >.
         </li>
         <li>
@@ -155,7 +111,8 @@
         </li>
         <li>
           You can remove SubTube's access at any time at
-          <a href="https://myaccount.google.com/permissions"
+          <a
+            href="https://security.google.com/settings/security/permissions"
             >https://myaccount.google.com/permissions</a
           >.
         </li>

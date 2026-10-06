@@ -1,5 +1,5 @@
 {
-  "description": "Merging every device's file into one view. `files` are the device files as downloaded (`content` is the raw JSON, `deviceId` the <id> of device-<id>.json); `expected` is the merged view. Per key the entry with the greatest `at` wins; on equal `at` the greater deviceId (ASCII order) wins; the winning entry is kept whole, unknown fields included. A file that is not an object or whose `version` is not the number 1 is skipped; `channels`/`watched` that are missing or not objects read as empty; an entry that is not an object, whose `at` is not a whole number from 0 to 2^53-1, whose `filter` is not an object, or whose `watched` is not a boolean, is dropped. Filter field values are not checked here.",
+  "description": "Merging every device's file into one view. `files` are the device files as downloaded (`content` is the raw JSON, `deviceId` the <id> of device-<id>.json); `expected` is the merged view, which always has `channels`, `watched` and `settings`. Per key the entry with the greatest `at` wins; on equal `at` the greater deviceId (ASCII order) wins; the winning entry is kept whole, unknown fields included: a watched entry's `position` and `seen` travel with its `watched` and are never merged on their own. `seen` takes no part in the order: `at` alone decides, then the deviceId. A file that is not an object or whose `version` is not the number 1 is skipped; `channels`/`watched`/`settings` that are missing or not objects read as empty; an entry that is not an object, whose `at` is not a whole number from 0 to 2^53-1, whose `filter` is not an object, whose `watched` is not a boolean, or (in `settings`) that has no `value` field, is dropped. A setting's `value` may be any JSON value, `null` included, and is kept as it is under any name: filter field values, a watched entry's `position` (shared/fixtures/watch-progress.json reads it) and `seen` (shared/fixtures/prune.json reads it) and setting values are not checked here (shared/fixtures/settings.json reads the settings).",
   "cases": [
     {
       "name": "no files",
@@ -7,7 +7,8 @@
       "expected": {
         "version": 1,
         "channels": {},
-        "watched": {}
+        "watched": {},
+        "settings": {}
       }
     },
     {
@@ -53,7 +54,8 @@
             "at": 1759500000000,
             "watched": true
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -129,7 +131,8 @@
             "at": 1759500000009,
             "watched": true
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -182,7 +185,8 @@
             }
           }
         },
-        "watched": {}
+        "watched": {},
+        "settings": {}
       }
     },
     {
@@ -272,7 +276,8 @@
             "at": 1759500000000,
             "watched": false
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -326,7 +331,8 @@
             "at": 1759500000000,
             "watched": false
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -380,7 +386,8 @@
             }
           }
         },
-        "watched": {}
+        "watched": {},
+        "settings": {}
       }
     },
     {
@@ -451,7 +458,8 @@
             "watched": true,
             "progressSeconds": 42
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -484,7 +492,8 @@
             "at": 1759500000000,
             "watched": true
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -537,7 +546,8 @@
             }
           }
         },
-        "watched": {}
+        "watched": {},
+        "settings": {}
       }
     },
     {
@@ -603,7 +613,8 @@
             "at": 1759500000000,
             "watched": false
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -647,7 +658,8 @@
             "at": 1759500000000,
             "watched": true
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -680,7 +692,8 @@
             "at": 1759500000000,
             "watched": true
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -711,7 +724,8 @@
       "expected": {
         "version": 1,
         "channels": {},
-        "watched": {}
+        "watched": {},
+        "settings": {}
       }
     },
     {
@@ -834,7 +848,8 @@
             "at": 0,
             "watched": false
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -862,7 +877,8 @@
             "at": 9007199254740991,
             "watched": true
           }
-        }
+        },
+        "settings": {}
       }
     },
     {
@@ -896,7 +912,8 @@
             }
           }
         },
-        "watched": {}
+        "watched": {},
+        "settings": {}
       }
     },
     {
@@ -937,7 +954,625 @@
             "at": 1759500000001,
             "watched": false
           }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "settings: newest at wins per name",
+      "files": [
+        {
+          "deviceId": "laptop",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "feedSort": {
+                "at": 1759500000005,
+                "value": "title"
+              },
+              "autoplay": {
+                "at": 1759500000001,
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "phone",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "feedSort": {
+                "at": 1759500000002,
+                "value": "shortest"
+              },
+              "autoplay": {
+                "at": 1759500000009,
+                "value": false
+              },
+              "timeChip": {
+                "at": 1759500000000,
+                "value": "week"
+              }
+            }
+          }
         }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {},
+        "settings": {
+          "feedSort": {
+            "at": 1759500000005,
+            "value": "title"
+          },
+          "autoplay": {
+            "at": 1759500000009,
+            "value": false
+          },
+          "timeChip": {
+            "at": 1759500000000,
+            "value": "week"
+          }
+        }
+      }
+    },
+    {
+      "name": "settings: equal at, greater deviceId wins",
+      "files": [
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "channelSort": {
+                "at": 1759500000000,
+                "value": "name"
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "channelSort": {
+                "at": 1759500000000,
+                "value": "unwatched"
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {},
+        "settings": {
+          "channelSort": {
+            "at": 1759500000000,
+            "value": "name"
+          }
+        }
+      }
+    },
+    {
+      "name": "settings: a file without settings merges as before",
+      "files": [
+        {
+          "deviceId": "old",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {}
+          }
+        },
+        {
+          "deviceId": "new",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "topicChips": {
+                "at": 1759500000000,
+                "value": [
+                  "Music",
+                  "Rock music"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {},
+        "settings": {
+          "topicChips": {
+            "at": 1759500000000,
+            "value": [
+              "Music",
+              "Rock music"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "settings: unknown names, unknown fields and unrecognized values are kept",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "feedSort": {
+                "at": 1759500000000,
+                "value": "by-channel",
+                "setOn": "tv"
+              },
+              "playbackSpeed": {
+                "at": 1759500000001,
+                "value": {
+                  "rate": 1.5
+                }
+              },
+              "mystery": {
+                "at": 1759500000002,
+                "value": null
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {},
+        "settings": {
+          "feedSort": {
+            "at": 1759500000000,
+            "value": "by-channel",
+            "setOn": "tv"
+          },
+          "playbackSpeed": {
+            "at": 1759500000001,
+            "value": {
+              "rate": 1.5
+            }
+          },
+          "mystery": {
+            "at": 1759500000002,
+            "value": null
+          }
+        }
+      }
+    },
+    {
+      "name": "settings: malformed entries are dropped, so they never win",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "feedSort": {
+                "at": 1759500000000,
+                "value": "shortest"
+              },
+              "autoplay": {
+                "at": 1759500000000,
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": {
+              "feedSort": {
+                "at": 1759500000005
+              },
+              "autoplay": {
+                "at": 1759500000000.5,
+                "value": false
+              },
+              "timeChip": "day",
+              "channelSort": {
+                "value": "name"
+              },
+              "topicChips": [
+                "Music"
+              ]
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {},
+        "settings": {
+          "feedSort": {
+            "at": 1759500000000,
+            "value": "shortest"
+          },
+          "autoplay": {
+            "at": 1759500000000,
+            "value": true
+          }
+        }
+      }
+    },
+    {
+      "name": "settings: a section that is not an object reads as empty",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": [
+              "feedSort"
+            ]
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {},
+            "settings": "none"
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {},
+        "settings": {}
+      }
+    },
+    {
+      "name": "watched: the newest entry wins whole, position included",
+      "files": [
+        {
+          "deviceId": "laptop",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000005,
+                "watched": false,
+                "position": 300.5
+              },
+              "v2": {
+                "at": 1759500000009,
+                "watched": true,
+                "position": 600
+              },
+              "v3": {
+                "at": 1759500000001,
+                "watched": false,
+                "position": 40
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "phone",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000007,
+                "watched": false,
+                "position": 120
+              },
+              "v2": {
+                "at": 1759500000003,
+                "watched": false,
+                "position": 30
+              },
+              "v3": {
+                "at": 1759500000002,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000007,
+            "watched": false,
+            "position": 120
+          },
+          "v2": {
+            "at": 1759500000009,
+            "watched": true,
+            "position": 600
+          },
+          "v3": {
+            "at": 1759500000002,
+            "watched": true
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "watched: a position of any kind neither drops its entry nor is changed",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": false,
+                "position": "12"
+              },
+              "v2": {
+                "at": 1759500000000,
+                "watched": true,
+                "position": -4
+              },
+              "v3": {
+                "at": 1759500000000,
+                "watched": false,
+                "position": null
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": false,
+            "position": "12"
+          },
+          "v2": {
+            "at": 1759500000000,
+            "watched": true,
+            "position": -4
+          },
+          "v3": {
+            "at": 1759500000000,
+            "watched": false,
+            "position": null
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "watched: seen travels with the winning entry",
+      "files": [
+        {
+          "deviceId": "laptop",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000005,
+                "watched": true,
+                "seen": 1759500000900
+              },
+              "v2": {
+                "at": 1759500000009,
+                "watched": true,
+                "position": 600,
+                "seen": 1759500000020
+              },
+              "v3": {
+                "at": 1759500000001,
+                "watched": false,
+                "seen": 1759500000800
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "phone",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000007,
+                "watched": false,
+                "position": 120,
+                "seen": 1759500000010
+              },
+              "v2": {
+                "at": 1759500000003,
+                "watched": false,
+                "seen": 1759500000700
+              },
+              "v3": {
+                "at": 1759500000002,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000007,
+            "watched": false,
+            "position": 120,
+            "seen": 1759500000010
+          },
+          "v2": {
+            "at": 1759500000009,
+            "watched": true,
+            "position": 600,
+            "seen": 1759500000020
+          },
+          "v3": {
+            "at": 1759500000002,
+            "watched": true
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "watched: seen does not order entries, so equal at still goes to the greater deviceId",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true,
+                "seen": 1759500000900
+              },
+              "v2": {
+                "at": 1759500000000,
+                "watched": false,
+                "seen": 1759500000900
+              }
+            }
+          }
+        },
+        {
+          "deviceId": "b",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": false,
+                "seen": 1759500000001
+              },
+              "v2": {
+                "at": 1759500000000,
+                "watched": true
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": false,
+            "seen": 1759500000001
+          },
+          "v2": {
+            "at": 1759500000000,
+            "watched": true
+          }
+        },
+        "settings": {}
+      }
+    },
+    {
+      "name": "watched: a seen of any kind neither drops its entry nor is changed",
+      "files": [
+        {
+          "deviceId": "a",
+          "content": {
+            "version": 1,
+            "channels": {},
+            "watched": {
+              "v1": {
+                "at": 1759500000000,
+                "watched": true,
+                "seen": "12"
+              },
+              "v2": {
+                "at": 1759500000000,
+                "watched": true,
+                "seen": -4
+              },
+              "v3": {
+                "at": 1759500000000,
+                "watched": false,
+                "seen": null
+              },
+              "v4": {
+                "at": 1759500000000,
+                "watched": false,
+                "seen": 1.5
+              }
+            }
+          }
+        }
+      ],
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1759500000000,
+            "watched": true,
+            "seen": "12"
+          },
+          "v2": {
+            "at": 1759500000000,
+            "watched": true,
+            "seen": -4
+          },
+          "v3": {
+            "at": 1759500000000,
+            "watched": false,
+            "seen": null
+          },
+          "v4": {
+            "at": 1759500000000,
+            "watched": false,
+            "seen": 1.5
+          }
+        },
+        "settings": {}
       }
     }
   ]

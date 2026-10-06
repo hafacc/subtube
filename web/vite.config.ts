@@ -6,8 +6,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     target: "es2022",
-    // privacy.html is a page of its own, served at /privacy; it loads none of the app
-    rollupOptions: { input: ["index.html", "privacy.html"] },
+    // privacy.html and terms.html are pages of their own, served at /privacy and /terms; they load none of the app
+    rollupOptions: { input: ["index.html", "privacy.html", "terms.html"] },
   },
   // the extension's id check lets in any localhost port
   server: { port: 3000 },

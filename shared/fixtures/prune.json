@@ -1,5 +1,5 @@
 {
-  "description": "Dropping watched marks a device no longer needs before it writes its own file. A mark is kept while now - at < 365 days (31536000000 ms); channels, unknown fields and the rest of the file are written back unchanged. `file` is the device's own parsed file, `expected` what it writes.",
+  "description": "What a device does to the watched entries of its own file: refresh, then prune. Nothing here touches another device's file. Refresh happens only after a full load that succeeded, and `loaded` holds the ids of the videos and playlists among that load's items: each of the device's own entries whose key is in `loaded` gets `seen` set to `now` when it has no `seen` or when now - seen >= 1 day (86400000 ms); an entry whose `seen` is less than a day old, or in the future, is left as it is, so a load does not rewrite the file every time. Refresh never changes `at` or any other field, and makes no entry for an id that has none. Prune happens after the refresh and before every write: an entry is kept while now - max(at, seen) < 30 days (2592000000 ms), where a missing `seen` counts as `at`; so an entry whose later time is exactly 30 days old is dropped, and one from the future is kept. Because refresh comes first, an entry whose video the load still returned is never dropped. A `seen` that is not a whole number from 0 to 2^53-1 counts as missing: refresh replaces it, and prune otherwise writes it back unchanged. A case without `loaded` is a write that follows no load, so only the prune applies. `file` is the device's own parsed file, `expected` what it writes; channels, settings, unknown fields and the rest of the file are written back unchanged. An entry's `position` changes nothing: it is kept or dropped with its entry.",
   "cases": [
     {
       "name": "keeps a recent mark",
@@ -26,14 +26,14 @@
       }
     },
     {
-      "name": "keeps a mark one millisecond short of a year",
+      "name": "keeps a mark one millisecond short of 30 days",
       "now": 1790000000000,
       "file": {
         "version": 1,
         "channels": {},
         "watched": {
           "v1": {
-            "at": 1758464000001,
+            "at": 1787408000001,
             "watched": true
           }
         }
@@ -43,21 +43,21 @@
         "channels": {},
         "watched": {
           "v1": {
-            "at": 1758464000001,
+            "at": 1787408000001,
             "watched": true
           }
         }
       }
     },
     {
-      "name": "drops a mark exactly a year old",
+      "name": "drops a mark exactly 30 days old",
       "now": 1790000000000,
       "file": {
         "version": 1,
         "channels": {},
         "watched": {
           "v1": {
-            "at": 1758464000000,
+            "at": 1787408000000,
             "watched": true
           }
         }
@@ -76,7 +76,7 @@
         "channels": {},
         "watched": {
           "v1": {
-            "at": 1758463999999,
+            "at": 1787407999999,
             "watched": true
           },
           "v2": {
@@ -206,6 +206,432 @@
         "playlists": {
           "PL1": {
             "at": 1790000000000
+          }
+        }
+      }
+    },
+    {
+      "name": "a position is kept or dropped with its entry",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "old": {
+            "at": 1787408000000,
+            "watched": false,
+            "position": 90
+          },
+          "recent": {
+            "at": 1789999999000,
+            "watched": false,
+            "position": 90.25
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "recent": {
+            "at": 1789999999000,
+            "watched": false,
+            "position": 90.25
+          }
+        }
+      }
+    },
+    {
+      "name": "seen: an old mark is kept while seen is less than 30 days old",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "kept": {
+            "at": 0,
+            "watched": true,
+            "seen": 1787408000001
+          },
+          "dropped": {
+            "at": 0,
+            "watched": true,
+            "seen": 1787408000000
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "kept": {
+            "at": 0,
+            "watched": true,
+            "seen": 1787408000001
+          }
+        }
+      }
+    },
+    {
+      "name": "seen: the later of at and seen counts",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": 0
+          },
+          "v2": {
+            "at": 1787407999995,
+            "watched": false,
+            "seen": 1787407999999,
+            "position": 12
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "seen: a value that is not a time counts as missing and is written back",
+      "now": 1790000000000,
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "recent": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": "1789999999000"
+          },
+          "text": {
+            "at": 0,
+            "watched": true,
+            "seen": "1789999999000"
+          },
+          "fraction": {
+            "at": 0,
+            "watched": true,
+            "seen": 1789999999000.5
+          },
+          "negative": {
+            "at": 0,
+            "watched": true,
+            "seen": -1
+          },
+          "nothing": {
+            "at": 0,
+            "watched": true,
+            "seen": null
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "recent": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": "1789999999000"
+          }
+        }
+      }
+    },
+    {
+      "name": "refresh: a loaded entry without seen gets one, and at stays",
+      "now": 1790000000000,
+      "loaded": [
+        "v1",
+        "PL1"
+      ],
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789568000000,
+            "watched": true
+          },
+          "PL1": {
+            "at": 1789481600000,
+            "watched": false
+          },
+          "v2": {
+            "at": 1789568000000,
+            "watched": true
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789568000000,
+            "watched": true,
+            "seen": 1790000000000
+          },
+          "PL1": {
+            "at": 1789481600000,
+            "watched": false,
+            "seen": 1790000000000
+          },
+          "v2": {
+            "at": 1789568000000,
+            "watched": true
+          }
+        }
+      }
+    },
+    {
+      "name": "refresh: seen is rewritten only when a day old or more",
+      "now": 1790000000000,
+      "loaded": [
+        "fresh",
+        "day",
+        "older",
+        "future"
+      ],
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "fresh": {
+            "at": 0,
+            "watched": true,
+            "seen": 1789913600001
+          },
+          "day": {
+            "at": 0,
+            "watched": true,
+            "seen": 1789913600000
+          },
+          "older": {
+            "at": 0,
+            "watched": true,
+            "seen": 1789740800000
+          },
+          "future": {
+            "at": 0,
+            "watched": true,
+            "seen": 1790000060000
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "fresh": {
+            "at": 0,
+            "watched": true,
+            "seen": 1789913600001
+          },
+          "day": {
+            "at": 0,
+            "watched": true,
+            "seen": 1790000000000
+          },
+          "older": {
+            "at": 0,
+            "watched": true,
+            "seen": 1790000000000
+          },
+          "future": {
+            "at": 0,
+            "watched": true,
+            "seen": 1790000060000
+          }
+        }
+      }
+    },
+    {
+      "name": "refresh comes before prune, so a loaded entry is never dropped",
+      "now": 1790000000000,
+      "loaded": [
+        "loaded",
+        "never-seen"
+      ],
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "loaded": {
+            "at": 0,
+            "watched": true,
+            "seen": 1787321600000
+          },
+          "never-seen": {
+            "at": 0,
+            "watched": false,
+            "position": 30
+          },
+          "gone": {
+            "at": 0,
+            "watched": true,
+            "seen": 1787321600000
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "loaded": {
+            "at": 0,
+            "watched": true,
+            "seen": 1790000000000
+          },
+          "never-seen": {
+            "at": 0,
+            "watched": false,
+            "position": 30,
+            "seen": 1790000000000
+          }
+        }
+      }
+    },
+    {
+      "name": "refresh: a seen that is not a time is replaced",
+      "now": 1790000000000,
+      "loaded": [
+        "v1",
+        "v2"
+      ],
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": "yesterday"
+          },
+          "v2": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": -1
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": 1790000000000
+          },
+          "v2": {
+            "at": 1789999999000,
+            "watched": true,
+            "seen": 1790000000000
+          }
+        }
+      }
+    },
+    {
+      "name": "refresh: an id without an entry makes none, and other fields are kept",
+      "now": 1790000000000,
+      "loaded": [
+        "v1",
+        "v9"
+      ],
+      "file": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 0,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1789827200000,
+            "watched": false,
+            "position": 90.25,
+            "progressSeconds": 42
+          }
+        },
+        "settings": {
+          "autoplay": {
+            "at": 0,
+            "value": true
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {
+          "UC1": {
+            "at": 0,
+            "filter": {
+              "enabled": true,
+              "regex": "x",
+              "mode": "include"
+            }
+          }
+        },
+        "watched": {
+          "v1": {
+            "at": 1789827200000,
+            "watched": false,
+            "position": 90.25,
+            "progressSeconds": 42,
+            "seen": 1790000000000
+          }
+        },
+        "settings": {
+          "autoplay": {
+            "at": 0,
+            "value": true
+          }
+        }
+      }
+    },
+    {
+      "name": "refresh: an empty load refreshes nothing and the prune still applies",
+      "now": 1790000000000,
+      "loaded": [],
+      "file": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true
+          },
+          "v2": {
+            "at": 1787408000000,
+            "watched": true
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "channels": {},
+        "watched": {
+          "v1": {
+            "at": 1789999999000,
+            "watched": true
           }
         }
       }

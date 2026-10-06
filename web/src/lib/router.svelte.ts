@@ -29,6 +29,16 @@ export class Router {
     this.route = parseRoute(window.location.search);
   }
 
+  /** Go to a route in place of the current history entry, so Back still leaves the player. */
+  replace(route: Route): void {
+    window.history.replaceState(
+      null,
+      "",
+      routeToUrl(route, window.location.pathname),
+    );
+    this.route = parseRoute(window.location.search);
+  }
+
   /** Close the open item, going back when the app put it there. */
   close(): void {
     if (this.pushed > 0) {
