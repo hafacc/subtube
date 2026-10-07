@@ -180,8 +180,8 @@ the pbxproj.
   after the filters and the watched chip, `unwatchedByChannel` ignores the
   chips; an item that becomes watched or unwatched on screen stays until a
   full load, a filter edit, a change of the watched, time, topic or group
-  chip, or a group save or delete that changes the feed's selected groups,
-  not when moving between pages; `watched` and `bars` are worked out from a
+  chip, a group save or delete that changes the feed's selected groups, or
+  a move between the feed and a channel's page, not a change of the sort; `watched` and `bars` are worked out from a
   mirror of the store's entries, `entries`, and each video's length;
   everything asked of the store about entries and settings goes through one
   queue, `storeCalls`, so saves land in the order made; `recordProgress`

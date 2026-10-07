@@ -263,6 +263,7 @@
     void router.route.channel;
     untrack(() => {
       groupEdit = null;
+      feed.pageChanged();
     });
   });
 </script>

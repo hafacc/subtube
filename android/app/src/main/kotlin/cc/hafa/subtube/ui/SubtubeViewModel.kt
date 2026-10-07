@@ -765,10 +765,10 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     fun selectTab(tab: Screen) {
         val stack = if (tab == Screen.Feed) listOf(Screen.Feed) else listOf(Screen.Feed, tab)
         if (backStack.toList() != stack) {
-            channelFeed = ShownList()
+            val leavesPage = pageChannelId != null
             backStack.clear()
             backStack.addAll(stack)
-            pageChanged()
+            leftScreen(leavesPage)
             if (tab == Screen.Channels) {
                 reorderChannels()
             }
@@ -781,13 +781,19 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     /** Leave the top screen; a card that is playing on it goes to the corner. */
     fun pop() {
         if (backStack.size > 1) {
-            if (backStack.removeAt(backStack.lastIndex) is Screen.ChannelPage) {
-                channelFeed = ShownList()
-            }
-            pageChanged()
+            leftScreen(leavesPage = backStack.removeAt(backStack.lastIndex) is Screen.ChannelPage)
             if (backStack.lastOrNull() == Screen.Channels) {
                 reorderChannels()
             }
+        }
+    }
+
+    // a channel's page that closed takes the cards kept since they changed sides with it
+    private fun leftScreen(leavesPage: Boolean) {
+        if (leavesPage) {
+            recompute(fresh = true)
+        } else {
+            pageChanged()
         }
     }
 
@@ -816,7 +822,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         if (channel != null && pageChannelId != channelId) {
             backStack.removeAll { screen -> screen is Screen.ChannelPage }
             backStack.add(Screen.ChannelPage(channelId))
-            recompute()
+            recompute(fresh = true)
             // a running load brings a channel that is on
             if (isMissing(channel) && (!channel.enabled || !loadInFlight)) {
                 fetchChannelIntoFeed(channel)
@@ -1472,8 +1478,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
      * Rebuild [feed] and [channelFeed] from the items, filters, watched marks
      * and chips, in the chosen order. An entry that became watched or
      * unwatched since the last [fresh] rebuild stays in both, so nothing moves;
-     * a full load, a filter or group edit and a change of the watched, time,
-     * topic or group chips rebuild afresh. The channel page shows its channel whether or not
+     * a full load, a filter or group edit, a change of the watched, time,
+     * topic or group chips and opening or leaving a channel's page rebuild afresh. The channel page shows its channel whether or not
      * it is on. A card that is playing and left the list on screen gives the
      * player to the corner.
      */
@@ -1711,9 +1717,12 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
             if (page != null) {
                 showChannel(page)
             } else if (backStack.toList() != listOf<Screen>(Screen.Feed)) {
-                channelFeed = ShownList()
+                val leavesPage = pageChannelId != null
                 backStack.clear()
                 backStack.add(Screen.Feed)
+                if (leavesPage) {
+                    recompute(fresh = true)
+                }
             }
             val showsPage = backStack.lastOrNull() == (if (page == null) Screen.Feed else Screen.ChannelPage(page))
             val after = expanded(current, pageChannelId, if (showsPage) cardsShowing else emptyList())
