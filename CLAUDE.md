@@ -26,8 +26,11 @@ Independent clients that share behaviour, not code. Each directory has its own
   `shared/fixtures` and must pass them.** A change to the Drive format or to
   filter, merge, prune, Shorts or feed-order semantics starts here, then goes to
   every client.
-- `design/icons/` — `sub-play.svg` is the logo; every client's icons are made
-  from it. `sub-ports`, `shark` and `bubbles` are the shortlisted alternatives,
+- `design/icons/` — `sub-play.svg` is the logo as it stands beside the name:
+  the hull centred in the square, so it sits on the name's line with the
+  tower above. `sub-play-centred.svg` is the same drawing with all of it
+  centred, for wherever the logo stands alone; every client's icons are made
+  from that one. `sub-ports`, `shark` and `bubbles` are the shortlisted alternatives,
   and `sub-ports-loading`, `sub-play-to-loading` and `bubbles-rising` are
   animated versions.
 

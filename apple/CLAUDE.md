@@ -427,7 +427,8 @@ change shared behaviour here alone; change `shared/` first.
 (dark gold, Sunflower in dark mode). iOS sets `.tint(.gold)` at the root;
 switches set `.tint(.sunflower)` themselves. The macOS sidebar selection is
 Sunflower, so selected rows force ink text. Icons: `Config/make-icons.sh`
-from `../design/icons/sub-play.svg`.
+from `../design/icons/sub-play-centred.svg` (all of the logo centred on the
+tile; `Logo` in the asset catalog, shown beside the name, stays hull-centred).
 
 ## Copy
 

@@ -379,8 +379,24 @@
     line-height: 1;
   }
 
+  /* beside the name the hull sits on its line; alone in the rail all of the logo is centred */
+  .home :global(img) {
+    transition: translate 0.2s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home :global(img) {
+      transition: none;
+    }
+  }
+
   /* after the rule that hides them, so the rail shows them */
   @container (max-width: 120px) {
+    /* the hull's centre is 12.04% of the drawing below the whole logo's */
+    .home :global(img) {
+      translate: 0 12.04%;
+    }
+
     .rail-marks {
       visibility: visible;
     }
