@@ -15,12 +15,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "svelte-check --fail-on-warnings && biome check",
+    "lint": "svelte-kit sync && svelte-check --fail-on-warnings && biome check",
     "fmt": "biome check --write",
     "test": "bun test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
+    "@sveltejs/adapter-static": "^4.0.0",
+    "@sveltejs/kit": "^3.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/bun": "^1.4.2",
     "ajv": "^8.20.0",

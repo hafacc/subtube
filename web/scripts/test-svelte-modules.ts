@@ -1,7 +1,7 @@
 import { plugin } from "bun";
 import { compileModule } from "svelte/compiler";
 
-/* `bun test` knows nothing of runes: compile `.svelte.ts` modules as Vite does. */
+/* `bun test` knows nothing of runes: compile `.svelte.ts` modules as the build does. */
 const transpiler = new Bun.Transpiler({ loader: "ts" });
 
 plugin({

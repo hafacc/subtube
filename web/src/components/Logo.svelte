@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { asset } from "$app/paths";
+
   let {
     hull = 22,
   }: {
@@ -18,7 +20,7 @@
 </script>
 
 <img
-  src={`${import.meta.env.BASE_URL}logo.svg`}
+  src={asset("logo.svg")}
   width={size}
   height={size}
   style:margin={margin}

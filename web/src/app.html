@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <!-- First, so the Content-Security-Policy SvelteKit puts here (see vite.config.ts) governs everything below. -->
+    %sveltekit.head%
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#FFC20E">
+    <link rel="icon" href="%sveltekit.assets%/icon.svg" type="image/svg+xml">
+    <link
+      rel="icon"
+      href="%sveltekit.assets%/favicon-32.png"
+      sizes="32x32"
+      type="image/png"
+    >
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png">
+    <script>
+      try {
+        const theme = localStorage.getItem("subtube.theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.dataset.theme = theme;
+        }
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="app">%sveltekit.body%</div>
+  </body>
+</html>
