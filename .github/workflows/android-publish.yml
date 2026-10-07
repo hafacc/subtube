@@ -1,6 +1,9 @@
-# Publish a tagged Android release: upload the signed bundle to Play's internal testing track as
-# a draft and create the GitHub release. Started by android-cut.yml; run it by hand to retry a
-# tag. Roll the draft out and promote it in the Play Console.
+# Publish a tagged Android release in two jobs: `bundle` builds the signed bundle, keeps it as
+# the run's artifact and creates the GitHub release; `play` uploads that same bundle to Play's
+# internal testing track as a draft. Started by android-cut.yml. If Play refuses, re-run the
+# failed job: it uploads the bundle already built. An app's first publish fails at Play, which
+# wants that bundle uploaded by hand: take it from the artifact. Roll the draft out and promote
+# it in the Play Console.
 name: android-publish
 
 on:
@@ -14,7 +17,7 @@ on:
 permissions: {}
 
 jobs:
-  publish:
+  bundle:
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the GitHub release
@@ -35,26 +38,61 @@ jobs:
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
         run: base64 --decode <<< "$ANDROID_KEYSTORE" > "$RUNNER_TEMP/upload.jks"
-      - name: upload to Play
+      - name: build the bundle
         env:
-          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: >-
-          ./gradlew :app:publishReleaseBundle --release-status draft
+          ./gradlew :app:bundleRelease
           "-Psubtube.storeFile=$RUNNER_TEMP/upload.jks"
           "-Psubtube.storePassword=$STORE_PASSWORD"
           "-Psubtube.keyAlias=$KEY_ALIAS"
           "-Psubtube.keyPassword=$KEY_PASSWORD"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: subtube-${{ inputs.tag }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
       - name: create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           tag: ${{ inputs.tag }}
         run: |
           # notes cover only what changed since the last Android release
+          if gh release view "$tag" > /dev/null 2>&1; then
+            exit 0
+          fi
           if previous=$(git describe --tags --abbrev=0 --match "android-v*" "$tag^" 2>/dev/null); then
             gh release create "$tag" --generate-notes --verify-tag --notes-start-tag "$previous"
           else
             gh release create "$tag" --generate-notes --verify-tag
           fi
+
+  play:
+    needs: bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: subtube-${{ inputs.tag }}
+          path: ${{ runner.temp }}/bundle
+      - name: upload to Play
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: >-
+          ./gradlew :app:publishReleaseBundle --release-status draft
+          --artifact-dir "$RUNNER_TEMP/bundle"
