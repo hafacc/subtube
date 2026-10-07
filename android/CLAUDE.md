@@ -499,8 +499,10 @@ every client shares is in `../shared/`.
     accents, since `primary` is Sunflower. The logo is `drawable/logo.xml`, the same on light and dark:
     `design/icons/sub-play.svg`'s paths under the same translate and scale.
     The launcher icon (`ic_launcher_foreground.xml`, `ic_launcher_monochrome.xml`)
-    is those paths at 2.42 with all of the logo, tower included, centred on
-    the 108dp canvas (as `design/icons/sub-play-centred.svg`), inside the 66dp safe circle. `ui/SubtubeIcons.kt` — the
+    is those paths at 2.42, placed so the smallest circle holding all of the
+    logo, tower included, is centred on the 108dp canvas: launchers cut the
+    icon to a circle, and centring the logo's box instead leaves it looking
+    low. It sits inside the 66dp safe circle. `ui/SubtubeIcons.kt` — the
     mockups' stroke icons as `ImageVector`s.
   - `auth/GoogleAuth.kt` — Play services `AuthorizationClient`; expiry from
     tokeninfo (the token goes in the request's body, not its address).
