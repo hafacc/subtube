@@ -563,7 +563,7 @@ Without `-Pscreenshots` the PNGs go to `app/build/screenshots`.
 ## Releases (Google Play)
 
 `.github/workflows/android-cut.yml` (run by hand with patch/minor/major)
-waits for `build.yml`, bumps `versionName` and `versionCode` in
+waits for the Android and shared jobs of `build.yml`, bumps `versionName` and `versionCode` in
 `app/build.gradle.kts` on main, commits and tags `android-v<version>`, then
 starts `android-publish.yml` on that tag. That one restores the upload
 keystore, runs `:app:publishReleaseBundle --release-status draft` (Gradle

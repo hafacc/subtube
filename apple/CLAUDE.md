@@ -505,7 +505,8 @@ macOS and iOS are cut separately; each has its own version line in
 `Config/Versions.xcconfig`.
 
 1. Run the `ios-cut` or `macos-cut` GitHub workflow with a patch, minor or
-   major bump. It rewrites that platform's line, commits `ios v<version>` /
+   major bump. It waits for the Apple and shared jobs of `build.yml`
+   (`swift test` on a Mac runner), rewrites that platform's line, commits `ios v<version>` /
    `macos v<version>` to main and pushes the tag `ios-v<version>` /
    `macos-v<version>`.
 2. Xcode Cloud has one workflow per platform, started by tags beginning
