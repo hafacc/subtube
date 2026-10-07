@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SubTube",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Keeps the SubTube web app signed in to Google and checks which YouTube videos are Shorts.",
   "icons": {
     "16": "icons/icon-16.png",
