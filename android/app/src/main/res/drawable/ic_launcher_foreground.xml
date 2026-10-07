@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The logo from design/icons/sub-play.svg, centred, all of it inside the adaptive icon safe zone. -->
+<!-- The logo from design/icons/sub-play.svg, the circle that just holds all of it centred, inside the adaptive icon safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -9,7 +9,7 @@
         android:scaleX="2.42"
         android:scaleY="2.42"
         android:translateX="24.96"
-        android:translateY="26.414">
+        android:translateY="22.860">
         <path
             android:fillColor="#FFC20E"
             android:fillType="evenOdd"
