@@ -15,8 +15,11 @@ permissions: {}
 jobs:
   gate:
     uses: ./.github/workflows/build.yml
+    with:
+      only: extension
     permissions:
       contents: read
+      pull-requests: read # build.yml asks for it; unused here
 
   cut:
     needs: gate
