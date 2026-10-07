@@ -461,7 +461,12 @@ values, named by the page's `h1`.
   rail of icons, and pins it open again from the widened rail; the rail only
   clips the full-width list, so no icon moves as it widens
   (remembered in localStorage as `subtube.sidebarCollapsed`); hover or
-  keyboard focus widens the rail over the grid without reflowing it. Both
+  keyboard focus widens the rail over the grid without reflowing it. In
+  the rail, the room the hidden heading and chip row leave shows the
+  channel list's selected groups and topics as round marks (`chipMarks` in
+  `lib/groups.ts`: a group's first letter, a topic's icon from
+  `TOPIC_ICONS`, two at most, the last one "+n" when there are more),
+  starting right under "Feed"; they are not controls. Both
   sidebars animate over 200ms, not at all under `prefers-reduced-motion`.
   Under 1100px the right sidebar lies over the grid; under 760px the left one
   is a drawer opened from a toolbar button, sliding in over 200ms while its

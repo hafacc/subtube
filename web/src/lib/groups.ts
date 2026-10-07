@@ -103,6 +103,47 @@ export function chipTitle(
   };
 }
 
+/** One mark of a collapsed chip row: a selected group, a selected topic, or how many more there are. */
+export type ChipMark =
+  | { kind: "group"; name: string }
+  | { kind: "topic"; categoryId: string }
+  | { kind: "more"; count: number };
+
+/**
+ * What stands for a chip row's selection where only `room` marks fit: its
+ * selected existing groups, then its selected topics, each in chip order;
+ * when they don't all fit, the last mark counts the ones left out. The
+ * arguments are {@link chipTitle}'s.
+ */
+export function chipMarks(
+  groups: readonly string[],
+  groupChips: readonly string[],
+  topics: readonly string[],
+  topicChips: readonly string[],
+  room: number,
+): ChipMark[] {
+  const marks: ChipMark[] = [
+    ...selectedGroups(groups, groupChips).map(
+      (name): ChipMark => ({ kind: "group", name }),
+    ),
+    ...topics
+      .filter(
+        (categoryId) =>
+          topicChips.includes(categoryId) && topicLabel(categoryId) !== null,
+      )
+      .map((categoryId): ChipMark => ({ kind: "topic", categoryId })),
+  ];
+  if (marks.length <= room) {
+    return marks;
+  } else {
+    const shown = Math.max(room - 1, 0);
+    return [
+      ...marks.slice(0, shown),
+      { kind: "more", count: marks.length - shown },
+    ];
+  }
+}
+
 /**
  * The channels the selected groups keep, by id: those in any selected
  * existing group. Null when none is selected, which keeps every channel.
