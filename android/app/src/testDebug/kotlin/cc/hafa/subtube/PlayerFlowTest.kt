@@ -137,6 +137,22 @@ class PlayerFlowTest {
     }
 
     @Test
+    fun aCardMarkedWatchedStaysUntilAChannelsPageOpensOrCloses() {
+        val model = model()
+        val (first, second) = model.feed.items
+        model.setWatched(first.id, true)
+        model.selectTab(Screen.Channels)
+        model.selectTab(Screen.Feed)
+        assertTrue(first in model.feed.items)
+        model.showChannel(second.channelId)
+        assertFalse(first in model.feed.items)
+        model.setWatched(second.id, true)
+        assertTrue(second in model.channelFeed.items)
+        model.pop()
+        assertFalse(second in model.feed.items)
+    }
+
+    @Test
     fun openingAChannelMinimizesAndBackDoesNotBringItBack() {
         val model = model()
         model.playFirst()

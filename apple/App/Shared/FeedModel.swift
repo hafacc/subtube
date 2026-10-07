@@ -352,10 +352,12 @@ final class FeedModel {
 
   /// What a page lists, unordered: `beforeChips` after the filters and the
   /// watched chip, `kept` after the group, time and topic chips too. `page`
-  /// is a channel's id, or nil for the feed.
+  /// is a channel's id, or nil for the feed; another page than the one
+  /// showing is listed as it will be once it is opened.
   private func listed(on page: String?) -> (beforeChips: [FeedItem], kept: [FeedItem]) {
     let beforeChips = modeFiltered(
-      passing(on: page), mode: watchedMode, watched: watched, staying: staying)
+      passing(on: page), mode: watchedMode, watched: watched,
+      staying: page == selectedChannel ? staying : [])
     let inGroups = groupFiltered(
       beforeChips,
       kept: page == nil ? groupKeptChannels(channelGroups, selected: settings.groupChips) : nil)
@@ -393,6 +395,7 @@ final class FeedModel {
   private func viewChanged() {
     // a card plays in its list; another page is another list
     minimizeCard()
+    staying = []
     rebuild()
     if let selectedChannel {
       fetchIfMissing(selectedChannel)

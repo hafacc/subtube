@@ -244,6 +244,13 @@ describe("FeedController just-watched cards", () => {
     expect(shown(feed)).toEqual(["a7", "b5", "a1"]);
   });
 
+  test("a move to another page drops it", () => {
+    const { feed } = loaded([], null);
+    feed.setWatched("a3", true);
+    feed.pageChanged();
+    expect(shown(feed)).toEqual(["a7", "b5", "a1"]);
+  });
+
   test("a single channel's fetch arriving doesn't drop it", () => {
     const { feed } = loaded([], null);
     feed.setWatched("a3", true);

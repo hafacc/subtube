@@ -270,9 +270,10 @@ values, named by the page's `h1`.
     an empty page reads "No videos for the selected filter." rather than "Nothing
     new. You're caught up."), the
     order (every passing item, in the `feedSort` order; a video that becomes
-    watched or unwatched here stays until the next full load, filter edit or
-    change of the watched, time, topic or group chips — not when moving between the
-    feed and a channel page, nor when one channel's fetch lands),
+    watched or unwatched here stays until the next full load, filter edit,
+    change of the watched, time, topic or group chips, or move between the
+    feed and a channel page — not when the sort changes, nor when one
+    channel's fetch lands),
     `autoplayNext` (the next unwatched item of the page, null with
     "Auto-play" off or in Watched), watched marks and progress (`watched` and `bars`
     are read from the store's entries with each video's length;

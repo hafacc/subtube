@@ -482,8 +482,9 @@ export class FeedController {
   /** why a channel page failed to load */
   channelError: string | null = $state(null);
 
-  // became watched or unwatched here since the last full load, filter edit or
-  // chip change: these cards stay on screen whatever the watched mode lists
+  // became watched or unwatched here since the last full load, filter edit,
+  // chip change or move to another page: these cards stay on screen whatever
+  // the watched mode lists
   private staying: Set<string> = $state.raw(new Set());
   // channels waiting for a fetch of their own, and how many are being fetched
   private channelQueue = new Map<string, Channel>();
@@ -684,6 +685,11 @@ export class FeedController {
   /** List unwatched items, watched ones, or both. */
   setWatchedMode(mode: WatchedMode): void {
     this.watchedMode = mode;
+    this.dropStaying();
+  }
+
+  /** The feed or a channel page was opened: it lists only what the watched mode does. */
+  pageChanged(): void {
     this.dropStaying();
   }
 
