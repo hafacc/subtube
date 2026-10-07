@@ -1,3 +1,29 @@
+<script lang="ts" module>
+  import type { IconName } from "./Icon.svelte";
+
+  /** The icon that stands for each of YouTube's fifteen topics, by category id. */
+  const TOPIC_ICONS: Readonly<Record<string, IconName>> = {
+    "1": "clapperboard",
+    "2": "car",
+    "10": "music",
+    "15": "paw",
+    "17": "trophy",
+    "19": "plane",
+    "20": "gamepad",
+    "22": "users",
+    "23": "laugh",
+    "24": "sparkles",
+    "25": "newspaper",
+    "26": "wrench",
+    "27": "graduationCap",
+    "28": "flask",
+    "29": "heartHandshake",
+  };
+
+  /** How many marks fit in the rail between "Feed" and the first channel. */
+  const RAIL_MARKS = 2;
+</script>
+
 <script lang="ts">
   import { Toggle } from "bits-ui";
   import {
@@ -8,7 +34,7 @@
   import { TIME_CHIP_OPTIONS } from "../lib/chips";
   import { privacyUrl, termsUrl } from "../lib/config";
   import type { FeedController } from "../lib/feed.svelte";
-  import { chipTitle } from "../lib/groups";
+  import { chipMarks, chipTitle } from "../lib/groups";
   import Avatar from "./Avatar.svelte";
   import ChipRow from "./ChipRow.svelte";
   import CycleChip from "./CycleChip.svelte";
@@ -51,6 +77,17 @@
       feed.settings.channelGroupChips,
       feed.channelTopicChips,
       feed.settings.channelTopicChips,
+    ),
+  );
+
+  // the same selection as the rail shows it, where the chips themselves don't fit
+  const marks = $derived(
+    chipMarks(
+      feed.groups,
+      feed.settings.channelGroupChips,
+      feed.channelTopicChips,
+      feed.settings.channelTopicChips,
+      RAIL_MARKS,
     ),
   );
 
@@ -119,61 +156,76 @@
         <span class="visually-hidden">{feed.unwatchedCount} unwatched</span>
       {/if}
     </button>
-    <div class="heading">
-      <h2>
-        {selection.names.length > 0 ? selection.names.join(", ") : "Channels"}
-      </h2>
-      {#if selection.names.length > 0}
-        {#if selection.edit !== null}
-          {@const group = selection.edit}
+    <div class="filters">
+      <div class="rail-marks" aria-hidden="true">
+        {#each marks as mark, index (index)}
+          <span class="mark">
+            {#if mark.kind === "group"}
+              {Array.from(mark.name)[0].toLocaleUpperCase()}
+            {:else if mark.kind === "topic"}
+              <Icon name={TOPIC_ICONS[mark.categoryId]} size={14} />
+            {:else}
+              +{mark.count}
+            {/if}
+          </span>
+        {/each}
+      </div>
+      <div class="heading">
+        <h2>
+          {selection.names.length > 0 ? selection.names.join(", ") : "Channels"}
+        </h2>
+        {#if selection.names.length > 0}
+          {#if selection.edit !== null}
+            {@const group = selection.edit}
+            <button
+              type="button"
+              class="icon-button wide-only"
+              aria-label="Edit group"
+              title="Edit group"
+              onclick={() => oneditgroup(group)}
+            >
+              <Icon name="pencil" size={14} />
+            </button>
+          {/if}
           <button
             type="button"
             class="icon-button wide-only"
-            aria-label="Edit group"
-            title="Edit group"
-            onclick={() => oneditgroup(group)}
+            aria-label="Clear"
+            title="Clear"
+            onclick={() => feed.clearChips("channels")}
           >
-            <Icon name="pencil" size={14} />
+            <Icon name="close" size={14} />
           </button>
         {/if}
-        <button
-          type="button"
-          class="icon-button wide-only"
-          aria-label="Clear"
-          title="Clear"
-          onclick={() => feed.clearChips("channels")}
+      </div>
+      <div class="channel-chips wide-only">
+        <ChipRow
+          groups={feed.groups}
+          selectedGroups={feed.settings.channelGroupChips}
+          ongroup={(group) => feed.toggleChannelGroupChip(group)}
+          onnewgroup={feed.loadCount > 0 ? () => oneditgroup(null) : undefined}
+          topics={feed.channelTopicChips}
+          selected={feed.settings.channelTopicChips}
+          ontopic={(categoryId) => feed.toggleChannelTopicChip(categoryId)}
         >
-          <Icon name="close" size={14} />
-        </button>
-      {/if}
-    </div>
-    <div class="channel-chips wide-only">
-      <ChipRow
-        groups={feed.groups}
-        selectedGroups={feed.settings.channelGroupChips}
-        ongroup={(group) => feed.toggleChannelGroupChip(group)}
-        onnewgroup={feed.loadCount > 0 ? () => oneditgroup(null) : undefined}
-        topics={feed.channelTopicChips}
-        selected={feed.settings.channelTopicChips}
-        ontopic={(categoryId) => feed.toggleChannelTopicChip(categoryId)}
-      >
-        {#snippet leading()}
-          <CycleChip
-            label="Sort"
-            options={CHANNEL_SORT_OPTIONS}
-            value={feed.settings.channelSort}
-            onchange={(channelSort) =>
-              feed.setSetting("channelSort", channelSort)}
-          />
-          <CycleChip
-            label="Time"
-            options={TIME_CHIP_OPTIONS}
-            value={feed.settings.channelTimeChip}
-            onchange={(channelTimeChip) =>
-              feed.setSetting("channelTimeChip", channelTimeChip)}
-          />
-        {/snippet}
-      </ChipRow>
+          {#snippet leading()}
+            <CycleChip
+              label="Sort"
+              options={CHANNEL_SORT_OPTIONS}
+              value={feed.settings.channelSort}
+              onchange={(channelSort) =>
+                feed.setSetting("channelSort", channelSort)}
+            />
+            <CycleChip
+              label="Time"
+              options={TIME_CHIP_OPTIONS}
+              value={feed.settings.channelTimeChip}
+              onchange={(channelTimeChip) =>
+                feed.setSetting("channelTimeChip", channelTimeChip)}
+            />
+          {/snippet}
+        </ChipRow>
+      </div>
     </div>
     {#if channels.length === 0 &&
       feed.chipChannels !== null &&
@@ -288,11 +340,50 @@
     color: var(--text);
   }
 
+  /* the heading and the chip row, which the rail's marks are laid over */
+  .filters {
+    position: relative;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
   .channel-chips {
     --chip-row-rule: 0;
     --chip-row-padding: 4px 8px 6px;
-    flex-shrink: 0;
+    margin-top: 2px;
     min-width: 0;
+  }
+
+  /* in the rows' icon column, in the room the hidden heading and chips leave */
+  .rail-marks {
+    visibility: hidden;
+    position: absolute;
+    inset: 8px auto 0 8px;
+    width: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+  }
+
+  .mark {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--tint);
+    color: var(--tint-text);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  /* after the rule that hides them, so the rail shows them */
+  @container (max-width: 120px) {
+    .rail-marks {
+      visibility: visible;
+    }
   }
 
   .empty {
