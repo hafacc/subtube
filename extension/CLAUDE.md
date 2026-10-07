@@ -26,7 +26,7 @@ manifest, so a store install answers the site alone.
 - `bun install`, `bun run build` (→ `dist/`, load unpacked), `bun run lint`
   (tsc + biome), `bun test`, `bun run package` (→ `subtube-extension.zip` for the Web Store,
   without the manifest `key`), `bun run icons` (regenerates `icons/` from
-  `../design/icons/sub-play.svg`; needs rsvg-convert; output committed).
+  `../design/icons/sub-play-centred.svg`, the logo centred in its square; needs rsvg-convert; output committed).
 - Releases: run the `ext-cut` workflow by hand with a patch/minor/major bump.
   It bumps `manifest.json`'s version (the source of truth), tags
   `extension-v<version>` and starts `ext-release`, which attaches

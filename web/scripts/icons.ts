@@ -1,5 +1,7 @@
 /*
- * Regenerates the site's icons in public/ from the logo, design/icons/sub-play.svg.
+ * Regenerates the site's icons in public/ from the logo. logo.svg, shown beside the
+ * name, is design/icons/sub-play.svg (the hull centred, the tower above the line);
+ * the icons, which stand alone, are design/icons/sub-play-centred.svg (all of it centred).
  * Needs rsvg-convert (librsvg) and ImageMagick's magick. The output is committed,
  * so builds don't need either.
  */
@@ -13,8 +15,15 @@ const logo = await readFile(
   join(import.meta.dir, "../../design/icons/sub-play.svg"),
   "utf8",
 );
-const svgPath = join(publicDir, "logo.svg");
-await writeFile(svgPath, logo);
+await writeFile(join(publicDir, "logo.svg"), logo);
+const svgPath = join(publicDir, "icon.svg");
+await writeFile(
+  svgPath,
+  await readFile(
+    join(import.meta.dir, "../../design/icons/sub-play-centred.svg"),
+    "utf8",
+  ),
+);
 
 for (const size of [192, 512]) {
   await $`rsvg-convert -w ${size} -h ${size} ${svgPath} -o ${join(publicDir, `icon-${size}.png`)}`;

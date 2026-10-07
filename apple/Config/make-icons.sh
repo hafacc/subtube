@@ -1,13 +1,13 @@
 #!/bin/sh
-# Regenerate both apps' AppIcon PNGs from design/icons/sub-play.svg: the
-# logo's box at 84.375% of an ink tile, which makes the hull five eighths of
-# the tile wide and centred, the tower above it. iOS gets a full-bleed
+# Regenerate both apps' AppIcon PNGs from design/icons/sub-play-centred.svg:
+# the logo's box at 84.375% of an ink tile, which makes the hull five eighths
+# of the tile wide, with all of the logo, tower included, centred. iOS gets a full-bleed
 # square (the system masks it); macOS gets the 824 pt rounded tile with a
 # shadow on the 1024 canvas.
 # Needs rsvg-convert and sips. Run from anywhere.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
-logo="$here/../design/icons/sub-play.svg"
+logo="$here/../design/icons/sub-play-centred.svg"
 out="$here/App/Resources/Assets.xcassets/AppIcon.appiconset"
 work=$(mktemp -d)
 trap 'rm -r "$work"' EXIT

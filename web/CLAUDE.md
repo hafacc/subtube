@@ -9,8 +9,12 @@ settings; no CNAME file).
 
 - `bun install`, `bun run dev` (port 3000), `bun run build`, `bun test`,
   `bun run lint` (`svelte-check` + `biome check`), `bun run fmt`.
-- `bun scripts/icons.ts` regenerates `public/` icons from
-  `../design/icons/sub-play.svg` (needs rsvg-convert and ImageMagick); the output is committed.
+- `bun scripts/icons.ts` regenerates `public/` from `../design/icons/`
+  (needs rsvg-convert and ImageMagick); the output is committed. `logo.svg`
+  is `sub-play.svg`, for beside the name (hull centred, tower above the
+  line); `icon.svg` and the PNG icons are `sub-play-centred.svg`, all of the
+  logo centred, for where it stands alone. In the collapsed sidebar, where
+  the name is hidden, `logo.svg` is moved down to the same place.
 - Dev sign-in: load `../extension/dist` unpacked, then put its id in
   `web/.env.local` as `VITE_EXTENSION_ID=…` and restart `bun run dev`. The
   extension's redirect URI must be on the web OAuth client.

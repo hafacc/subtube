@@ -1,5 +1,5 @@
 /*
- * Regenerates icons/ from the logo, design/icons/sub-play.svg. Needs rsvg-convert
+ * Regenerates icons/ from the logo centred in its square, design/icons/sub-play-centred.svg. Needs rsvg-convert
  * (librsvg). The output is committed, so builds don't need it.
  */
 
@@ -9,7 +9,7 @@ import { $ } from "bun";
 
 const iconsDir = join(import.meta.dir, "../icons");
 const logo = await readFile(
-  join(import.meta.dir, "../../design/icons/sub-play.svg"),
+  join(import.meta.dir, "../../design/icons/sub-play-centred.svg"),
   "utf8",
 );
 await rm(iconsDir, { recursive: true, force: true });
