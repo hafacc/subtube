@@ -565,11 +565,14 @@ Without `-Pscreenshots` the PNGs go to `app/build/screenshots`.
 `.github/workflows/android-cut.yml` (run by hand with patch/minor/major)
 waits for the Android and shared jobs of `build.yml`, bumps `versionName` and `versionCode` in
 `app/build.gradle.kts` on main, commits and tags `android-v<version>`, then
-starts `android-publish.yml` on that tag. That one restores the upload
-keystore, runs `:app:publishReleaseBundle --release-status draft` (Gradle
-Play Publisher, track `internal`) and makes the GitHub release with notes
-since the previous `android-v` tag; run it by hand with a tag to retry a
-publish that failed. Roll the draft out and promote it in the Play Console.
+starts `android-publish.yml` on that tag. That one has two jobs. `bundle`
+restores the upload keystore, builds the signed bundle, keeps it as the
+run's artifact (`subtube-android-v<version>`) and makes the GitHub release
+with notes since the previous `android-v` tag. `play` uploads that same
+bundle as a draft (`:app:publishReleaseBundle --artifact-dir`, Gradle Play
+Publisher, track `internal`); if Play refuses, re-run the failed job and it
+uploads the bundle already built. Roll the draft out and promote it in the
+Play Console.
 Both workflows and `build.yml` install Java 25, the version
 `gradle/gradle-daemon-jvm.properties` says the build runs on.
 
@@ -582,7 +585,8 @@ Secrets (repository secrets, no environment): `ANDROID_KEYSTORE` (the upload
 keystore, base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
 `ANDROID_KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON` (a service account with
 release access to the app in Play). The publisher can't create the app: the
-first bundle is uploaded by hand in the Play Console. Play re-signs with its
+first bundle is uploaded by hand in the Play Console. So the first cut's `play` job
+fails, and the bundle to upload is that run's artifact. Play re-signs with its
 own app signing key, so the store build needs its own Android OAuth client
 (that key's SHA-1) beside the upload key's and the debug key's.
 
