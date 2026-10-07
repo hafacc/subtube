@@ -36,8 +36,9 @@ export class Router {
     return routeToUrl(route, window.location.pathname);
   }
 
+  // beside what SvelteKit keeps in the entry: an entry with its mark unchanged is one its router leaves alone
   private entry(): EntryState {
-    return { depth: this.depth };
+    return { ...window.history.state, depth: this.depth };
   }
 
   /** Go to a route, as a new history entry. */

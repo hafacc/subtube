@@ -2,43 +2,37 @@ import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-/* Each page's Content-Security-Policy lets its inline theme script run by hash; an edit to the script must change the hash. */
+function source(path: string): string {
+  return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+}
+
+/* The Content-Security-Policy in vite.config.ts lets the page shell's inline theme script run by hash; an edit to the script must change the hash. SvelteKit adds the hashes of its own scripts at build. */
 describe("Content-Security-Policy", () => {
-  for (const page of ["index.html", "privacy.html", "terms.html"]) {
-    const html = readFileSync(
-      new URL(`../../${page}`, import.meta.url),
-      "utf8",
+  const shell = source("src/app.html");
+  const config = source("vite.config.ts");
+
+  test("allows exactly the page shell's inline scripts", () => {
+    const scripts = Array.from(
+      shell.matchAll(/<script>([\s\S]*?)<\/script>/g),
+      ([, body]) => body,
     );
-    const policy =
-      /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(
-        html,
-      )?.[1] ?? "";
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const body of scripts) {
+      expect(config).toContain(
+        `"sha256-${createHash("sha256").update(body).digest("base64")}"`,
+      );
+    }
+    expect(config.match(/"sha256-/g)).toHaveLength(scripts.length);
+    expect(config).not.toContain("unsafe-eval");
+    expect(config).not.toMatch(/"script-src": \[[^\]]*"unsafe-inline"/);
+  });
 
-    test(`${page} allows exactly its inline scripts`, () => {
-      const scripts = Array.from(
-        html.matchAll(/<script>([\s\S]*?)<\/script>/g),
-        ([, body]) => body,
-      );
-      const hashes = scripts.map(
-        (body) =>
-          `'sha256-${createHash("sha256").update(body).digest("base64")}'`,
-      );
-      expect(scripts.length).toBeGreaterThan(0);
-      for (const hash of hashes) {
-        expect(policy).toContain(hash);
-      }
-      expect(policy.match(/'sha256-/g)).toHaveLength(hashes.length);
-      expect(policy).not.toContain("'unsafe-eval'");
-      expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
-    });
-
-    test(`${page} comes before anything it governs`, () => {
-      expect(html.indexOf("Content-Security-Policy")).toBeLessThan(
-        html.indexOf("<script"),
-      );
-      expect(html.indexOf("Content-Security-Policy")).toBeLessThan(
-        html.indexOf("<link"),
-      );
-    });
-  }
+  test("comes before anything it governs", () => {
+    expect(shell.indexOf("%sveltekit.head%")).toBeLessThan(
+      shell.indexOf("<script"),
+    );
+    expect(shell.indexOf("%sveltekit.head%")).toBeLessThan(
+      shell.indexOf("<link"),
+    );
+  });
 });

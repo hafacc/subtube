@@ -1,15 +1,24 @@
 # web — the subtube web app
 
-Svelte 5 single-page app (Vite, no SvelteKit), TypeScript, plain CSS with brand
-tokens in `src/app.css`, bun, biome (double quotes, 2-space; `.svelte` files via
-biome's HTML support). Static: `bun run build` → `dist/`, published to GitHub
+Svelte 5 single-page app built by SvelteKit 3 with `adapter-static`
+(configured in `vite.config.ts`; there is no `svelte.config.js`), TypeScript,
+plain CSS with brand tokens in `src/app.css`, bun, biome (double quotes,
+2-space; `.svelte` files via biome's HTML support). Every page is prerendered:
+`bun run build` → `dist/`, published to GitHub
 Pages at https://subtube.hafa.cc by `.github/workflows/web-deploy.yml`, started
 by hand, which publishes `main` (custom domain set in the repo's Pages
 settings; no CNAME file).
 
 - `bun install`, `bun run dev` (port 3000), `bun run build`, `bun test`,
-  `bun run lint` (`svelte-check` + `biome check`), `bun run fmt`.
-- `bun scripts/icons.ts` regenerates `public/` from `../design/icons/`
+  `bun run lint` (`svelte-kit sync`, `svelte-check`, `biome check`),
+  `bun run fmt`.
+- `src/app.html` is the page shell; `src/routes/+layout.svelte` loads
+  `app.css`; `src/routes/+page.svelte` is the app's page: the built page
+  holds the title and description only, and `src/App.svelte` mounts in the
+  browser. SvelteKit's router has nothing to do: the app is one route and
+  moves through its own `Router` (see `router.svelte.ts` below), so the dev
+  console warns once that the page changes the URL itself.
+- `bun scripts/icons.ts` regenerates `static/` from `../design/icons/`
   (needs rsvg-convert and ImageMagick); the output is committed. `logo.svg`
   is `sub-play.svg`, for beside the name (hull centred, tower above the
   line); `icon.svg` and the PNG icons are `sub-play-centred.svg`, all of the
@@ -19,14 +28,17 @@ settings; no CNAME file).
   `web/.env.local` as `VITE_EXTENSION_ID=…` and restart `bun run dev`. The
   extension's redirect URI must be on the web OAuth client.
 
-## Privacy policy and terms (`privacy.html`, `terms.html`)
+## Privacy policy and terms (`src/routes/(policy)/`)
 
-Two more Vite entries, built to `dist/privacy.html` and `dist/terms.html`
-and served by Pages at https://subtube.hafa.cc/privacy and `/terms`; the dev
-server serves them at `/privacy` and `/terms` too. Links use the relative
-`privacyUrl` and `termsUrl` in `src/lib/config.ts`. They are plain HTML with
-`src/app.css` for the brand tokens and theme and `src/policy.css` for their
-layout (its header logo is sized in CSS by `Logo.svelte`'s rule), and load none of the app, so they render in any browser. Setup's
+Two more routes, `privacy/+page.svelte` and `terms/+page.svelte`, built to
+`dist/privacy.html` and `dist/terms.html` and served by Pages at
+https://subtube.hafa.cc/privacy and `/terms`; the dev server serves them at
+`/privacy` and `/terms` too. Links use `privacyUrl` and `termsUrl` in
+`src/lib/config.ts`. Their shared `+layout.svelte` is the header and
+`src/policy.css` (its header logo is sized in CSS by `Logo.svelte`'s rule),
+over `src/app.css` for the brand tokens and theme; `+layout.ts` sets
+`csr = false`, so they are built as plain HTML with no script but the theme
+script and render in any browser. Setup's
 footer, the channel sidebar's foot, Settings and the `GetApp` /
 `ExtensionRequired` footers link to them as "Privacy policy" and "Terms",
 side by side; setup's sign-in screen has the line "By signing in, you agree
@@ -64,18 +76,20 @@ in `sync-merge.ts`) marks setup done and opens the feed. This device's own
 file never counts, so a reload part-way through setup, after "Choose
 channels" saved the switches, goes on with setup.
 
-## Content-Security-Policy (`index.html`, `privacy.html`, `terms.html`)
+## Content-Security-Policy (`csp` in `vite.config.ts`)
 
-Each page carries a `<meta http-equiv="Content-Security-Policy">` first in its
-head (Pages can't send headers). The app's lets in its own files, the inline
+Each built page carries a `<meta http-equiv="content-security-policy">` first
+in its head (Pages can't send headers): SvelteKit writes it where
+`%sveltekit.head%` stands in `src/app.html`, adding the hash of its own
+inline start script. One policy for every page, the policy pages too. It
+lets in the site's own files, the inline
 theme script by its hash, `https://www.youtube.com` for the IFrame API script
 and the player's frame, pictures from `*.ytimg.com`, `*.ggpht.com` and
 `*.googleusercontent.com`, and requests to `https://www.googleapis.com`
 (YouTube and Drive); `'self'` covers the dev server's module scripts and its
 reload socket, and `style-src` has `'unsafe-inline'` for the `style:`
-attributes and the dev server's style tags. The two policy pages allow only
-their own files and the theme script. `src/lib/csp.test.ts` fails when an
-inline script and its hash drift. A new host the app loads from (a picture
+attributes and the dev server's style tags. `src/lib/csp.test.ts` fails when
+the theme script in `src/app.html` and its hash in `vite.config.ts` drift. A new host the app loads from (a picture
 host, another API) must be added there.
 
 ## Loading
@@ -356,7 +370,9 @@ values, named by the page's `h1`.
     after Back, Forward and a reload. A reload or
     a link with an item opens it large, also in a narrow window. Auto-play
     moves on with `replace`. A minimized player or one in a card is not in
-    the URL, so a reload drops it.
+    the URL, so a reload drops it. It works on the browser's History API
+    directly, because the player needs each change at once, and writes its
+    `depth` beside what SvelteKit keeps in the entry.
   - `platform/` + `auth.ts` — the extension bridge. Protocol types come from
     `../extension/src/protocol.ts` (type-only import; single source). A
     silent renewal names the account (`loginHint`, the address Drive gave at
