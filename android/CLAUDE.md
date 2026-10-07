@@ -217,9 +217,10 @@ every client shares is in `../shared/`.
     then the only request), at most 6 at once. `watched` and `bars` are read
     from the store's entries with each video's length. A card that becomes
     watched or unwatched (`staying`) stays in the feed and on its channel's
-    page until a full load, a filter edit or a change of the watched, time,
+    page until a full load, a filter edit, a change of the watched, time,
     topic or group chips (a group saved or deleted only when it changes the
-    feed's selected groups); navigating and single-channel fetches leave it. `settings`
+    feed's selected groups) or a channel's page opening or closing; the
+    sort, the tabs and single-channel fetches leave it. `settings`
     are the synced ones, re-read after every load; `setAutoplay`,
     `setFeedSort`, `setChannelSort`, `setTimeChip`, `toggleTopicChip`,
     `clearTopicChips`, `toggleGroupChip`, `clearFeedChips`,
