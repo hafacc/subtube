@@ -1,18 +1,12 @@
 {
+  "extends": "$app/tsconfig",
   "compilerOptions": {
     "target": "es2022",
     "lib": ["dom", "dom.iterable", "es2023"],
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "types": ["bun", "vite/client", "svelte"],
+    "types": ["$app/types", "bun", "vite/client", "svelte"],
     "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "resolveJsonModule": true,
-    "allowImportingTsExtensions": false,
-    "forceConsistentCasingInFileNames": true
+    "allowImportingTsExtensions": false
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte", "*.ts"]
+  "include": ["src", "*"],
+  "exclude": ["src/service-worker"]
 }

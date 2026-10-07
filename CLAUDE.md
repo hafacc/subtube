@@ -12,7 +12,7 @@ algorithm, no recommendations, no comments.
 Independent clients that share behaviour, not code. Each directory has its own
 `CLAUDE.md` with its build, layout and gotchas — read it before working there.
 
-- `web/` — Svelte 5 single-page app (Vite, bun), static on GitHub Pages at
+- `web/` — Svelte 5 single-page app (SvelteKit, bun), static on GitHub Pages at
   https://subtube.hafa.cc. Desktop Chrome needs the extension; desktop Safari
   links to the Mac app; phones and tablets link to the store apps.
 - `extension/` — Chrome MV3 extension: silent Google sign-in and the Shorts probe

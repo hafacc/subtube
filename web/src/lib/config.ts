@@ -16,11 +16,11 @@
 export const extensionId: string =
   import.meta.env.VITE_EXTENSION_ID || "gobcnmccpjhlgpnohehgkahhknkfbmfo";
 
-/** The privacy policy, a static page beside the app (`privacy.html`, served without the extension). */
-export const privacyUrl = `${import.meta.env.BASE_URL}privacy`;
+/** The privacy policy, a page of its own beside the app (`src/routes/(policy)/privacy`), built with no script. */
+export const privacyUrl = "/privacy";
 
-/** The terms of service, a static page beside the app (`terms.html`), like the privacy policy. */
-export const termsUrl = `${import.meta.env.BASE_URL}terms`;
+/** The terms of service, a page of its own beside the app (`src/routes/(policy)/terms`), like the privacy policy. */
+export const termsUrl = "/terms";
 
 /** Where the "Videos from YouTube" attribution links. */
 export const youtubeUrl = "https://www.youtube.com/";
