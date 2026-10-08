@@ -582,10 +582,11 @@ values, named by the page's `h1`.
   each channel's older items watched when that channel is first fetched; the list is in name order (`compareIgnoringCase`) and its search is `nameMatches`, case only;
   the sign-in screen's button is `GoogleButton`: Google's standard button, its four-colour mark on the neutral `--google-*` fill, stroke and text for a light and a dark page, never a Sunflower button),
   `ExtensionRequired`, `GetApp` (iOS/Android + Mac page). `Logo` takes the
-  height of its hull, which is the line height of the name beside it (22px
-  by the 18px name, 36px by the 30px one): the drawing is hull / 0.518
-  square with negative margins, so only the hull takes up room and the tower
-  rises above the line.
+  height of its hull, which is four fifths of the line height of the name
+  beside it (17.6px by the 18px name on its 22px line, 28.8px by the 30px
+  one on its 36px line), so the tower rises little above the line: the
+  drawing is hull / 0.518 square with negative margins, so only the hull
+  takes up room.
 
 ## Controls (Bits UI)
 

@@ -130,7 +130,7 @@
     position: relative;
     width: 100%;
     height: 100%;
-    background: #0e0c08;
+    background: #0b0c0f;
   }
 
   .embed :global(iframe) {
@@ -149,7 +149,7 @@
     margin: 0;
     padding: 24px;
     text-align: center;
-    color: #b5ae9e;
+    color: #abb0b9;
     font-size: 14px;
   }
 </style>

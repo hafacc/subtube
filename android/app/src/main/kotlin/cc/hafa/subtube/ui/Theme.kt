@@ -16,10 +16,10 @@ import cc.hafa.subtube.data.ThemeMode
 val Sunflower: Color = Color(0xFFFFC20E)
 
 /** Text and icons on a Sunflower fill. */
-val Ink: Color = Color(0xFF2A1F00)
+val Ink: Color = Color(0xFF1B1E24)
 
 /** The dark backdrop behind the video player. */
-val PlayerBackdrop: Color = Color(0xFF0E0C08)
+val PlayerBackdrop: Color = Color(0xFF0B0C0F)
 
 /*
  * Material's text buttons, focus rings and progress indicators draw in
@@ -32,66 +32,66 @@ private val LightScheme = lightColorScheme(
     primaryContainer = Color(0xFFFFE08A),
     onPrimaryContainer = Ink,
     inversePrimary = Color(0xFF8A6100),
-    secondary = Color(0xFF6B5D3F),
+    secondary = Color(0xFF575C66),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFF2E4C4),
-    onSecondaryContainer = Color(0xFF261C05),
+    secondaryContainer = Color(0xFFE8EAEE),
+    onSecondaryContainer = Color(0xFF1A1C20),
     tertiary = Color(0xFF8A6100),
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFFFF4CC),
-    onTertiaryContainer = Color(0xFF5C4300),
-    background = Color(0xFFFFFAF0),
-    onBackground = Color(0xFF1F1B12),
-    surface = Color(0xFFFFFAF0),
-    onSurface = Color(0xFF1F1B12),
-    surfaceVariant = Color(0xFFECE7DA),
-    onSurfaceVariant = Color(0xFF4D4639),
+    onTertiaryContainer = Color(0xFF23262C),
+    background = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF1A1C20),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF1A1C20),
+    surfaceVariant = Color(0xFFE6E8EC),
+    onSurfaceVariant = Color(0xFF575C66),
     surfaceTint = Color(0xFF8A6100),
-    surfaceBright = Color(0xFFFFFAF0),
-    surfaceDim = Color(0xFFE6DFCF),
+    surfaceBright = Color(0xFFFFFFFF),
+    surfaceDim = Color(0xFFDCDFE4),
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFFBF4E8),
-    surfaceContainer = Color(0xFFF6EFE0),
-    surfaceContainerHigh = Color(0xFFF3EBDB),
-    surfaceContainerHighest = Color(0xFFF0E8D6),
-    outline = Color(0xFF7D7462),
-    outlineVariant = Color(0xFFE7E1D3),
-    inverseSurface = Color(0xFF353026),
-    inverseOnSurface = Color(0xFFF8F0E2),
+    surfaceContainerLow = Color(0xFFF9FAFB),
+    surfaceContainer = Color(0xFFF5F6F8),
+    surfaceContainerHigh = Color(0xFFEFF1F4),
+    surfaceContainerHighest = Color(0xFFEAECF0),
+    outline = Color(0xFF737882),
+    outlineVariant = Color(0xFFE1E4E8),
+    inverseSurface = Color(0xFF2F3238),
+    inverseOnSurface = Color(0xFFF1F3F5),
 )
 
 private val DarkScheme = darkColorScheme(
     primary = Sunflower,
     onPrimary = Ink,
-    primaryContainer = Color(0xFF5C4300),
-    onPrimaryContainer = Color(0xFFFFE08A),
+    primaryContainer = Color(0xFF2B2E35),
+    onPrimaryContainer = Color(0xFFFFD75A),
     inversePrimary = Color(0xFF8A6100),
-    secondary = Color(0xFFD6C6A4),
-    onSecondary = Color(0xFF3A2F19),
-    secondaryContainer = Color(0xFF4F4532),
-    onSecondaryContainer = Color(0xFFF2E4C4),
+    secondary = Color(0xFFC3C7CE),
+    onSecondary = Color(0xFF2B2E35),
+    secondaryContainer = Color(0xFF3D4148),
+    onSecondaryContainer = Color(0xFFE1E4E8),
     tertiary = Sunflower,
     onTertiary = Ink,
-    tertiaryContainer = Color(0xFF5C4300),
-    onTertiaryContainer = Color(0xFFFFF4CC),
-    background = Color(0xFF16130B),
-    onBackground = Color(0xFFEAE1D0),
-    surface = Color(0xFF16130B),
-    onSurface = Color(0xFFEAE1D0),
-    surfaceVariant = Color(0xFF2E2A21),
-    onSurfaceVariant = Color(0xFFD0C5B2),
+    tertiaryContainer = Color(0xFF2B2E35),
+    onTertiaryContainer = Color(0xFFFFD75A),
+    background = Color(0xFF121418),
+    onBackground = Color(0xFFEEF0F3),
+    surface = Color(0xFF121418),
+    onSurface = Color(0xFFEEF0F3),
+    surfaceVariant = Color(0xFF282B31),
+    onSurfaceVariant = Color(0xFFABB0B9),
     surfaceTint = Sunflower,
-    surfaceBright = Color(0xFF3D382E),
-    surfaceDim = Color(0xFF16130B),
-    surfaceContainerLowest = Color(0xFF110E07),
-    surfaceContainerLow = Color(0xFF1F1B12),
-    surfaceContainer = Color(0xFF231F16),
-    surfaceContainerHigh = Color(0xFF2E2A20),
-    surfaceContainerHighest = Color(0xFF39342A),
-    outline = Color(0xFF998F7C),
-    outlineVariant = Color(0xFF4D4639),
-    inverseSurface = Color(0xFFEAE1D0),
-    inverseOnSurface = Color(0xFF353026),
+    surfaceBright = Color(0xFF383B42),
+    surfaceDim = Color(0xFF121418),
+    surfaceContainerLowest = Color(0xFF0D0F12),
+    surfaceContainerLow = Color(0xFF1A1C21),
+    surfaceContainer = Color(0xFF1E2126),
+    surfaceContainerHigh = Color(0xFF282B31),
+    surfaceContainerHighest = Color(0xFF33363D),
+    outline = Color(0xFF8D929B),
+    outlineVariant = Color(0xFF44474F),
+    inverseSurface = Color(0xFFE8EAEE),
+    inverseOnSurface = Color(0xFF2F3238),
 )
 
 /** Brand colours Material's scheme has no slot for. */
@@ -107,13 +107,13 @@ data class SubtubeColors(
 
 private val LightBrand = SubtubeColors(
     accent = Color(0xFF8A6100),
-    placeholder = Color(0xFFECE7DA),
+    placeholder = Color(0xFFE6E8EC),
     dark = false,
 )
 
 private val DarkBrand = SubtubeColors(
     accent = Sunflower,
-    placeholder = Color(0xFF2E2A21),
+    placeholder = Color(0xFF282B31),
     dark = true,
 )
 

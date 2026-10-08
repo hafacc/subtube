@@ -21,7 +21,7 @@ tile() { # size inset radius shadow(0/1)
     defs="<defs><filter id=\"s\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\"><feDropShadow dx=\"0\" dy=\"$(echo "$1 * 0.01" | bc -l)\" stdDeviation=\"$(echo "$1 * 0.012" | bc -l)\" flood-color=\"#000\" flood-opacity=\"0.3\"/></filter></defs>"
     filter=' filter="url(#s)"'
   fi
-  printf '<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="0 0 %s %s">%s<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="#2A1F00"%s/><g transform="translate(%s %s) scale(%s)">%s</g></svg>' \
+  printf '<svg xmlns="http://www.w3.org/2000/svg" width="%s" height="%s" viewBox="0 0 %s %s">%s<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="#1B1E24"%s/><g transform="translate(%s %s) scale(%s)">%s</g></svg>' \
     "$1" "$1" "$1" "$1" "$defs" "$2" "$2" "$t" "$t" "$3" "$filter" "$offset" "$offset" "$scale" "$paths"
 }
 

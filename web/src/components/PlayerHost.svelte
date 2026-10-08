@@ -461,7 +461,7 @@
     inset: 0;
     overflow: hidden;
     border-radius: 8px;
-    background: #0e0c08;
+    background: #0b0c0f;
     box-shadow: 0 8px 32px var(--shadow);
   }
 
