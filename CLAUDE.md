@@ -34,8 +34,11 @@ Independent clients that share behaviour, not code. Each directory has its own
   and `sub-ports-loading`, `sub-play-to-loading` and `bubbles-rising` are
   animated versions.
 
-Brand: Sunflower `#FFC20E` is the only brand colour; yellow fills carry ink
-`#2A1F00` text; text and icons on light backgrounds use dark gold `#8A6100`.
+Brand: Sunflower `#FFC20E` is the only brand color; yellow fills carry ink
+`#1B1E24` text, a slightly blue charcoal that is also the logo's play
+triangle and the app icon's tile; text and icons on light backgrounds use
+dark gold `#8A6100`. Pages, surfaces and text are greys of that same
+slightly blue cast (dark page `#121418`, light page white).
 
 ## Key decisions
 

@@ -323,7 +323,7 @@
       <section>
         {#if step === "intro"}
           <div class="content">
-            <div class="wordmark"><Logo hull={36} /> SubTube</div>
+            <div class="wordmark"><Logo hull={28.8} /> SubTube</div>
             <h1>Your subscriptions, your filters, no algorithm.</h1>
             <ul class="points">
               <li>

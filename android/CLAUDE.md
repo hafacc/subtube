@@ -366,8 +366,8 @@ every client shares is in `../shared/`.
     Their wording is approved text; don't reword it.
     `MainNavigationBar` (`ui/Components.kt`) draws its own items so the
     current tab's highlight covers icon and label. `Wordmark` sizes the logo
-    so its hull (0.518 of the drawing) is the name's line height; only the
-    hull takes up room and the tower rises above the line.
+    so its hull (0.518 of the drawing) is four fifths of the name's line
+    height; only the hull takes up room and the tower rises above it.
   - `ui/ChipRow.kt` — `Chip` (a toggle, or a removable phrase, which
     TalkBack names "Remove {phrase}") and
     `CycleChip` (shows the current choice, a press moves to the next; as wide
@@ -495,7 +495,8 @@ every client shares is in `../shared/`.
     `loadFraction`: it moves to each value in 0.2 s, runs to the end when the
     load finishes and fades out, gone 0.5 s after; with animation off it jumps and vanishes. It has
     progress semantics while a load runs and no text.
-  - `ui/Theme.kt` — Sunflower light/dark schemes (no dynamic colour) plus
+  - `ui/Theme.kt` — Sunflower light/dark schemes (no dynamic color) on
+    slightly blue greys, white page on light and `#121418` on dark, plus
     `MaterialTheme.brand.accent` (dark gold on light) for text-coloured
     accents, since `primary` is Sunflower. The logo is `drawable/logo.xml`, the same on light and dark:
     `design/icons/sub-play.svg`'s paths under the same translate and scale.

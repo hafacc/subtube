@@ -120,16 +120,20 @@ private const val LOGO_HULL_WIDTH = 0.74f
 /** The name's line height as a multiple of its font size. */
 private const val WORDMARK_LINE_HEIGHT = 1.2f
 
+/** The hull's height as a share of the name's line height. */
+private const val WORDMARK_HULL = 0.8f
+
 /**
- * The logo beside the name. The logo's hull is as tall as the name's line and
- * centred on it; only the hull takes up room, so the tower rises above the
- * line without making the row taller.
+ * The logo beside the name. The logo's hull is four fifths of the name's line
+ * and centred on it; only the hull takes up room, so the tower rises without
+ * making the row taller.
  */
 @Composable
 fun Wordmark(modifier: Modifier = Modifier, fontSize: Int = 22) {
     val lineHeight = (fontSize * WORDMARK_LINE_HEIGHT).sp
-    val hull = with(LocalDensity.current) { lineHeight.toDp() }
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(hull * 0.3f)) {
+    val line = with(LocalDensity.current) { lineHeight.toDp() }
+    val hull = line * WORDMARK_HULL
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(line * 0.3f)) {
         Box(Modifier.size(width = hull * (LOGO_HULL_WIDTH / LOGO_HULL_HEIGHT), height = hull), contentAlignment = Alignment.Center) {
             Image(painterResource(R.drawable.logo), contentDescription = null, modifier = Modifier.requiredSize(hull / LOGO_HULL_HEIGHT))
         }

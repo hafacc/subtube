@@ -228,14 +228,16 @@ struct LogoMark: View {
   }
 }
 
-/// The logo beside the app's name, its hull as tall as the name's line.
+/// The logo beside the app's name, its hull four fifths of the name's line.
 struct Wordmark: View {
   let font: Font
   @State private var lineHeight: CGFloat = 0
 
+  private static let hullShare = 0.8
+
   var body: some View {
     HStack(spacing: lineHeight * 0.3) {
-      LogoMark(hull: lineHeight)
+      LogoMark(hull: lineHeight * Self.hullShare)
       Text(Strings.appName)
         .font(font)
         .lineLimit(1)

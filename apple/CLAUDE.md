@@ -340,7 +340,7 @@ the pbxproj.
   haptic, the edge swipe back and VoiceOver's row action are the system's;
   not on the card of the item the player has, nor during a load), `Brand` (also `LogoMark`, sized by its hull so only the
   hull takes layout room, and `Wordmark`, the logo beside the name with the
-  hull as tall as the name's line; the one shimmer, `shimmering()`, and
+  hull four fifths of the name's line; the one shimmer, `shimmering()`, and
   `skeleton()` for stand-ins: a first load shows skeleton cards, a reload
   sweeps the greyed feed with a dark band on light and a light band on dark;
   still under reduced motion; the card that holds the player is never
@@ -422,8 +422,8 @@ change shared behaviour here alone; change `shared/` first.
 
 ## Brand
 
-`AccentColor` is Sunflower. Yellow fills always carry ink text
-(`ProminentButtonStyle`); text, links and icons on light use `Color.gold`
+`AccentColor` is Sunflower. Yellow fills always carry ink text, `Ink`
+`#1B1E24`, a slightly blue charcoal (`ProminentButtonStyle`); text, links and icons on light use `Color.gold`
 (dark gold, Sunflower in dark mode). iOS sets `.tint(.gold)` at the root;
 switches set `.tint(.sunflower)` themselves. The macOS sidebar selection is
 Sunflower, so selected rows force ink text. Icons: `Config/make-icons.sh`
