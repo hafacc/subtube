@@ -112,13 +112,12 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    border-bottom: 1px solid var(--border);
   }
 
   .menu {
     flex-shrink: 0;
     display: flex;
-    padding: 8px 0 8px 16px;
+    padding: 8px 0 8px 20px;
   }
 
   .chips {
@@ -129,7 +128,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 16px 8px 8px;
+    padding: 8px 20px 8px 8px;
     overflow-x: auto;
     scrollbar-width: none;
     mask-image: linear-gradient(
