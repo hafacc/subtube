@@ -387,13 +387,14 @@ private func channelGroups(_ testCase: JSONObject) -> [String: [String]] {
     #expect(!all.isEmpty)
     for testCase in all {
       let sort = try #require(
-        ChannelSort(rawValue: testCase["sort"]?.stringValue ?? "newest"), name(testCase))
+        ChannelListOrder(rawValue: testCase["sort"]?.stringValue ?? "newest"), name(testCase))
       let channels = array(testCase["channels"]).compactMap(\.objectValue).map { object in
         ChannelOrderEntry(
           id: object["id"]?.stringValue ?? "", title: object["title"]?.stringValue ?? "",
           enabled: object["enabled"]?.boolValue ?? false,
           newest: object["newest"]?.stringValue,
-          unwatched: object["unwatched"]?.integerValue.map { Int($0) } ?? 0)
+          unwatched: object["unwatched"]?.integerValue.map { Int($0) } ?? 0,
+          newestUnwatched: object["newestUnwatched"]?.stringValue)
       }
       #expect(
         sameTexts(SubtubeCore.channelOrder(channels, sort: sort), testCase["expected"]),

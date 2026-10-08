@@ -1,5 +1,5 @@
 {
-  "description": "The order of every channel list. `sort` (absent means `newest`) is the chosen order; `expected` is the ids in order. In every sort the channels that are off (`enabled` false, whatever they have) go last, by name. By name means: by `title` ignoring case exactly as the feed's `title` sort compares titles (shared/fixtures/feed-order.json), then by `id` (ASCII). `newest`: channels that are on and have at least one fetched item come first, by the `publishedAt` of their newest fetched item, newest first (RFC 3339 UTC strings compared as plain ASCII strings), ties by name; then channels that are on with nothing fetched (`newest` absent), by name. Every fetched item counts, whether or not it passes the channel's filter and whether or not it is watched. `name`: the channels that are on, by name, fetched or not. `unwatched`: the channels that are on by `unwatched` (how many of the channel's unwatched fetched items pass its filter; absent means 0), most first, ties in `newest` order. The chips at the top of the feed change neither the counts nor the order; the channel list's own chips (shared/fixtures/channel-chips.json) choose which channels are listed and change neither.",
+  "description": "The order of every channel list. `sort` (absent means `newest`) is the chosen order; `expected` is the ids in order. In every sort the channels that are off (`enabled` false, whatever they have) go last, by name. By name means: by `title` ignoring case exactly as the feed's `title` sort compares titles (shared/fixtures/feed-order.json), then by `id` (ASCII). `newest`: channels that are on and have at least one fetched item come first, by the `publishedAt` of their newest fetched item, newest first (RFC 3339 UTC strings compared as plain ASCII strings), ties by name; then channels that are on with nothing fetched (`newest` absent), by name. Every fetched item counts, whether or not it passes the channel's filter and whether or not it is watched. `name`: the channels that are on, by name, fetched or not. `unwatched`: the channels that are on by `unwatched` (how many of the channel's unwatched fetched items pass its filter; absent means 0), most first, ties in `newest` order. `newestUnwatched`: the channels that are on and have at least one unwatched item come first (`newestUnwatched` present: the `publishedAt` of the newest of the items `unwatched` counts, so it is present exactly when that count is above 0), by it, newest first, however many they are, ties in `newest` order; then the channels that are on with nothing unwatched, in `newest` order. It is the order of the Mac and web sidebars, which offer no other, and it is not a value of the synced `channelSort` setting (shared/fixtures/settings.json), which stays `newest`, `name` or `unwatched`: no chip offers it and a phone's list is never in it. The chips at the top of the feed change neither the counts nor the order; the channel list's own chips (shared/fixtures/channel-chips.json) choose which channels are listed and change neither.",
   "cases": [
     {
       "name": "newest item first",
@@ -315,6 +315,168 @@
           "enabled": true,
           "newest": "2026-01-01T00:00:00Z",
           "unwatched": 1
+        },
+        {
+          "id": "UCc",
+          "title": "Off again",
+          "enabled": false
+        },
+        {
+          "id": "UCd",
+          "title": "Quiet",
+          "enabled": true,
+          "newest": "2026-03-01T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "UCb",
+        "UCd",
+        "UCc",
+        "UCa"
+      ]
+    },
+    {
+      "name": "newestUnwatched: newest unwatched item first, whatever is newer and watched or filtered out, however many",
+      "sort": "newestUnwatched",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "Alpha",
+          "enabled": true,
+          "newest": "2026-01-09T00:00:00Z",
+          "unwatched": 7,
+          "newestUnwatched": "2026-01-02T00:00:00Z"
+        },
+        {
+          "id": "UCb",
+          "title": "Beta",
+          "enabled": true,
+          "newest": "2026-01-05T00:00:00Z",
+          "unwatched": 1,
+          "newestUnwatched": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "UCc",
+          "title": "Gamma",
+          "enabled": true,
+          "newest": "2026-01-08T00:00:00Z",
+          "unwatched": 2,
+          "newestUnwatched": "2026-01-03T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "UCb",
+        "UCc",
+        "UCa"
+      ]
+    },
+    {
+      "name": "newestUnwatched: channels with nothing unwatched follow, in newest order",
+      "sort": "newestUnwatched",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "Watched",
+          "enabled": true,
+          "newest": "2026-06-01T00:00:00Z",
+          "unwatched": 0
+        },
+        {
+          "id": "UCb",
+          "title": "Old",
+          "enabled": true,
+          "newest": "2026-01-01T00:00:00Z",
+          "unwatched": 1,
+          "newestUnwatched": "2026-01-01T00:00:00Z"
+        },
+        {
+          "id": "UCc",
+          "title": "Zed",
+          "enabled": true
+        },
+        {
+          "id": "UCd",
+          "title": "Filtered",
+          "enabled": true,
+          "newest": "2026-03-01T00:00:00Z"
+        },
+        {
+          "id": "UCe",
+          "title": "alef",
+          "enabled": true
+        }
+      ],
+      "expected": [
+        "UCb",
+        "UCa",
+        "UCd",
+        "UCe",
+        "UCc"
+      ]
+    },
+    {
+      "name": "newestUnwatched: equal times go in newest order",
+      "sort": "newestUnwatched",
+      "channels": [
+        {
+          "id": "UCz",
+          "title": "Same",
+          "enabled": true,
+          "newest": "2026-01-06T00:00:00Z",
+          "unwatched": 1,
+          "newestUnwatched": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "UCm",
+          "title": "Later",
+          "enabled": true,
+          "newest": "2026-01-09T00:00:00Z",
+          "unwatched": 1,
+          "newestUnwatched": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "UCa",
+          "title": "same",
+          "enabled": true,
+          "newest": "2026-01-06T00:00:00Z",
+          "unwatched": 3,
+          "newestUnwatched": "2026-01-05T00:00:00Z"
+        },
+        {
+          "id": "UCb",
+          "title": "Earlier name",
+          "enabled": true,
+          "newest": "2026-01-06T00:00:00Z",
+          "unwatched": 1,
+          "newestUnwatched": "2026-01-05T00:00:00Z"
+        }
+      ],
+      "expected": [
+        "UCm",
+        "UCb",
+        "UCa",
+        "UCz"
+      ]
+    },
+    {
+      "name": "newestUnwatched: channels that are off go last by name, whatever they have",
+      "sort": "newestUnwatched",
+      "channels": [
+        {
+          "id": "UCa",
+          "title": "Off new",
+          "enabled": false,
+          "newest": "2026-06-01T00:00:00Z",
+          "unwatched": 4,
+          "newestUnwatched": "2026-06-01T00:00:00Z"
+        },
+        {
+          "id": "UCb",
+          "title": "On",
+          "enabled": true,
+          "newest": "2026-01-01T00:00:00Z",
+          "unwatched": 1,
+          "newestUnwatched": "2026-01-01T00:00:00Z"
         },
         {
           "id": "UCc",

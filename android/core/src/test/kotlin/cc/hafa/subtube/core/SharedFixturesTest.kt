@@ -229,10 +229,16 @@ class SharedFixturesTest {
             .associate { channel -> channel["id"].text() to channel["newest"].text() }
         val unwatched = listed.filter { channel -> "unwatched" in channel }
             .associate { channel -> channel["id"].text() to channel["unwatched"].intOrNull()!! }
-        val sort = if ("sort" in case) case["sort"].choice<ChannelSort>() else ChannelSort.NEWEST
+        val newestUnwatched = listed.filter { channel -> "newestUnwatched" in channel }
+            .associate { channel -> channel["id"].text() to channel["newestUnwatched"].text() }
+        val sort = if ("sort" in case) case["sort"].choice<ChannelListOrder>() else ChannelListOrder.NEWEST
         val expected = case.getValue("expected").jsonArray.map { id -> id.text() }
-        assertEquals(expected, orderChannels(channels, newest, sort, unwatched).map(ChannelFilter::channelId))
-        assertEquals(expected, orderChannels(channels.reversed(), newest, sort, unwatched).map(ChannelFilter::channelId), "whatever order they arrive in")
+        assertEquals(expected, orderChannels(channels, newest, sort, unwatched, newestUnwatched).map(ChannelFilter::channelId))
+        assertEquals(
+            expected,
+            orderChannels(channels.reversed(), newest, sort, unwatched, newestUnwatched).map(ChannelFilter::channelId),
+            "whatever order they arrive in",
+        )
     }
 
     @TestFactory

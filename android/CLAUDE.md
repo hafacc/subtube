@@ -147,7 +147,12 @@ every client shares is in `../shared/`.
     default): on with something fetched by newest fetched item
     (`newestFetched`), then on with nothing fetched; filters and watched
     marks don't count, so an edit or a mark never reorders the list. Name.
-    Unwatched: by `unwatchedCounts`, ties in the newest order. Off channels
+    Unwatched: by `unwatchedCounts`, ties in the newest order. Those three
+    are `ChannelSort`, the synced setting; `orderChannels` takes a
+    `ChannelListOrder`, which adds newest unwatched (on with something
+    unwatched by its newest unwatched item, then the rest in the newest
+    order): the Mac and web sidebars' order, here only to pass the shared
+    fixtures; no list here is in it. Off channels
     are last, by name, in every sort. `listedOrder(ordered, kept)` is the rows
     a list takes when it is put in order (`kept`: the ids its chips keep, null
     for all), and `heldOrder(held, ordered, kept)` the rows it keeps while it

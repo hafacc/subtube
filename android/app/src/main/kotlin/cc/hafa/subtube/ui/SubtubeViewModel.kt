@@ -499,7 +499,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         private set
 
     private val channelsBySort: List<String> by derivedStateOf {
-        orderChannels(channels.values, newestFetched(items), settings.channelSort, unwatchedByChannel).map(ChannelFilter::channelId)
+        orderChannels(channels.values, newestFetched(items), settings.channelSort.order, unwatchedByChannel).map(ChannelFilter::channelId)
     }
 
     /**

@@ -336,16 +336,22 @@ values, named by the page's `h1`.
     channels (subscriptions) it is the load's error, and setup's "Choose
     channels" shows it as its error.
   - `channel-order.ts` — the order of every channel list (the left sidebar;
-    not setup's "Choose channels"). The sidebar is always in the `newest`
-    order: on with something fetched by newest fetched item, then on with
-    nothing fetched, off channels last; filters and watched marks don't
-    count, so an edit or a mark never reorders the list. The `name` and
-    `unwatched` orders of the `channelSort` setting are the phone apps';
-    `compareChannelOrder` keeps them for the shared fixtures.
+    not setup's "Choose channels"). The sidebar is always in the
+    `newestUnwatched` order (a `ChannelListOrder` that is not a `ChannelSort`,
+    so never a value of the synced `channelSort` setting): on with something
+    unwatched by newest unwatched item, then on with nothing unwatched by
+    newest fetched item, then on with nothing fetched, off channels last.
+    `orderChannels` is given `FeedController.unwatched`, the items the
+    unwatched counts count, so a row with a count is always in the first
+    block. Filters and watched marks do count for it, and only the held
+    order below keeps an edit or a mark from moving a row. The `newest`,
+    `name` and `unwatched` orders of the `channelSort` setting are the phone
+    apps'; `compareChannelOrder` keeps them for the shared fixtures.
   - `channel-chips.ts` — `passingItems`: every fetched item, watched or
     not, of the kind its channel shows, that passes the filter of a channel
-    that is on (`FeedController.listed`, which the unwatched counts are
-    counted from). `chipKeptChannels` is what the phone apps' channel list
+    that is on (`FeedController.listed`; those not watched are
+    `FeedController.unwatched`, which the unwatched counts are counted from
+    and the sidebar is ordered by). `chipKeptChannels` is what the phone apps' channel list
     chips keep; the web app has no such chips and runs it for the shared
     fixtures only.
   - **The shown order is held** (`HeldChannelOrder`, `inHeldOrder`): the

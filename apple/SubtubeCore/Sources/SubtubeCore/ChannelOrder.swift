@@ -1,4 +1,4 @@
-/// The orders a channel list can be read in.
+/// The orders the synced `channelSort` setting chooses between.
 public enum ChannelSort: String, Codable, Sendable, CaseIterable {
   /// By each channel's newest fetched item.
   case newest
@@ -6,6 +6,28 @@ public enum ChannelSort: String, Codable, Sendable, CaseIterable {
   case name
   /// By how many unwatched items pass each channel's filter.
   case unwatched
+
+  /// The order a list in this sort is in.
+  public var order: ChannelListOrder {
+    switch self {
+    case .newest: .newest
+    case .name: .name
+    case .unwatched: .unwatched
+    }
+  }
+}
+
+/// Every order a channel list can be in: a ``ChannelSort``, or the Mac
+/// sidebar's own, which is not a value of the synced setting.
+public enum ChannelListOrder: String, Sendable, CaseIterable {
+  /// By each channel's newest fetched item.
+  case newest
+  /// By name, ignoring case.
+  case name
+  /// By how many unwatched items pass each channel's filter.
+  case unwatched
+  /// By each channel's newest unwatched item that passes its filter.
+  case newestUnwatched
 }
 
 /// What a channel list needs to know to place one channel.
@@ -20,14 +42,20 @@ public struct ChannelOrderEntry: Sendable, Hashable {
   public var newest: String?
   /// How many of the channel's unwatched fetched items pass its filter.
   public var unwatched: Int
+  /// The `publishedAt` of the newest of those unwatched items.
+  public var newestUnwatched: String?
 
   /// One channel's place in a list.
-  public init(id: String, title: String, enabled: Bool, newest: String?, unwatched: Int = 0) {
+  public init(
+    id: String, title: String, enabled: Bool, newest: String?, unwatched: Int = 0,
+    newestUnwatched: String? = nil
+  ) {
     self.id = id
     self.title = title
     self.enabled = enabled
     self.newest = newest
     self.unwatched = unwatched
+    self.newestUnwatched = newestUnwatched
   }
 }
 
@@ -37,9 +65,11 @@ public struct ChannelOrderEntry: Sendable, Hashable {
 /// go, for `newest` (the default), by their newest fetched item, newest
 /// first, whatever their filters and watched marks, then the ones with
 /// nothing fetched; for `name`, by name; for `unwatched`, by
-/// ``ChannelOrderEntry/unwatched``, most first, ties in `newest` order. By
-/// name means by title ignoring case (``foldCase(_:)``), then by id.
-public func channelOrder(_ channels: [ChannelOrderEntry], sort: ChannelSort = .newest) -> [String] {
+/// ``ChannelOrderEntry/unwatched``, most first, ties in `newest` order; for
+/// `newestUnwatched`, those with a ``ChannelOrderEntry/newestUnwatched``
+/// first, by it, newest first, then the rest, ties and the rest in `newest`
+/// order. By name means by title ignoring case (``foldCase(_:)``), then by id.
+public func channelOrder(_ channels: [ChannelOrderEntry], sort: ChannelListOrder = .newest) -> [String] {
   struct Keyed {
     var channel: ChannelOrderEntry
     var title: [Unicode.Scalar]
@@ -63,6 +93,17 @@ public func channelOrder(_ channels: [ChannelOrderEntry], sort: ChannelSort = .n
       return byName(left, right)
     }
   }
+  func byNewestUnwatched(_ left: Keyed, _ right: Keyed) -> Bool {
+    let leftTime = left.channel.newestUnwatched
+    let rightTime = right.channel.newestUnwatched
+    if (leftTime == nil) != (rightTime == nil) {
+      return leftTime != nil
+    } else if leftTime != rightTime {
+      return (rightTime ?? "").utf8.lexicographicallyPrecedes((leftTime ?? "").utf8)
+    } else {
+      return byNewestVideo(left, right)
+    }
+  }
   let sorted = channels
     .map { Keyed(channel: $0, title: foldCase($0.title)) }
     .sorted { left, right in
@@ -72,6 +113,8 @@ public func channelOrder(_ channels: [ChannelOrderEntry], sort: ChannelSort = .n
         return byName(left, right)
       } else if sort == .unwatched, left.channel.unwatched != right.channel.unwatched {
         return left.channel.unwatched > right.channel.unwatched
+      } else if sort == .newestUnwatched {
+        return byNewestUnwatched(left, right)
       } else {
         return byNewestVideo(left, right)
       }
