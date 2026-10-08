@@ -25,6 +25,11 @@ jobs:
   cut:
     needs: gate
     runs-on: ubuntu-latest
+    # one cut at a time across the four cut workflows; the others wait their turn
+    concurrency:
+      group: cut
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write # push the bump + tag
       actions: write # start the publish
