@@ -98,8 +98,15 @@ the pbxproj.
   selected one turns round, Random reshuffles),
   `ChannelOrder` (off channels last in every sort. Newest: on with something
   fetched by newest fetched item, then on with nothing fetched; filters and
-  watched marks don't count, so an edit or a mark never reorders a list.
-  Name. Unwatched: by the count given in `ChannelOrderEntry.unwatched`;
+  watched marks don't count. Name. Unwatched: by the count given in
+  `ChannelOrderEntry.unwatched`. Newest unwatched, a `ChannelListOrder`
+  that is not a `ChannelSort` and so never a value of the synced
+  `channelSort` setting: on with something unwatched by
+  `ChannelOrderEntry.newestUnwatched`, then the rest as in Newest; it is the
+  Mac sidebar's only order (`FeedModel.listOrder`, fed from the same items
+  as `unwatchedByChannel`, so a row with a count is always in the first
+  block), filters and watched marks count for it, and only the held order
+  keeps an edit or a mark from moving a row;
   `HeldChannelOrder`: the rows a list shows — `recompute` takes the order
   as it is now, less the channels its chips drop (`kept`), `hold` keeps
   every row in place whether or not it is still kept, drops channels that
@@ -226,7 +233,8 @@ the pbxproj.
   appears and when its search changes — and between those an edit, a count
   or a single channel's fetch moves no row and takes none away, and a
   channel that comes to be kept goes last; on a Mac the list has no chips,
-  so `listKept` and `listSort` make it every channel, newest first,
+  so `listKept` and `listOrder` make it every channel, newest unwatched
+  first,
   whatever the saved channel sort and channel chips are, and the Mac writes
   neither; `channelTopicChips` is that
   row's topics; `explainsNoChannels` is true once a full load is shown
@@ -389,7 +397,7 @@ the pbxproj.
   `Strings`.
 - `App/macOS/` — `NavigationSplitView` (sidebar: the Feed row with its
   unwatched count as a number, then under a plain "Channels" header with no
-  chips always every channel, newest video first: 44 pt rows with a 26 pt
+  chips always every channel, newest unwatched video first: 44 pt rows with a 26 pt
   avatar, the name and under it "3 unwatched", "Off" for a channel that is
   off, or nothing; the rows are drawn by `MacSidebar` in a scroll view, not
   by a `List`, so the selected row is Sunflower with ink text whatever the

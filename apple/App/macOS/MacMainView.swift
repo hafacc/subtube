@@ -309,7 +309,8 @@ private struct ChannelsButton: View {
   }
 }
 
-/// Feed with its unwatched count, then every channel, newest video first:
+/// Feed with its unwatched count, then every channel, newest unwatched
+/// video first:
 /// its avatar, its name and under that how many videos are unwatched, or
 /// "Off".
 ///
