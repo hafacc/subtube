@@ -28,7 +28,8 @@ enum GroupTarget: Hashable, Identifiable {
 /// place and only the channel rows scroll. On iOS it is a sheet's content,
 /// with "Cancel" and "Save" in its bar and the Channels tab's search field
 /// over the rows; on macOS it fills the details panel, with the buttons in
-/// one row at the bottom. See ``FeedModel/saveGroup(_:name:members:)``.
+/// one row at the bottom, on the panel's background and at its inset, as
+/// the filters are. See ``FeedModel/saveGroup(_:name:members:)``.
 struct GroupEditor: View {
   let feed: FeedModel
   let target: GroupTarget
@@ -101,9 +102,7 @@ struct GroupEditor: View {
   }
 
   #if os(macOS)
-    /// The panel's edge to a card, and a card's edge to what is in it: a
-    /// grouped form's two insets, so this panel lines up with the filters.
-    private static let inset: CGFloat = 10
+    @FocusState private var nameFocused: Bool
 
     private var memberRows: some View {
       LazyVStack(spacing: 0) {
@@ -115,10 +114,10 @@ struct GroupEditor: View {
             memberSwitch(channel).controlSize(.small)
           }
           .padding(.vertical, 6)
-          .padding(.horizontal, Self.inset)
+          .padding(.horizontal, 10)
           .opacity(channel.enabled ? 1 : offChannelOpacity)
           if channel.channelId != rows.last?.channelId {
-            Divider().padding(.horizontal, Self.inset)
+            Divider().padding(.horizontal, 10)
           }
         }
       }
@@ -129,15 +128,16 @@ struct GroupEditor: View {
     var body: some View {
       VStack(alignment: .leading, spacing: 0) {
         Text(title)
-          .font(.headline)
-          .padding(.horizontal, Self.inset)
+          .font(.title3.bold())
         nameField
-          .textFieldStyle(.roundedBorder)
-          .padding(.top, 10)
+          .textFieldStyle(.plain)
+          .focused($nameFocused)
+          .fieldBox(focused: nameFocused)
+          .padding(.top, 12)
         Text(Strings.channels)
           .font(.subheadline.weight(.semibold))
-          .padding(.horizontal, Self.inset)
-          .padding(.top, 18)
+          .foregroundStyle(Color.secondary)
+          .padding(.top, 16)
           .padding(.bottom, 6)
         ScrollView {
           memberRows
@@ -156,11 +156,11 @@ struct GroupEditor: View {
             .buttonStyle(.prominent)
             .disabled(!canSave)
         }
-        .padding(.leading, Self.inset)
         .padding(.top, 12)
       }
-      .padding(.horizontal, Self.inset)
-      .padding(.vertical, 16)
+      .padding(.horizontal, panelInset)
+      .padding(.top, 14)
+      .padding(.bottom, 16)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .accessibilityElement(children: .contain)
       .accessibilityLabel(title)

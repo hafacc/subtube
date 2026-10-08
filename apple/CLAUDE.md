@@ -281,8 +281,8 @@ the pbxproj.
   channels", the rows, and "Delete Group" under them; on macOS it fills
   the details panel with one bottom row, "Delete Group" leading and
   Cancel / Save trailing; only the rows scroll, in one card as high as they
-  are, and the card and the text sit at a grouped form's two insets, 10 pt
-  and 20 pt from the panel's edges, so the panel lines up with the filters;
+  are; it sits on the panel's page background at `panelInset`, 16 pt, as the
+  filters do, and its name field is a `fieldBox`;
   `ChipTitleButtons`, the
   pencil "Edit group" and the × "Clear"), `ChipViews` (`Chip`, a
   toggle or a removable phrase, which VoiceOver names "Remove {phrase}";
@@ -315,9 +315,14 @@ the pbxproj.
   group, "Ignore" or "Match", for `caseSensitive`;
   Topics lists all fifteen as toggles for the filter's `topics`, hidden for
   playlists; its segmented groups are `SegmentedRow`: on macOS
-  a label with the segments at natural width on the right, under the label
-  when they don't fit; segments at natural width are drawn 7 pt past each
-  side of their frame on macOS 26, so the row leaves that room),
+  a label with `BrandSegments` at natural width on the right, under the label
+  when they don't fit, on iOS the system's picker. On iOS the form is a
+  grouped `Form`. On macOS it is cards (`panelCard`) on the panel's page
+  background, no lines between rows: "Show in Feed" in a card alone, then
+  `PanelSection`s, each a title over a card of `PanelRows` — "Videos" (Show, Shorts, Live, Hide Videos Under; only Show
+  for playlists), the phrases (their chips inside the field's box, before
+  what is typed: `FlowLayout`'s `trailingFill` gives the field the rest of
+  its row), and "Topics" with its line of explanation),
   `NuxView` (the first run uses the app's own controls; its screens are
   intro, sign-in, "Choose channels", "Shorts", "Where to start", done; Back
   is on every screen but the first and the last, and from "Choose channels"
@@ -349,6 +354,13 @@ the pbxproj.
   youtube.com, text only: after the last card or the empty text of the feed
   and of a channel's page, not while `FeedModel.showsSkeletons`, and at the
   end of the channel list;
+  on a Mac `ItemCard` has 12 pt corners, the channel's avatar (28 pt, not on
+  a channel's own page) left of a two-line title, and "Channel · date" under
+  the title; a watched card is dimmed — thumbnail at half opacity, title
+  secondary — except the card of the item the player has; under the pointer
+  the card lies on a rounded plate and a 44 pt Sunflower disk with an ink
+  triangle is on its thumbnail, both fading over 0.15 s, not under reduced
+  motion; the grid's cards are at least 300 pt wide (`feedGridColumns`);
   `ItemCard`'s progress bar is also the control that marks an item watched
   or unwatched (`FeedModel.toggleWatched`; the card stays where it is until
   the list is next built; none on the card of the item the player has, in
@@ -375,32 +387,61 @@ the pbxproj.
   group editor and setup), `channelsByName` (the one by-name order, the
   shared compare), `offChannelOpacity` (0.45, every list),
   `Strings`.
-- `App/macOS/` — `NavigationSplitView` (sidebar: Feed + channels, each with
-  its unwatched count, under a plain "Channels" header with no chips:
-  always every channel, newest video first, and
-  the YouTube attribution pinned at the bottom, gone with the sidebar when
-  it is collapsed; the toolbar has one button for each side panel, drawn as
-  what the panel holds: `ChannelsButton` (`play.square.stack`) is the
+- `App/macOS/` — `NavigationSplitView` (sidebar: the Feed row with its
+  unwatched count as a number, then under a plain "Channels" header with no
+  chips always every channel, newest video first: 44 pt rows with a 26 pt
+  avatar, the name and under it "3 unwatched", "Off" for a channel that is
+  off, or nothing; the rows are drawn by `MacSidebar` in a scroll view, not
+  by a `List`, so the selected row is Sunflower with ink text whatever the
+  system's accent is, the row under the pointer gets a grey fill, and with
+  the keyboard on the sidebar the up and down arrows move the selection;
+  the YouTube attribution is the last thing in the scrolling list, right
+  after the last channel row and never pinned to the bottom, gone with the
+  sidebar when it is collapsed; `ChannelsButton` (`play.square.stack`) is the
   sidebar's own toolbar item in the removed system toggle's place, so it
-  sits at the sidebar's trailing edge and moves beside the title when the
-  sidebar is collapsed, and the filters button (`line.3.horizontal.decrease`)
-  is the trailing one; the details panel's width (280 to 420, 320 to start)
+  sits at the sidebar's trailing edge and moves to the page's toolbar when the
+  sidebar is collapsed; the details panel has no toolbar button: each
+  channel's row has `RowFiltersButton` (`line.3.horizontal.decrease`, named
+  "Filters for {channel}", ink on the selected row) at its trailing edge,
+  drawn on the selected row and on the row under
+  the pointer, which selects the channel and opens the panel on its filters,
+  or closes the panel when it shows them; a click on the rest of the row
+  selects it, or refreshes when it is already selected; the details panel's width (280 to 420, 320 to start)
   is set on the outermost view in the inspector, where it takes effect;
   every channel list but setup's uses `FeedModel.orderedChannels`; the
   sidebar is always on screen, so it asks for a new order when Feed or a
   channel is selected, when the player opens or closes and when the
-  Settings window appears or goes; detail:
-  the chip row, the menu's button first, over the grid, both 20 pt in so they start
-  under the window's title, the load bar over both; inspector: filters, opened
-  only from the toolbar, and the group editor takes the same panel: opening
-  one replaces the other and a change of page drops the draft; while the
-  feed's chips are selected the window's
-  title shows the names, with the pencil and × after them — the
-  names are a toolbar item in the removed title's place, with the video
-  count the subtitle had under them; a channel's page keeps its name and
-  gets only the ×; no Refresh
-  button: clicking the sidebar row already
-  showing refreshes, as does Feed → Refresh, Cmd-R), `MacPlayerOverlay`
+  Settings window appears or goes; detail: the toolbar shows no title —
+  the window keeps one for the Window menu — and `MacPageHeading` heads the
+  page: the name, large and bold ("Feed", the selected groups' and topics'
+  names, or the channel's name), the borderless pencil and × after it while
+  chips are selected (a channel's page gets only the ×), and the video count
+  under it; then the chip row, the menu's button first, with no line under
+  it, then the grid; the heading and the chips stay in place and only the
+  grid scrolls, fading out over 16 pt at its top once scrolled
+  (`ScrollTopFade`); all 20 pt in; the load bar lies over the page's top
+  edge; a page with nothing to show has `MacEmptyState` centered in place of
+  the grid: a 64 pt Sunflower disk with an ink check mark, the empty text as
+  a heading, and "Refresh"; inspector: on the page's background
+  (`Color.page`), not the inspector's material; filters, opened
+  only from a sidebar row and never by selecting a channel, under
+  `MacFiltersPanel`'s header — the channel's avatar (36 pt), its name over
+  "Subscribed on YouTube" or "Followed in SubTube", and the round ×
+  "Close"; selecting another channel keeps the panel open on that one and
+  selecting Feed closes it; the group editor takes the same panel: opening
+  one replaces the other, a change of page drops the draft, and the editor
+  gives the panel back as it was, closed if it was closed; no Refresh
+  button in the toolbar: clicking the sidebar row already
+  showing refreshes, as does Feed → Refresh, Cmd-R; `MacControls`: what
+  the system would draw in its accent color, drawn in the app's —
+  `BrandSegments`, the segmented control of every `SegmentedRow` and of
+  Settings' theme choice: the selected segment Sunflower under ink, sliding
+  over 0.15 s, not under reduced motion; with the system's keyboard
+  navigation on it takes the focus, shown by a dark-gold outline, and the
+  left and right arrows move the choice; to VoiceOver it is the system's
+  segmented picker — `fieldBox`, a text field's outline, dark gold while it
+  has the keyboard, around plain fields that draw no focus ring, and
+  `Hairline`, `PanelSection` and `PanelRows` for the panel), `MacPlayerOverlay`
   draws the one player in both places with one view, so the web view never
   changes parent, and the change between the two animates over 0.2 s, not
   under reduced motion: large over the dimmed app (a button), where a click
@@ -458,8 +499,13 @@ change shared behaviour here alone; change `shared/` first.
 `AccentColor` is Sunflower. Yellow fills always carry ink text, `Ink`
 `#1B1E24`, a slightly blue charcoal (`ProminentButtonStyle`); text, links and icons on light use `Color.gold`
 (dark gold, Sunflower in dark mode). iOS sets `.tint(.gold)` at the root;
-switches set `.tint(.sunflower)` themselves. The macOS sidebar selection is
-Sunflower, so selected rows force ink text. Icons: `Config/make-icons.sh`
+switches set `.tint(.sunflower)` themselves. On a Mac the system's accent
+color is the user's, not `AccentColor`, once they pick one in System
+Settings: anything that must be Sunflower is drawn by the app (`MacControls`,
+the sidebar's rows), never left to a system control's accent. Still the
+system's: the Settings window's selected tab, the text selection and
+insertion point, alerts' default buttons, menus, and the keyboard focus ring
+of ordinary buttons. Icons: `Config/make-icons.sh`
 from `../design/icons/sub-play-centred.svg` (all of the logo centred on the
 tile; `Logo` in the asset catalog, shown beside the name, stays hull-centred).
 
@@ -498,8 +544,9 @@ and `Strings.summary` words each.
   `-demo` but can't keep a sign-in. Never build ad hoc into Xcode's own
   DerivedData: it replaces the signed copy.
 - Debug builds take launch arguments to show screens without a Google
-  sign-in: `-demo` (mockup data, no network), plus `-select:<channelId>`,
-  `-play` (with `-video:<videoId>` the card plays that real video, which
+  sign-in: `-demo` (mockup data, no network), plus `-select:<channelId>`
+  (on macOS with `-filters` the details panel opens on that channel's
+  filters), `-play` (with `-video:<videoId>` the card plays that real video, which
   needs the network but no sign-in; use it to check the player after any
   change to `PlayerPage`), `-signedOut`, `-nux`, `-nuxStep:<0-5>`; iOS also
   `-tab:channels|settings`, `-channel:<channelId>` (with `-tab:channels`,
@@ -510,6 +557,7 @@ and `Strings.summary` words each.
   `-groupChips:<name,name>` and `-channelGroupChips:<name,name>`,
   `-newGroup`, `-editGroup:<name>`, `-toggleWatched:<index>` (presses the
   bar of that card of the feed), macOS `-barHover` (every card's bar as
+  under the pointer) and `-cardHover:<index>` (that card of the page as
   under the pointer); with `-play`: `-minimized`,
   `-playerFrame`, `-minimizeAfter:<seconds>`, iOS `-expandAfter:<seconds>`,
   and `-mute`, which mutes the player as soon as it is ready — always pass
@@ -528,11 +576,12 @@ and `Strings.summary` words each.
 - macOS screenshots without screen-recording permission:
   `open -W -n …/SubTube.app --args -demo -snapshot:<name>` writes PNGs to
   `~/Library/Containers/cc.hafa.subtube/Data/tmp/snapshots/<name>`, each
-  window twice half a second apart (`later-…`) to show what moves. The
-  sidebar's rows and the web view don't render in them; an open popover is
+  window twice half a second apart (`later-…`) to show what moves. The web view doesn't render in them, and in the sidebar and the details
+  panel secondary text comes out black and secondary symbols white (the
+  panel's × is missing on light); an open popover is
   a window of its own, so a picture of its own, with noise where its shadow
-  is, and `windows.txt` has each window's frame for putting the two together; the inspector does,
-  with a dark window's cards and switches in the wrong colors.
+  is, and `windows.txt` has each window's frame for putting the two together; a dark window's
+  details panel comes out with its text, cards and switches in the wrong colors.
 - iOS: `xcrun simctl io <device> screenshot`. Use an existing simulator; never
   create one.
 

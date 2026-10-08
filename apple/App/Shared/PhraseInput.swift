@@ -3,12 +3,16 @@ import SwiftUI
 /// The field a phrase is typed into. Return, and leaving the field, hand
 /// the text to `onSubmit`; Delete in the empty field calls
 /// `onDeleteWhenEmpty`. The system's own field is used because SwiftUI's
-/// doesn't report either key on a phone.
+/// doesn't report either key on a phone. On macOS it draws no box and no
+/// focus ring of its own and reports the focus through `onFocusChange`, for
+/// the box drawn around it.
 struct PhraseInput {
   @Binding var text: String
   let prompt: String
   let onSubmit: () -> Void
   let onDeleteWhenEmpty: () -> Void
+  /// Called when the field takes or gives up the keyboard; macOS only.
+  var onFocusChange: (Bool) -> Void = { _ in }
 
   @MainActor
   func makeCoordinator() -> Coordinator {
@@ -28,7 +32,14 @@ struct PhraseInput {
 #if os(macOS)
   extension PhraseInput: NSViewRepresentable {
     func makeNSView(context: Context) -> NSTextField {
-      let field = NSTextField()
+      let field = FocusReportingTextField()
+      field.isBordered = false
+      field.drawsBackground = false
+      field.focusRingType = .none
+      field.onFocus = { [coordinator = context.coordinator] in
+        // becoming first responder can come in the middle of a view update
+        DispatchQueue.main.async { coordinator.input.onFocusChange(true) }
+      }
       field.placeholderString = prompt
       field.delegate = context.coordinator
       field.isAutomaticTextCompletionEnabled = false
@@ -57,6 +68,7 @@ struct PhraseInput {
       if let field = notification.object as? NSTextField, !field.stringValue.isEmpty {
         input.onSubmit()
       }
+      input.onFocusChange(false)
     }
 
     func control(
@@ -73,6 +85,18 @@ struct PhraseInput {
       } else {
         return false
       }
+    }
+  }
+
+  private final class FocusReportingTextField: NSTextField {
+    var onFocus: (() -> Void)?
+
+    override func becomeFirstResponder() -> Bool {
+      let became = super.becomeFirstResponder()
+      if became {
+        onFocus?()
+      }
+      return became
     }
   }
 #else

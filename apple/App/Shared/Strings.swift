@@ -15,15 +15,10 @@ enum Strings {
   static let refresh = String(localized: "Refresh")
   static let filters = String(localized: "Filters")
   static let inspector = String(localized: "Details")
-  static let showInspector = String(localized: "Show Details")
-  static let hideInspector = String(localized: "Hide Details")
-  // COPY-DRAFT
   static let showChannels = String(localized: "Show Channels")
-  // COPY-DRAFT
   static let hideChannels = String(localized: "Hide Channels")
   static let shortBadge = String(localized: "Short")
   static let watched = String(localized: "Watched")
-  static let noChannelSelected = String(localized: "Select a channel to edit its filters.")
   static let noMatches = String(localized: "Nothing new. You're caught up.")
   static let noVideosForFilter = String(localized: "No videos for the selected filter.")
   static let noChannelsForFilter = String(localized: "No channels for the selected filter.")
@@ -116,6 +111,7 @@ enum Strings {
   }
 
   static let showInFeed = String(localized: "Show in Feed")
+  static let videos = String(localized: "Videos")
   static let show = String(localized: "Show")
   static let uploads = String(localized: "Uploads")
   static let playlists = String(localized: "Playlists")
@@ -187,6 +183,7 @@ enum Strings {
   static let summaryNoLive = String(localized: "No live")
   static let summaryLiveOnly = String(localized: "Live only")
   static let summaryFollowed = String(localized: "Followed in SubTube")
+  static let subscribedOnYouTube = String(localized: "Subscribed on YouTube")
 
   static func summaryOnlyMatching(_ pattern: String, scope: FilterScope) -> String {
     switch scope {

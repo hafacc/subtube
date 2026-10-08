@@ -70,70 +70,139 @@ private struct FilterFields: View {
 
   /// The fifteen topics as toggles for the filter's `topics`, the channel's
   /// most common first.
-  private var topics: some View {
-    Section {
-      FlowLayout(spacing: 8) {
-        ForEach(editorTopics(feed.channelFetched(channel.channelId)), id: \.self) { categoryId in
-          Chip(
-            label: topicLabel(categoryId) ?? "", selected: channel.topics.contains(categoryId)
-          ) {
-            var edited = channel
-            if edited.topics.contains(categoryId) {
-              edited.topics.removeAll { $0 == categoryId }
-            } else {
-              edited.topics.append(categoryId)
-            }
-            feed.updateFilter(edited)
+  private var topicChips: some View {
+    FlowLayout(spacing: 8) {
+      ForEach(editorTopics(feed.channelFetched(channel.channelId)), id: \.self) { categoryId in
+        Chip(
+          label: topicLabel(categoryId) ?? "", selected: channel.topics.contains(categoryId)
+        ) {
+          var edited = channel
+          if edited.topics.contains(categoryId) {
+            edited.topics.removeAll { $0 == categoryId }
+          } else {
+            edited.topics.append(categoryId)
           }
+          feed.updateFilter(edited)
         }
       }
-    } header: {
-      Text(Strings.topics)
-    } footer: {
-      Text(Strings.topicsDetail)
     }
   }
 
-  private var form: some View {
-    Form {
-      Section {
-        Toggle(Strings.showInFeed, isOn: binding(\.enabled))
-          .tint(Color.sunflower)
-          .accessibilityLabel(Strings.showChannelInFeed(channel.title))
-        SegmentedRow(
-          label: Strings.show, selection: binding(\.contentMode),
-          options: [(.videos, Strings.uploads), (.playlists, Strings.playlists)])
-      }
-      Section(Strings.patternHeading(channel.searchScope)) {
-        TitlePatternFields(
-          filter: Binding(get: { channel }, set: { feed.updateFilter($0) }))
-      }
-      .id(isVideos ? "pattern" : Self.endID)
-      if isVideos {
-        Section {
-          ShortsPicker(selection: binding(\.shortsFilter))
-          SegmentedRow(
-            label: Strings.live, selection: binding(\.liveFilter),
-            options: [LiveFilter.all, .normal, .vod].map { ($0, Strings.liveOption($0)) },
-            showsHeading: true)
-          LabeledContent(Strings.hideVideosUnder) {
-            HStack {
-              TextField(Strings.hideVideosUnder, value: minimumDuration, format: .number, prompt: Text("0"))
-                .labelsHidden()
-                .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 70)
-                #if os(iOS)
-                  .keyboardType(.numberPad)
-                #endif
-              Text(Strings.seconds).foregroundStyle(.secondary)
+  private var contentMode: some View {
+    SegmentedRow(
+      label: Strings.show, selection: binding(\.contentMode),
+      options: [(.videos, Strings.uploads), (.playlists, Strings.playlists)])
+  }
+
+  private var liveFilter: some View {
+    SegmentedRow(
+      label: Strings.live, selection: binding(\.liveFilter),
+      options: [LiveFilter.all, .normal, .vod].map { ($0, Strings.liveOption($0)) },
+      showsHeading: true)
+  }
+
+  private var patternFields: some View {
+    TitlePatternFields(filter: Binding(get: { channel }, set: { feed.updateFilter($0) }))
+  }
+
+  private var minimumDurationField: some View {
+    TextField(Strings.hideVideosUnder, value: minimumDuration, format: .number, prompt: Text("0"))
+      .labelsHidden()
+      .multilineTextAlignment(.trailing)
+  }
+
+  #if os(macOS)
+    @FocusState private var durationFocused: Bool
+
+    /// "Show in Feed" in a card alone, then "Videos", the phrases and
+    /// "Topics" as titled cards.
+    private var form: some View {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 0) {
+          HStack {
+            Text(Strings.showInFeed).fontWeight(.semibold)
+            Spacer(minLength: 12)
+            ChannelSwitch(title: channel.title, isOn: binding(\.enabled))
+          }
+          .frame(minHeight: 36)
+          .panelCard()
+          PanelSection(Strings.videos) {
+            PanelRows {
+              contentMode
+              if isVideos {
+                ShortsPicker(selection: binding(\.shortsFilter))
+                liveFilter
+                HStack(spacing: 6) {
+                  Text(Strings.hideVideosUnder)
+                  Spacer(minLength: 12)
+                  minimumDurationField
+                    .textFieldStyle(.plain)
+                    .focused($durationFocused)
+                    .frame(width: 36)
+                    .fieldBox(focused: durationFocused)
+                  Text(Strings.seconds).foregroundStyle(Color.secondary)
+                }
+              }
             }
           }
+          PanelSection(Strings.patternHeading(channel.searchScope)) {
+            patternFields
+          }
+          .id(isVideos ? "pattern" : Self.endID)
+          if isVideos {
+            PanelSection(Strings.topics) {
+              topicChips.padding(.top, 8)
+              Text(Strings.topicsDetail)
+                .font(.subheadline)
+                .foregroundStyle(Color.secondary)
+                .padding(.vertical, 8)
+            }
+            .id(Self.endID)
+          }
         }
-        topics.id(Self.endID)
+        .padding(.horizontal, panelInset)
+        .padding(.bottom, 16)
       }
     }
-    .formStyle(.grouped)
-  }
+  #else
+    private var form: some View {
+      Form {
+        Section {
+          Toggle(Strings.showInFeed, isOn: binding(\.enabled))
+            .tint(Color.sunflower)
+            .accessibilityLabel(Strings.showChannelInFeed(channel.title))
+          contentMode
+        }
+        Section(Strings.patternHeading(channel.searchScope)) {
+          patternFields
+        }
+        .id(isVideos ? "pattern" : Self.endID)
+        if isVideos {
+          Section {
+            ShortsPicker(selection: binding(\.shortsFilter))
+            liveFilter
+            LabeledContent(Strings.hideVideosUnder) {
+              HStack {
+                minimumDurationField
+                  .frame(maxWidth: 70)
+                  .keyboardType(.numberPad)
+                Text(Strings.seconds).foregroundStyle(.secondary)
+              }
+            }
+          }
+          Section {
+            topicChips
+          } header: {
+            Text(Strings.topics)
+          } footer: {
+            Text(Strings.topicsDetail)
+          }
+          .id(Self.endID)
+        }
+      }
+      .formStyle(.grouped)
+    }
+  #endif
 }
 
 /// The phrases the filter looks for, whether it hides or keeps what has
@@ -141,10 +210,13 @@ private struct FilterFields: View {
 struct TitlePatternFields: View {
   @Binding var filter: ChannelFilter
 
-  var body: some View {
+  private var phrases: some View {
     PhraseFields(
       phrases: patternToPhrases(filter.regex) ?? [],
       onChange: { filter.regex = phrasesToPattern($0) })
+  }
+
+  @ViewBuilder private var choices: some View {
     SegmentedRow(
       label: Strings.matches, selection: $filter.mode,
       options: [(.exclude, Strings.choiceHide), (.include, Strings.show)],
@@ -158,11 +230,22 @@ struct TitlePatternFields: View {
       options: [(false, Strings.caseIgnore), (true, Strings.caseMatch)],
       showsHeading: true)
   }
+
+  var body: some View {
+    #if os(macOS)
+      phrases.padding(.top, 8).padding(.bottom, 4)
+      PanelRows { choices }
+    #else
+      phrases
+      choices
+    #endif
+  }
 }
 
-/// The filter's phrases as chips over the field that adds one: Return or a
+/// The filter's phrases as chips with the field that adds one: Return or a
 /// comma turns what is typed into a chip, pressing a chip removes it, and
-/// Delete in the empty field removes the last.
+/// Delete in the empty field removes the last. On iOS the chips are over the
+/// field; on macOS they are inside the field's box, before what is typed.
 struct PhraseFields: View {
   let phrases: [String]
   /// Called with the whole new list when a phrase is added or removed.
@@ -180,37 +263,83 @@ struct PhraseFields: View {
     }
   }
 
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      if !phrases.isEmpty {
-        FlowLayout {
-          ForEach(phrases, id: \.self) { phrase in
-            Chip(label: phrase, removes: true) {
-              onChange(phrases.filter { $0 != phrase })
+  private var input: some View {
+    PhraseInput(
+      text: $draft, prompt: Strings.addPhrase,
+      onSubmit: {
+        onChange(phrases + [draft])
+        draft = ""
+      },
+      onDeleteWhenEmpty: { onChange(phrases.dropLast()) },
+      onFocusChange: { inputFocused = $0 }
+    )
+    .onChange(of: draft) { _, value in typed(value) }
+  }
+
+  /// Whether the field has the keyboard; only macOS draws by it.
+  @State private var inputFocused = false
+
+  #if os(macOS)
+    /// A phrase inside the field's box; pressing it removes it.
+    private func token(_ phrase: String) -> some View {
+      Button {
+        onChange(phrases.filter { $0 != phrase })
+      } label: {
+        HStack(spacing: 5) {
+          Text(phrase).lineLimit(1)
+          Text(verbatim: "×").foregroundStyle(Color.secondary)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 22)
+        .background(
+          Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+        )
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(Strings.removePhrase(phrase))
+    }
+
+    var body: some View {
+      VStack(alignment: .leading, spacing: 6) {
+        FlowLayout(spacing: 4, trailingFill: 90) {
+          ForEach(phrases, id: \.self) { token($0) }
+          input
+            .padding(.leading, 4)
+            .frame(height: 22)
+        }
+        .padding(.vertical, 3)
+        .fieldBox(focused: inputFocused, inset: 3)
+        Text(Strings.phrasesDetail)
+          .font(.subheadline)
+          .foregroundStyle(Color.secondary)
+      }
+    }
+  #else
+    var body: some View {
+      VStack(alignment: .leading, spacing: 8) {
+        if !phrases.isEmpty {
+          FlowLayout {
+            ForEach(phrases, id: \.self) { phrase in
+              Chip(label: phrase, removes: true) {
+                onChange(phrases.filter { $0 != phrase })
+              }
             }
           }
         }
+        input
+        Text(Strings.phrasesDetail)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
       }
-      PhraseInput(
-        text: $draft, prompt: Strings.addPhrase,
-        onSubmit: {
-          onChange(phrases + [draft])
-          draft = ""
-        },
-        onDeleteWhenEmpty: { onChange(phrases.dropLast()) }
-      )
-      .onChange(of: draft) { _, value in typed(value) }
-      Text(Strings.phrasesDetail)
-        .font(.footnote)
-        .foregroundStyle(.secondary)
     }
-  }
+  #endif
 }
 
-/// One choice as segments. On macOS a form row: the label, then the
-/// segments at their natural width on the right, or under the label when
-/// they don't fit beside it. On iOS the segments fill the row, under the
-/// label when `showsHeading` is set.
+/// One choice as segments. On macOS a row: the label, then
+/// ``BrandSegments`` at their natural width on the right, or under the label
+/// when they don't fit beside it. On iOS the system's segments fill the row,
+/// under the label when `showsHeading` is set.
 struct SegmentedRow<Value: Hashable>: View {
   let label: String
   @Binding var selection: Value
@@ -218,20 +347,14 @@ struct SegmentedRow<Value: Hashable>: View {
   /// Whether iOS shows the label above the segments.
   var showsHeading = false
 
-  #if os(macOS)
-    /// How far past each side of their frame segments at their natural
-    /// width are drawn (macOS 26); without this room they run out over the
-    /// row's edge.
-    private static var bezelOutset: CGFloat { 7 }
-  #endif
-
   var body: some View {
     #if os(macOS)
+      let segments = BrandSegments(label: label, selection: $selection, options: options)
       ViewThatFits(in: .horizontal) {
         HStack {
           Text(label)
           Spacer(minLength: 12)
-          segments.fixedSize().padding(.horizontal, Self.bezelOutset)
+          segments.fixedSize()
         }
         VStack(alignment: .leading, spacing: 6) {
           Text(label)
@@ -250,13 +373,15 @@ struct SegmentedRow<Value: Hashable>: View {
     #endif
   }
 
-  private var segments: some View {
-    Picker(label, selection: $selection) {
-      ForEach(options, id: \.value) { Text($0.title).tag($0.value) }
+  #if os(iOS)
+    private var segments: some View {
+      Picker(label, selection: $selection) {
+        ForEach(options, id: \.value) { Text($0.title).tag($0.value) }
+      }
+      .pickerStyle(.segmented)
+      .labelsHidden()
     }
-    .pickerStyle(.segmented)
-    .labelsHidden()
-  }
+  #endif
 }
 
 /// The Shorts choice as segments with its label.

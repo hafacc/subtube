@@ -153,11 +153,17 @@ struct ThemePicker: View {
   @Bindable var app: AppModel
 
   var body: some View {
-    Picker(Strings.theme, selection: $app.theme) {
-      ForEach(Theme.allCases) { theme in
-        Text(Strings.themeOption(theme)).tag(theme)
+    #if os(macOS)
+      SegmentedRow(
+        label: Strings.theme, selection: $app.theme,
+        options: Theme.allCases.map { ($0, Strings.themeOption($0)) })
+    #else
+      Picker(Strings.theme, selection: $app.theme) {
+        ForEach(Theme.allCases) { theme in
+          Text(Strings.themeOption(theme)).tag(theme)
+        }
       }
-    }
-    .pickerStyle(.segmented)
+      .pickerStyle(.segmented)
+    #endif
   }
 }
