@@ -1,6 +1,6 @@
 import { getValidToken, silentRefresh, withToken } from "./auth";
 import { nextUnwatched } from "./autoplay";
-import { chipKeptChannels, kindFor, passingItems } from "./channel-chips";
+import { kindFor, passingItems } from "./channel-chips";
 import { channelInfo } from "./channel-info";
 import { chipFiltered, chipRow } from "./chips";
 import { SignInRequiredError, shownMessage } from "./errors";
@@ -10,10 +10,8 @@ import { compileFilter, videoPassesFilter } from "./filters";
 import {
   deleteGroup,
   type GroupEdit,
-  type GroupSetting,
   groupKeptChannels,
   groupNames,
-  keptByBoth,
   saveGroup,
 } from "./groups";
 import { loadFraction } from "./load-progress";
@@ -582,11 +580,6 @@ export class FeedController {
     return counts;
   });
 
-  /** The channel list's topic chips, as category ids in row order. */
-  channelTopicChips: string[] = $derived(
-    chipRow(this.listed, this.settings.channelTopicChips),
-  );
-
   /** Every listed channel's filter, by channel id. */
   private filters: Map<string, ChannelFilter> = $derived(
     new Map(
@@ -599,19 +592,6 @@ export class FeedController {
 
   /** The groups that exist, in chip order. */
   groups: string[] = $derived(groupNames(this.filters.values()));
-
-  /** The channels the channel list's chips keep, by id; null while they keep every channel. */
-  chipChannels: Set<string> | null = $derived(
-    keptByBoth(
-      groupKeptChannels(this.filters, this.settings.channelGroupChips),
-      chipKeptChannels(
-        this.listed,
-        this.settings.channelTimeChip,
-        this.settings.channelTopicChips,
-        this.chipClock,
-      ),
-    ),
-  );
 
   /** Unwatched items the whole feed would show, whatever page is open or chip selected. */
   unwatchedCount: number = $derived(
@@ -707,25 +687,12 @@ export class FeedController {
     this.toggleChipIn("topicChips", categoryId);
   }
 
-  /** Select one of the channel list's topic chips by its category id, or deselect it. */
-  toggleChannelTopicChip(categoryId: string): void {
-    this.toggleChipIn("channelTopicChips", categoryId);
-  }
-
   /** Select a group chip by its name, or deselect it. */
   toggleGroupChip(group: string): void {
     this.toggleChipIn("groupChips", group);
   }
 
-  /** Select one of the channel list's group chips by its name, or deselect it. */
-  toggleChannelGroupChip(group: string): void {
-    this.toggleChipIn("channelGroupChips", group);
-  }
-
-  private toggleChipIn(
-    name: "topicChips" | "channelTopicChips" | GroupSetting,
-    chip: string,
-  ): void {
+  private toggleChipIn(name: "topicChips" | "groupChips", chip: string): void {
     const selected = this.settings[name];
     this.setSetting(
       name,
@@ -735,13 +702,9 @@ export class FeedController {
     );
   }
 
-  /** Deselect a chip row's groups and topics: the channel list's, or the feed's. */
-  clearChips(row: "feed" | "channels"): void {
-    const names =
-      row === "feed"
-        ? (["groupChips", "topicChips"] as const)
-        : (["channelGroupChips", "channelTopicChips"] as const);
-    for (const name of names) {
+  /** Deselect the feed's group and topic chips. */
+  clearChips(): void {
+    for (const name of ["groupChips", "topicChips"] as const) {
       if (this.settings[name].length > 0) {
         this.setSetting(name, []);
       }

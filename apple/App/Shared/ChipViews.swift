@@ -266,6 +266,8 @@ struct ChipRow<Leading: View>: View {
 /// topics.
 struct FeedChipRow: View {
   let feed: FeedModel
+  /// The space left of the first chip and right of the last.
+  var inset: CGFloat = 16
   /// Opens the editor for a new group.
   let onNewGroup: () -> Void
 
@@ -277,7 +279,7 @@ struct FeedChipRow: View {
     ChipRow(
       groups: showsGroups ? feed.groups : [], selectedGroups: feed.settings.groupChips,
       onGroup: feed.toggleGroupChip, onNewGroup: showsGroups ? onNewGroup : nil,
-      topics: feed.topicChips, selected: feed.settings.topicChips,
+      topics: feed.topicChips, selected: feed.settings.topicChips, inset: inset,
       onTopic: feed.toggleTopicChip
     ) {
       AutoplayChip(feed: feed)
