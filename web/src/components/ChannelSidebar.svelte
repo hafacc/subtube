@@ -1,43 +1,9 @@
-<script lang="ts" module>
-  import type { IconName } from "./Icon.svelte";
-
-  /** The icon that stands for each of YouTube's fifteen topics, by category id. */
-  const TOPIC_ICONS: Readonly<Record<string, IconName>> = {
-    "1": "clapperboard",
-    "2": "car",
-    "10": "music",
-    "15": "paw",
-    "17": "trophy",
-    "19": "plane",
-    "20": "gamepad",
-    "22": "users",
-    "23": "laugh",
-    "24": "sparkles",
-    "25": "newspaper",
-    "26": "wrench",
-    "27": "graduationCap",
-    "28": "flask",
-    "29": "heartHandshake",
-  };
-
-  /** How many marks fit in the rail between "Feed" and the first channel. */
-  const RAIL_MARKS = 2;
-</script>
-
 <script lang="ts">
   import { Toggle } from "bits-ui";
-  import {
-    CHANNEL_SORT_OPTIONS,
-    HeldChannelOrder,
-    orderChannels,
-  } from "../lib/channel-order";
-  import { TIME_CHIP_OPTIONS } from "../lib/chips";
+  import { HeldChannelOrder, orderChannels } from "../lib/channel-order";
   import { privacyUrl, termsUrl } from "../lib/config";
   import type { FeedController } from "../lib/feed.svelte";
-  import { chipMarks, chipTitle } from "../lib/groups";
   import Avatar from "./Avatar.svelte";
-  import ChipRow from "./ChipRow.svelte";
-  import CycleChip from "./CycleChip.svelte";
   import Icon from "./Icon.svelte";
   import Logo from "./Logo.svelte";
   import YouTubeAttribution from "./YouTubeAttribution.svelte";
@@ -50,7 +16,6 @@
     onhome,
     collapsed,
     ontoggle,
-    oneditgroup,
   }: {
     /** the feed whose channels these are */
     feed: FeedController;
@@ -66,49 +31,13 @@
     collapsed: boolean;
     /** collapse the sidebar, or pin it open */
     ontoggle: () => void;
-    /** open the group editor: for a group by its name, or for a new one (null) */
-    oneditgroup: (group: string | null) => void;
   } = $props();
-
-  // the selected groups and topics, which take the heading's place
-  const selection = $derived(
-    chipTitle(
-      feed.groups,
-      feed.settings.channelGroupChips,
-      feed.channelTopicChips,
-      feed.settings.channelTopicChips,
-    ),
-  );
-
-  // the same selection as the rail shows it, where the chips themselves don't fit
-  const marks = $derived(
-    chipMarks(
-      feed.groups,
-      feed.settings.channelGroupChips,
-      feed.channelTopicChips,
-      feed.settings.channelTopicChips,
-      RAIL_MARKS,
-    ),
-  );
 
   const held = new HeldChannelOrder();
   const channels = $derived(
     held.arrange(
-      orderChannels(
-        Array.from(feed.channels.values()),
-        feed.items,
-        feed.settings.channelSort,
-        feed.unwatchedByChannel,
-      ),
-      JSON.stringify([
-        whereabouts,
-        feed.loadCount,
-        feed.settings.channelSort,
-        feed.settings.channelTimeChip,
-        feed.settings.channelTopicChips,
-        feed.settings.channelGroupChips,
-      ]),
-      feed.chipChannels,
+      orderChannels(Array.from(feed.channels.values()), feed.items),
+      JSON.stringify([whereabouts, feed.loadCount]),
     ),
   );
 </script>
@@ -156,84 +85,7 @@
         <span class="visually-hidden">{feed.unwatchedCount} unwatched</span>
       {/if}
     </button>
-    <div class="filters">
-      <div class="rail-marks" aria-hidden="true">
-        {#each marks as mark, index (index)}
-          <span class="mark">
-            {#if mark.kind === "group"}
-              {Array.from(mark.name)[0].toLocaleUpperCase()}
-            {:else if mark.kind === "topic"}
-              <Icon name={TOPIC_ICONS[mark.categoryId]} size={14} />
-            {:else}
-              +{mark.count}
-            {/if}
-          </span>
-        {/each}
-      </div>
-      <div class="heading">
-        <h2>
-          {selection.names.length > 0 ? selection.names.join(", ") : "Channels"}
-        </h2>
-        {#if selection.names.length > 0}
-          {#if selection.edit !== null}
-            {@const group = selection.edit}
-            <button
-              type="button"
-              class="icon-button wide-only"
-              aria-label="Edit group"
-              title="Edit group"
-              onclick={() => oneditgroup(group)}
-            >
-              <Icon name="pencil" size={14} />
-            </button>
-          {/if}
-          <button
-            type="button"
-            class="icon-button wide-only"
-            aria-label="Clear"
-            title="Clear"
-            onclick={() => feed.clearChips("channels")}
-          >
-            <Icon name="close" size={14} />
-          </button>
-        {/if}
-      </div>
-      <div class="channel-chips wide-only">
-        <ChipRow
-          groups={feed.groups}
-          selectedGroups={feed.settings.channelGroupChips}
-          ongroup={(group) => feed.toggleChannelGroupChip(group)}
-          onnewgroup={feed.loadCount > 0 ? () => oneditgroup(null) : undefined}
-          topics={feed.channelTopicChips}
-          selected={feed.settings.channelTopicChips}
-          ontopic={(categoryId) => feed.toggleChannelTopicChip(categoryId)}
-        >
-          {#snippet leading()}
-            <CycleChip
-              label="Sort"
-              options={CHANNEL_SORT_OPTIONS}
-              value={feed.settings.channelSort}
-              onchange={(channelSort) =>
-                feed.setSetting("channelSort", channelSort)}
-            />
-            <CycleChip
-              label="Time"
-              options={TIME_CHIP_OPTIONS}
-              value={feed.settings.channelTimeChip}
-              onchange={(channelTimeChip) =>
-                feed.setSetting("channelTimeChip", channelTimeChip)}
-            />
-          {/snippet}
-        </ChipRow>
-      </div>
-    </div>
-    {#if channels.length === 0 &&
-      feed.chipChannels !== null &&
-      feed.loadCount > 0}
-      <p class="empty secondary wide-only">
-        No channels for the selected filter.
-      </p>
-    {/if}
+    <h2>Channels</h2>
     {#each channels as channel (channel.channelId)}
       {@const current = channel.channelId === selected}
       {@const unwatched = channel.filter.enabled
@@ -340,45 +192,6 @@
     color: var(--text);
   }
 
-  /* the heading and the chip row, which the rail's marks are laid over */
-  .filters {
-    position: relative;
-    flex-shrink: 0;
-    min-width: 0;
-  }
-
-  .channel-chips {
-    --chip-row-rule: 0;
-    --chip-row-padding: 4px 8px 6px;
-    margin-top: 2px;
-    min-width: 0;
-  }
-
-  /* in the rows' icon column, in the room the hidden heading and chips leave */
-  .rail-marks {
-    visibility: hidden;
-    position: absolute;
-    inset: 8px auto 0 8px;
-    width: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    pointer-events: none;
-  }
-
-  .mark {
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--tint);
-    color: var(--tint-text);
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1;
-  }
-
   /* beside the name the hull sits on its line; alone in the rail all of the logo is centred */
   .home :global(img) {
     transition: translate 0.2s;
@@ -390,50 +203,19 @@
     }
   }
 
-  /* after the rule that hides them, so the rail shows them */
   @container (max-width: 120px) {
     /* the hull's centre is 12.04% of the drawing below the whole logo's */
     .home :global(img) {
       translate: 0 12.04%;
     }
-
-    .rail-marks {
-      visibility: visible;
-    }
-  }
-
-  .empty {
-    flex-shrink: 0;
-    margin: 0;
-    padding: 32px 16px;
-    text-align: center;
-  }
-
-  /* as tall as the heading's line, so the buttons beside it don't move the list */
-  .heading {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    height: 15px;
-    margin: 14px 0 4px 8px;
   }
 
   h2 {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    flex-shrink: 0;
+    margin: 14px 0 4px 8px;
     font-size: 12px;
     line-height: 15px;
     font-weight: 600;
-    color: var(--text-secondary);
-  }
-
-  .heading .icon-button {
-    padding: 4px;
     color: var(--text-secondary);
   }
 

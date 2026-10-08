@@ -8,15 +8,9 @@
   /// mockups without screen-recording permission.
   enum DebugSnapshot {
     static func scheduleIfAsked() {
-      let arguments = CommandLine.arguments
       guard let name = debugArgument("snapshot") else { return }
       let directory = URL.temporaryDirectory.appending(path: "snapshots/\(name)")
       try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-      if arguments.contains("-settings") {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-          NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        }
-      }
       @MainActor func capture(_ prefix: String) {
         var report: [String] = []
         for (index, window) in NSApp.windows.enumerated() {

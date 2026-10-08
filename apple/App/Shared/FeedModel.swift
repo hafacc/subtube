@@ -271,7 +271,7 @@ final class FeedModel {
   /// channel list chip do it themselves.
   func reorderChannels() {
     var order = heldOrder
-    order.recompute(freshChannelOrder(), kept: chipChannels)
+    order.recompute(freshChannelOrder(), kept: listKept)
     if order != heldOrder {
       heldOrder = order
     }
@@ -280,7 +280,7 @@ final class FeedModel {
   /// Keep the channel lists' rows in place, adding channels kept since.
   private func holdChannels() {
     var order = heldOrder
-    order.hold(freshChannelOrder(), kept: chipChannels)
+    order.hold(freshChannelOrder(), kept: listKept)
     if order != heldOrder {
       heldOrder = order
     }
@@ -303,7 +303,27 @@ final class FeedModel {
           id: channel.channelId, title: channel.title, enabled: channel.enabled,
           newest: newest[channel.channelId],
           unwatched: unwatchedByChannel[channel.channelId] ?? 0)
-      }, sort: settings.channelSort)
+      }, sort: listSort)
+  }
+
+  /// The channels the channel lists keep, nil for all of them. The Mac's
+  /// sidebar has no chips, so it keeps every channel whatever the phone
+  /// apps' chips have selected.
+  private var listKept: Set<String>? {
+    #if os(macOS)
+      nil
+    #else
+      chipChannels
+    #endif
+  }
+
+  /// The channel lists' order: the Mac's sidebar is always newest first.
+  private var listSort: ChannelSort {
+    #if os(macOS)
+      .newest
+    #else
+      settings.channelSort
+    #endif
   }
 
   func channel(_ channelId: String) -> ChannelFilter? {

@@ -218,7 +218,10 @@ the pbxproj.
   the channel sort, time, topic or group chips call it, a list calls it when it
   appears and when its search changes — and between those an edit, a count
   or a single channel's fetch moves no row and takes none away, and a
-  channel that comes to be kept goes last; `channelTopicChips` is that
+  channel that comes to be kept goes last; on a Mac the list has no chips,
+  so `listKept` and `listSort` make it every channel, newest first,
+  whatever the saved channel sort and channel chips are, and the Mac writes
+  neither; `channelTopicChips` is that
   row's topics; `explainsNoChannels` is true once a full load is shown
   and a span, a topic or a group is chosen: a list then empty, by the chips alone or
   with its search, shows "No channels for the selected filter."), `Player` (`PlayerSession`: one video
@@ -270,7 +273,10 @@ the pbxproj.
   iOS a sheet with "Cancel" and "Save" in its bar, the name, "Search
   channels", the rows, and "Delete Group" under them; on macOS it fills
   the details panel with one bottom row, "Delete Group" leading and
-  Cancel / Save trailing; only the rows scroll; `ChipTitleButtons`, the
+  Cancel / Save trailing; only the rows scroll, in one card as high as they
+  are, and the card and the text sit at a grouped form's two insets, 10 pt
+  and 20 pt from the panel's edges, so the panel lines up with the filters;
+  `ChipTitleButtons`, the
   pencil "Edit group" and the × "Clear"), `ChipViews` (`Chip`, a
   toggle or a removable phrase, which VoiceOver names "Remove {phrase}";
   `CycleChip`, as wide as its widest label and never drawn selected, which
@@ -281,7 +287,7 @@ the pbxproj.
   its leading chips, a divider, `NewGroupChip` — round, a + alone — and the
   group toggles, a divider, then the topic toggles; there is no clear chip;
   `FeedChipRow` (no group chips on a channel's page) and `ChannelChipRow`
-  (sort, time, groups, topics) are the two rows; `NoChannelsForFilter`; `FlowLayout`), `FeedViews` (also `LoadProgressBar`: 3 pt
+  (sort, time, groups, topics; iOS only) are the two rows; `NoChannelsForFilter`; `FlowLayout`), `FeedViews` (also `LoadProgressBar`: 3 pt
   of Sunflower over the top edge of the feed while `loadProgress` is set,
   running to the end and fading out when the load finishes; no animation
   under reduced motion; to accessibility a progress value), `FilterForm` (`PhraseFields`: the pattern as phrase chips
@@ -291,7 +297,8 @@ the pbxproj.
   Topics lists all fifteen as toggles for the filter's `topics`, hidden for
   playlists; its segmented groups are `SegmentedRow`: on macOS
   a label with the segments at natural width on the right, under the label
-  when they don't fit),
+  when they don't fit; segments at natural width are drawn 7 pt past each
+  side of their frame on macOS 26, so the row leaves that room),
   `NuxView` (the first run uses the app's own controls; its screens are
   intro, sign-in, "Choose channels", "Shorts", "Where to start", done; Back
   is on every screen but the first and the last, and from "Choose channels"
@@ -350,19 +357,26 @@ the pbxproj.
   shared compare), `offChannelOpacity` (0.45, every list),
   `Strings`.
 - `App/macOS/` — `NavigationSplitView` (sidebar: Feed + channels, each with
-  its unwatched count, the channel chip row under the "Channels" header,
-  scrolling inside the sidebar's width, and
+  its unwatched count, under a plain "Channels" header with no chips:
+  always every channel, newest video first, and
   the YouTube attribution pinned at the bottom, gone with the sidebar when
-  it is collapsed;
+  it is collapsed; the toolbar has one button for each side panel, drawn as
+  what the panel holds: `ChannelsButton` (`play.square.stack`) is the
+  sidebar's own toolbar item in the removed system toggle's place, so it
+  sits at the sidebar's trailing edge and moves beside the title when the
+  sidebar is collapsed, and the filters button (`line.3.horizontal.decrease`)
+  is the trailing one; the details panel's width (280 to 420, 320 to start)
+  is set on the outermost view in the inspector, where it takes effect;
   every channel list but setup's uses `FeedModel.orderedChannels`; the
   sidebar is always on screen, so it asks for a new order when Feed or a
   channel is selected, when the player opens or closes and when the
   Settings window appears or goes; detail:
-  the chip row, Auto-play first, over the grid, the load bar over both; inspector: filters, opened
+  the chip row, Auto-play first, over the grid, both 20 pt in so they start
+  under the window's title, the load bar over both; inspector: filters, opened
   only from the toolbar, and the group editor takes the same panel: opening
-  one replaces the other and a change of page drops the draft; while a
-  row's chips are selected the sidebar's "Channels" header and the window's
-  title show the names, with the pencil and × after them — the window's
+  one replaces the other and a change of page drops the draft; while the
+  feed's chips are selected the window's
+  title shows the names, with the pencil and × after them — the
   names are a toolbar item in the removed title's place, with the video
   count the subtitle had under them; a channel's page keeps its name and
   gets only the ×; no Refresh
@@ -472,7 +486,7 @@ and `Strings.summary` words each.
   `-tab:channels|settings`, `-channel:<channelId>` (with `-tab:channels`,
   opens that channel's page), `-filter:<channelId>` (the page, then its filter
   sheet), `-channelTime:<none|day|week|month>` and `-channelTopics:<id,id>` (the
-  Channels list's time and topic chips; both platforms), `-topics:<id,id>`
+  Channels list's time and topic chips), `-topics:<id,id>`
   (the feed's), `-groups` (the demo channels in three groups),
   `-groupChips:<name,name>` and `-channelGroupChips:<name,name>`,
   `-newGroup`, `-editGroup:<name>`, `-toggleWatched:<index>` (presses the
@@ -482,20 +496,20 @@ and `Strings.summary` words each.
   and `-mute`, which mutes the player as soon as it is ready — always pass
   it with `-video:`, `-bottom` (the filter sheet, the feed, the Channels list and Settings
   start scrolled to the end); macOS also `-sidebarCollapsed`; both platforms
-  take `-loading` (the feed as
+  take `-theme:<light|dark>` (not saved) and `-loading` (the feed as
   during a reload, its bar stopped at three channels of eight; with `-empty`,
   as during the first load), `-unwatched` (the
   watched chip on Unwatched; the demo otherwise opens on All) and `-confirmDelete` (the Delete
-  Profile confirmation, once Settings shows); macOS `-settings` with
-  `-snapshot:` opens the Settings window first. Values ride in the same
+  Profile confirmation, once Settings shows); macOS `-settings` opens the
+  Settings window, on the pane `-settingsPane:<general|account>` names. Values ride in the same
   argument: macOS opens any bare argument as a file and then skips the main
   window.
 - macOS screenshots without screen-recording permission:
   `open -W -n …/SubTube.app --args -demo -snapshot:<name>` writes PNGs to
   `~/Library/Containers/cc.hafa.subtube/Data/tmp/snapshots/<name>`, each
-  window twice half a second apart (`later-…`) to show what moves. Sidebar
-  and inspector (AppKit-backed lists and forms) and the web view don't render
-  in them.
+  window twice half a second apart (`later-…`) to show what moves. The
+  sidebar's rows and the web view don't render in them; the inspector does,
+  with a dark window's cards and switches in the wrong colors.
 - iOS: `xcrun simctl io <device> screenshot`. Use an existing simulator; never
   create one.
 

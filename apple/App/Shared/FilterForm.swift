@@ -218,17 +218,24 @@ struct SegmentedRow<Value: Hashable>: View {
   /// Whether iOS shows the label above the segments.
   var showsHeading = false
 
+  #if os(macOS)
+    /// How far past each side of their frame segments at their natural
+    /// width are drawn (macOS 26); without this room they run out over the
+    /// row's edge.
+    private static var bezelOutset: CGFloat { 7 }
+  #endif
+
   var body: some View {
     #if os(macOS)
       ViewThatFits(in: .horizontal) {
         HStack {
           Text(label)
           Spacer(minLength: 12)
-          segments.fixedSize()
+          segments.fixedSize().padding(.horizontal, Self.bezelOutset)
         }
         VStack(alignment: .leading, spacing: 6) {
           Text(label)
-          segments.fixedSize().frame(maxWidth: .infinity, alignment: .trailing)
+          segments
         }
       }
     #else

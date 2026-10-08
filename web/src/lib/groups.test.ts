@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fixture from "../../../shared/fixtures/groups.json";
 import {
-  chipMarks,
   chipTitle,
   deleteGroup,
   type GroupSelections,
@@ -159,31 +158,5 @@ describe("groups", () => {
     renameGroup(saved, NO_SELECTIONS, "Making", "Workshop");
     setMembers(saved, ["UCa"], NO_SELECTIONS, ["UCa"], "Making", false);
     expect(saved).toEqual({ UCa: grouped("Making") });
-  });
-});
-
-describe("chipMarks", () => {
-  const groups = ["Evenings", "Woodworking"];
-  const topics = ["10", "20", "27"];
-
-  test("selected groups, then selected topics, in chip order", () => {
-    expect(
-      chipMarks(groups, ["Woodworking", "Gone"], topics, ["27", "10"], 4),
-    ).toEqual([
-      { kind: "group", name: "Woodworking" },
-      { kind: "topic", categoryId: "10" },
-      { kind: "topic", categoryId: "27" },
-    ]);
-  });
-
-  test("nothing selected leaves no marks", () => {
-    expect(chipMarks(groups, [], topics, [], 2)).toEqual([]);
-  });
-
-  test("the last mark counts what doesn't fit", () => {
-    expect(chipMarks(groups, groups, topics, ["20"], 2)).toEqual([
-      { kind: "group", name: "Evenings" },
-      { kind: "more", count: 2 },
-    ]);
   });
 });

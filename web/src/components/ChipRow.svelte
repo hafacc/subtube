@@ -103,11 +103,10 @@
 </div>
 
 <style>
-  /* a parent sets --chip-row-rule and --chip-row-padding to fit the row in */
   .chip-row {
     flex-shrink: 0;
     min-width: 0;
-    border-bottom: var(--chip-row-rule, 1px solid var(--border));
+    border-bottom: 1px solid var(--border);
   }
 
   .chips {
@@ -116,7 +115,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: var(--chip-row-padding, 8px 16px);
+    padding: 8px 16px;
     overflow-x: auto;
     scrollbar-width: none;
     mask-image: linear-gradient(

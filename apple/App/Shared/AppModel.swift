@@ -37,10 +37,19 @@ final class AppModel {
   /// Whether the first run was ever finished on this device, by any account.
   private(set) var introSeen = UserDefaults.standard.bool(forKey: AppModel.introSeenKey)
 
-  var theme: Theme = Theme(rawValue: UserDefaults.standard.string(forKey: AppModel.themeKey) ?? "")
-    ?? .system
-  {
+  var theme: Theme = AppModel.startingTheme {
     didSet { UserDefaults.standard.set(theme.rawValue, forKey: Self.themeKey) }
+  }
+
+  /// The saved theme; a debug build's `-theme:<light|dark>` goes before it
+  /// and is not saved.
+  private static var startingTheme: Theme {
+    #if DEBUG
+      if let asked = debugArgument("theme").flatMap(Theme.init(rawValue:)) {
+        return asked
+      }
+    #endif
+    return Theme(rawValue: UserDefaults.standard.string(forKey: themeKey) ?? "") ?? .system
   }
 
   /// The signed-in account's feed, or nil.

@@ -279,7 +279,6 @@
         onhome={home}
         collapsed={!narrow && collapsed}
         ontoggle={toggleSidebar}
-        oneditgroup={editGroup}
       />
     </div>
   </div>
@@ -334,7 +333,7 @@
                 if (route.channel) {
                   feed.setSetting("topicChips", []);
                 } else {
-                  feed.clearChips("feed");
+                  feed.clearChips();
                 }
               }}
             >
