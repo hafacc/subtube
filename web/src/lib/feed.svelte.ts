@@ -570,13 +570,16 @@ export class FeedController {
     passingItems(this.channels.values(), this.items),
   );
 
+  /** Every on channel's unwatched items that pass its filter: what the counts count and the sidebar orders by. */
+  unwatched: FeedItem[] = $derived(
+    this.listed.filter((item) => !this.watched.has(feedItemId(item))),
+  );
+
   /** Each on channel's unwatched items that pass its filter, counted; channels with none are absent. */
   unwatchedByChannel: Map<string, number> = $derived.by(() => {
     const counts = new Map<string, number>();
-    for (const item of this.listed) {
-      if (!this.watched.has(feedItemId(item))) {
-        counts.set(item.channelId, (counts.get(item.channelId) ?? 0) + 1);
-      }
+    for (const item of this.unwatched) {
+      counts.set(item.channelId, (counts.get(item.channelId) ?? 0) + 1);
     }
     return counts;
   });

@@ -1,8 +1,11 @@
 import { compareIgnoringCase } from "./text-order";
 import type { Channel, FeedItem } from "./types";
 
-/** The orders the channel list can be read in. */
+/** The orders the synced `channelSort` setting chooses between. */
 export type ChannelSort = "newest" | "name" | "unwatched";
+
+/** Every order a channel list can be in: a {@link ChannelSort}, or the sidebar's own. */
+export type ChannelListOrder = ChannelSort | "newestUnwatched";
 
 /** What a channel list orders a channel by. */
 export interface ChannelOrderKey {
@@ -16,6 +19,8 @@ export interface ChannelOrderKey {
   newest?: string;
   /** how many of its unwatched items pass its filter; absent reads as 0 */
   unwatched?: number;
+  /** `publishedAt` of the newest of those unwatched items; absent when it has none */
+  newestUnwatched?: string;
 }
 
 function compareCodeUnits(left: string, right: string): number {
@@ -51,16 +56,30 @@ function byNewestVideo(left: ChannelOrderKey, right: ChannelOrderKey): number {
   );
 }
 
+function byNewestUnwatched(
+  left: ChannelOrderKey,
+  right: ChannelOrderKey,
+): number {
+  return (
+    Number(left.newestUnwatched === undefined) -
+      Number(right.newestUnwatched === undefined) ||
+    compareCodeUnits(right.newestUnwatched ?? "", left.newestUnwatched ?? "") ||
+    byNewestVideo(left, right)
+  );
+}
+
 /**
  * The order of every channel list (shared/fixtures/channel-order.json).
  * Channels that are off go last, by name, in every sort. Those that are on go
- * by newest fetched item (then the ones with nothing fetched), by name, or by
- * unwatched count with ties in newest-item order.
+ * by newest fetched item (then the ones with nothing fetched), by name, by
+ * unwatched count with ties in newest-item order, or, for `newestUnwatched`,
+ * those with something unwatched first by their newest unwatched item and
+ * the rest after them, ties and the rest in newest-item order.
  */
 export function compareChannelOrder(
   left: ChannelOrderKey,
   right: ChannelOrderKey,
-  sort: ChannelSort = "newest",
+  sort: ChannelListOrder = "newest",
 ): number {
   if (!left.enabled || !right.enabled) {
     return (
@@ -73,18 +92,15 @@ export function compareChannelOrder(
       (right.unwatched ?? 0) - (left.unwatched ?? 0) ||
       byNewestVideo(left, right)
     );
+  } else if (sort === "newestUnwatched") {
+    return byNewestUnwatched(left, right);
   } else {
     return byNewestVideo(left, right);
   }
 }
 
-/** Channels in list order, given the items fetched for them and each one's unwatched count. */
-export function orderChannels(
-  channels: readonly Channel[],
-  items: Iterable<FeedItem>,
-  sort: ChannelSort = "newest",
-  unwatched: ReadonlyMap<string, number> = new Map(),
-): Channel[] {
+/** When each channel's newest item among `items` was published, by channel id. */
+function newestByChannel(items: Iterable<FeedItem>): Map<string, string> {
   const newest = new Map<string, string>();
   for (const item of items) {
     const prior = newest.get(item.channelId);
@@ -92,12 +108,33 @@ export function orderChannels(
       newest.set(item.channelId, item.publishedAt);
     }
   }
+  return newest;
+}
+
+/**
+ * Channels in list order, given the items fetched for them. `unwatched` is
+ * the unwatched items their counts count (`FeedController.unwatched`); the
+ * `unwatched` and `newestUnwatched` orders read it.
+ */
+export function orderChannels(
+  channels: readonly Channel[],
+  items: Iterable<FeedItem>,
+  sort: ChannelListOrder = "newest",
+  unwatched: readonly FeedItem[] = [],
+): Channel[] {
+  const newest = newestByChannel(items);
+  const newestUnwatched = newestByChannel(unwatched);
+  const counts = new Map<string, number>();
+  for (const item of unwatched) {
+    counts.set(item.channelId, (counts.get(item.channelId) ?? 0) + 1);
+  }
   const key = (channel: Channel): ChannelOrderKey => ({
     id: channel.channelId,
     title: channel.title,
     enabled: channel.filter.enabled,
     newest: newest.get(channel.channelId),
-    unwatched: unwatched.get(channel.channelId),
+    unwatched: counts.get(channel.channelId),
+    newestUnwatched: newestUnwatched.get(channel.channelId),
   });
   return channels.toSorted((left, right) =>
     compareChannelOrder(key(left), key(right), sort),

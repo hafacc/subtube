@@ -36,7 +36,12 @@
   const held = new HeldChannelOrder();
   const channels = $derived(
     held.arrange(
-      orderChannels(Array.from(feed.channels.values()), feed.items),
+      orderChannels(
+        Array.from(feed.channels.values()),
+        feed.items,
+        "newestUnwatched",
+        feed.unwatched,
+      ),
       JSON.stringify([whereabouts, feed.loadCount]),
     ),
   );

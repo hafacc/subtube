@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import fixture from "../../../shared/fixtures/channel-order.json";
 import {
+  type ChannelListOrder,
   type ChannelOrderKey,
-  type ChannelSort,
   compareChannelOrder,
   HeldChannelOrder,
   inHeldOrder,
@@ -17,7 +17,7 @@ describe("shared channel order fixtures", () => {
       const channels: ChannelOrderKey[] = testCase.channels;
       const sort = (
         "sort" in testCase ? testCase.sort : "newest"
-      ) as ChannelSort;
+      ) as ChannelListOrder;
       for (const given of [channels, channels.toReversed()]) {
         expect(
           given
@@ -90,16 +90,30 @@ describe("orderChannels", () => {
   test("orders by unwatched count, then by newest item", () => {
     const channels = [channel("UCa"), channel("UCb"), channel("UCc")];
     expect(
-      orderChannels(
-        channels,
-        items,
-        "unwatched",
-        new Map([
-          ["UCb", 4],
-          ["UCc", 4],
-        ]),
-      ).map(({ channelId }) => channelId),
+      orderChannels(channels, items, "unwatched", [
+        video("UCb", "talk", 5),
+        video("UCb", "talk", 4),
+        video("UCc", "live now", 8),
+        video("UCc", "live now", 1),
+      ]).map(({ channelId }) => channelId),
     ).toEqual(["UCc", "UCb", "UCa"]);
+  });
+
+  test("orders by newest unwatched item, then the rest by newest item", () => {
+    const channels = [
+      channel("UCa"),
+      channel("UCb"),
+      channel("UCc"),
+      channel("UCd"),
+      channel("UCe", { enabled: false }),
+    ];
+    expect(
+      orderChannels(channels, items, "newestUnwatched", [
+        video("UCa", "talk", 2),
+        video("UCb", "talk", 5),
+        video("UCb", "talk", 1),
+      ]).map(({ channelId }) => channelId),
+    ).toEqual(["UCb", "UCa", "UCd", "UCc", "UCe"]);
   });
 });
 

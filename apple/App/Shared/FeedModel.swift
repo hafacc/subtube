@@ -91,6 +91,9 @@ final class FeedModel {
   /// Each on channel's unwatched items that pass its filter, counted;
   /// channels with none are absent.
   private(set) var unwatchedByChannel: [String: Int] = [:]
+  /// The `publishedAt` of the newest of the items ``unwatchedByChannel``
+  /// counts, by channel id.
+  private var newestUnwatchedByChannel: [String: String] = [:]
   /// Became watched or unwatched here since the list was last rebuilt for
   /// good; these stay on screen whatever the watched chip lists.
   private var staying = Set<String>()
@@ -302,8 +305,9 @@ final class FeedModel {
         ChannelOrderEntry(
           id: channel.channelId, title: channel.title, enabled: channel.enabled,
           newest: newest[channel.channelId],
-          unwatched: unwatchedByChannel[channel.channelId] ?? 0)
-      }, sort: listSort)
+          unwatched: unwatchedByChannel[channel.channelId] ?? 0,
+          newestUnwatched: newestUnwatchedByChannel[channel.channelId])
+      }, sort: listOrder)
   }
 
   /// The channels the channel lists keep, nil for all of them. The Mac's
@@ -317,12 +321,13 @@ final class FeedModel {
     #endif
   }
 
-  /// The channel lists' order: the Mac's sidebar is always newest first.
-  private var listSort: ChannelSort {
+  /// The channel lists' order: the Mac's sidebar is always newest unwatched
+  /// first, whatever the phone apps' sort is.
+  private var listOrder: ChannelListOrder {
     #if os(macOS)
-      .newest
+      .newestUnwatched
     #else
-      settings.channelSort
+      settings.channelSort.order
     #endif
   }
 
@@ -396,10 +401,18 @@ final class FeedModel {
     shown = sortFeed(kept, by: settings.feedSort, seed: shuffleSeed)
     let listed = listedItems(items.values, filters: compiled, modes: modes)
     var counts: [String: Int] = [:]
+    var newestUnwatched: [String: String] = [:]
     for item in listed where !watched.contains(item.id) {
       counts[item.channelId, default: 0] += 1
+      if let known = newestUnwatched[item.channelId],
+        !known.utf8.lexicographicallyPrecedes(item.publishedAt.utf8)
+      {
+        continue
+      }
+      newestUnwatched[item.channelId] = item.publishedAt
     }
     unwatchedByChannel = counts
+    newestUnwatchedByChannel = newestUnwatched
     channelTopicChips = chipRow(listed, selected: settings.channelTopicChips)
     chipChannels = keptByBoth(
       groupKeptChannels(channelGroups, selected: settings.channelGroupChips),
