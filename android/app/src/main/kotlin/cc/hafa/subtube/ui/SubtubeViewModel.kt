@@ -43,7 +43,9 @@ import cc.hafa.subtube.core.Playlist
 import cc.hafa.subtube.core.Prefetch
 import cc.hafa.subtube.core.ProfileDeletedException
 import cc.hafa.subtube.core.ProgressUpload
+import cc.hafa.subtube.core.STARTING_WATCHED_MODE
 import cc.hafa.subtube.core.SettingName
+import cc.hafa.subtube.core.WATCHED_CHIP_MODES
 import cc.hafa.subtube.core.Settings
 import cc.hafa.subtube.core.ShortsFilter
 import cc.hafa.subtube.core.StartFrom
@@ -92,6 +94,7 @@ import cc.hafa.subtube.core.loadProgress
 import cc.hafa.subtube.core.markedEntry
 import cc.hafa.subtube.core.modeFiltered
 import cc.hafa.subtube.core.needsShorts
+import cc.hafa.subtube.core.menuNarrows
 import cc.hafa.subtube.core.newShuffleSeed
 import cc.hafa.subtube.core.newestFetched
 import cc.hafa.subtube.core.orderChannels
@@ -100,6 +103,9 @@ import cc.hafa.subtube.core.passingItems
 import cc.hafa.subtube.core.playedEntry
 import cc.hafa.subtube.core.progressFraction
 import cc.hafa.subtube.core.resumePosition
+import cc.hafa.subtube.core.shownSorts
+import cc.hafa.subtube.core.sortAfterPress
+import cc.hafa.subtube.core.sortChipOf
 import cc.hafa.subtube.core.sortFeed
 import cc.hafa.subtube.core.unwatchedPassing
 import cc.hafa.subtube.data.FileSyncStorage
@@ -257,7 +263,7 @@ data class DemoData(
     /** The synced settings the chips show. */
     val settings: Settings = Settings(),
     /** What the watched chip is on. */
-    val watchedMode: WatchedMode = WatchedMode.UNWATCHED,
+    val watchedMode: WatchedMode = STARTING_WATCHED_MODE,
     /** The first-run step to show; null skips first run. */
     val step: SetUpStep?,
     /** The back stack when first run is skipped. */
@@ -357,8 +363,19 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         private set
 
     /** Which of watched and unwatched entries the lists show; kept for this visit only. */
-    var watchedMode: WatchedMode by mutableStateOf(WatchedMode.UNWATCHED)
+    var watchedMode: WatchedMode by mutableStateOf(STARTING_WATCHED_MODE)
         private set
+
+    // the order each sort chip showed when another chip took over, by the chip's place in the row
+    private var lastShownSorts: Map<Int, FeedSort> by mutableStateOf(emptyMap())
+
+    /** The order each of the menu's sort chips shows, in row order. */
+    val sortChips: List<FeedSort>
+        get() = shownSorts(settings.feedSort, lastShownSorts)
+
+    /** Whether the menu's time or watched chip is off where it starts. */
+    val menuNarrows: Boolean
+        get() = menuNarrows(watchedMode, settings.timeChip)
 
     /** What the feed shows. */
     var feed: ShownList by mutableStateOf(ShownList())
@@ -517,8 +534,9 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     // became watched or unwatched since the lists were last rebuilt afresh; these stay on screen whatever the watched chip lists
     private var staying: Set<String> = emptySet()
 
-    // fixes the random order until the next full load
-    private var shuffleSeed: UInt = newShuffleSeed()
+    /** What fixes the random order, until the next full load or [reshuffle]. */
+    internal var shuffleSeed: UInt = newShuffleSeed()
+        private set
 
     // the time the time chips count back from
     private var chipClock: Long by mutableLongStateOf(System.currentTimeMillis())
@@ -589,7 +607,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         fetched = data.channels.mapTo(HashSet(), ChannelFilter::fetchKey)
         shortsListed = channels.keys
         settings = data.settings
-        watchedMode = data.watchedMode
+        watchedMode = data.watchedMode.takeIf { mode -> mode in WATCHED_CHIP_MODES } ?: STARTING_WATCHED_MODE
         applyWatched(data.items)
         backStack.clear()
         if (data.step != null) {
@@ -942,7 +960,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         loading = false
         loadFraction = null
         settings = Settings()
-        watchedMode = WatchedMode.UNWATCHED
+        watchedMode = STARTING_WATCHED_MODE
+        lastShownSorts = emptyMap()
         demoEntries = emptyMap()
         error = null
         deleteError = null
@@ -1162,6 +1181,28 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     /** Choose the feed's order. */
     fun setFeedSort(sort: FeedSort) {
         changeSetting(settings.copy(feedSort = sort), SettingName.FEED_SORT, JsonPrimitive(sort.wire))
+    }
+
+    /**
+     * The menu's sort chip at [index] was pressed: an unselected one is chosen
+     * in the direction it last showed, the selected one turns round, and
+     * Random, which has no other direction, shuffles again.
+     */
+    fun pressSortChip(index: Int) {
+        val sort = settings.feedSort
+        val next = sortAfterPress(index, sort, lastShownSorts)
+        if (next == sort) {
+            reshuffle()
+        } else {
+            lastShownSorts = lastShownSorts + (sortChipOf(sort) to sort)
+            setFeedSort(next)
+        }
+    }
+
+    /** Put the random order in another random order. */
+    fun reshuffle() {
+        shuffleSeed = newShuffleSeed()
+        recompute()
     }
 
     /** Choose the channel list's order. */

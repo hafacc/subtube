@@ -3,12 +3,9 @@
   import { onMount, untrack } from "svelte";
   import { prefersReducedMotion } from "svelte/motion";
   import { fade } from "svelte/transition";
-  import { AUTOPLAY_OPTIONS } from "../lib/autoplay";
-  import { TIME_CHIP_OPTIONS } from "../lib/chips";
   import { videoCount } from "../lib/duration";
   import { FeedController } from "../lib/feed.svelte";
   import { feedItemId } from "../lib/feed-item";
-  import { FEED_SORT_OPTIONS } from "../lib/feed-order";
   import { chipTitle } from "../lib/groups";
   import { MINIMIZED_ROOM } from "../lib/player";
   import { PlayerController } from "../lib/player.svelte";
@@ -17,14 +14,13 @@
   import { readText, writeText } from "../lib/storage";
   import type { SyncStore } from "../lib/sync-store";
   import { cycleTheme, readTheme, type Theme } from "../lib/theme";
-  import { WATCHED_MODE_OPTIONS } from "../lib/watched-mode";
   import Avatar from "./Avatar.svelte";
   import ChannelSidebar from "./ChannelSidebar.svelte";
   import ChipRow from "./ChipRow.svelte";
-  import CycleChip from "./CycleChip.svelte";
   import FeedCard from "./FeedCard.svelte";
   import FeedCardSkeleton from "./FeedCardSkeleton.svelte";
   import FilterEditor from "./FilterEditor.svelte";
+  import FilterMenu from "./FilterMenu.svelte";
   import GroupEditor from "./GroupEditor.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
   import LoadBar from "./LoadBar.svelte";
@@ -416,32 +412,8 @@
       selected={feed.settings.topicChips}
       ontopic={(categoryId) => feed.toggleTopicChip(categoryId)}
     >
-      {#snippet leading()}
-        <CycleChip
-          label="Playback"
-          options={AUTOPLAY_OPTIONS}
-          value={feed.settings.autoplay ? "on" : "off"}
-          onchange={(autoplay) =>
-            feed.setSetting("autoplay", autoplay === "on")}
-        />
-        <CycleChip
-          label="Sort"
-          options={FEED_SORT_OPTIONS}
-          value={feed.settings.feedSort}
-          onchange={(feedSort) => feed.setSetting("feedSort", feedSort)}
-        />
-        <CycleChip
-          label="Time"
-          options={TIME_CHIP_OPTIONS}
-          value={feed.settings.timeChip}
-          onchange={(timeChip) => feed.setSetting("timeChip", timeChip)}
-        />
-        <CycleChip
-          label="Show"
-          options={WATCHED_MODE_OPTIONS}
-          value={feed.watchedMode}
-          onchange={(mode) => feed.setWatchedMode(mode)}
-        />
+      {#snippet menu()}
+        <FilterMenu {feed} />
       {/snippet}
     </ChipRow>
 

@@ -1,5 +1,5 @@
 {
-  "description": "Reading the synced settings. `settings` is the merged view's `settings` map (shared/fixtures/merge.json); `expected` is what the client acts on. `feedSort`: one of newest (default), shortest, title, random (shared/fixtures/feed-order.json); oldest and longest, which older versions saved, read as the default like any other unknown value. `channelSort`: one of newest (default), name, unwatched (shared/fixtures/channel-order.json). `autoplay`: a boolean, default false. `timeChip`: one of none (default), day, week, month (shared/fixtures/feed-chips.json). `topicChips`: an array of strings, the selected topic chips' YouTube video category ids (shared/fixtures/feed-chips.json), default []; it is read as written, with no sorting or de-duplication, and ids that are in no table are kept here (the chips ignore them). `channelTimeChip` and `channelTopicChips`: the channel list's own time chip and topic chips (shared/fixtures/channel-chips.json), read exactly as `timeChip` and `topicChips` are and independent of them. `groupChips` and `channelGroupChips`: the selected group chips' names for the feed's row and for the channel list's row (shared/fixtures/groups.json), each an array of strings, default [], independent of each other; like the topic settings they are read as written, with no sorting, trimming or de-duplication, and names that are no existing group are kept here (the chips ignore them). A setting that is missing, or whose value is anything else (another string, another type, an array holding a non-string), reads as its default; the entry itself stays in the file untouched. Names not listed here are ignored. A change writes `{at: now, value}` under the setting's name in the device's own file, keeping any unknown fields the entry had.",
+  "description": "Reading the synced settings. `settings` is the merged view's `settings` map (shared/fixtures/merge.json); `expected` is what the client acts on. `feedSort`: one of newest (default), oldest, shortest, longest, title, titleReversed, random (shared/fixtures/feed-order.json). `channelSort`: one of newest (default), name, unwatched (shared/fixtures/channel-order.json). `autoplay`: a boolean, default false. `timeChip`: one of none (default), day, week, month (shared/fixtures/feed-chips.json). `topicChips`: an array of strings, the selected topic chips' YouTube video category ids (shared/fixtures/feed-chips.json), default []; it is read as written, with no sorting or de-duplication, and ids that are in no table are kept here (the chips ignore them). `channelTimeChip` and `channelTopicChips`: the channel list's own time chip and topic chips (shared/fixtures/channel-chips.json), read exactly as `timeChip` and `topicChips` are and independent of them. `groupChips` and `channelGroupChips`: the selected group chips' names for the feed's row and for the channel list's row (shared/fixtures/groups.json), each an array of strings, default [], independent of each other; like the topic settings they are read as written, with no sorting, trimming or de-duplication, and names that are no existing group are kept here (the chips ignore them). A setting that is missing, or whose value is anything else (another string, another type, an array holding a non-string), reads as its default; the entry itself stays in the file untouched. Names not listed here are ignored. A change writes `{at: now, value}` under the setting's name in the device's own file, keeping any unknown fields the entry had.",
   "cases": [
     {
       "name": "no settings: every default",
@@ -89,7 +89,7 @@
       }
     },
     {
-      "name": "feed sort oldest, saved by an older version, reads as the default",
+      "name": "feed sort oldest",
       "settings": {
         "feedSort": {
           "at": 1759500000000,
@@ -97,7 +97,7 @@
         }
       },
       "expected": {
-        "feedSort": "newest",
+        "feedSort": "oldest",
         "channelSort": "newest",
         "autoplay": false,
         "timeChip": "none",
@@ -129,6 +129,26 @@
       }
     },
     {
+      "name": "feed sort titleReversed",
+      "settings": {
+        "feedSort": {
+          "at": 1759500000000,
+          "value": "titleReversed"
+        }
+      },
+      "expected": {
+        "feedSort": "titleReversed",
+        "channelSort": "newest",
+        "autoplay": false,
+        "timeChip": "none",
+        "topicChips": [],
+        "channelTimeChip": "none",
+        "channelTopicChips": [],
+        "groupChips": [],
+        "channelGroupChips": []
+      }
+    },
+    {
       "name": "feed sort shortest",
       "settings": {
         "feedSort": {
@@ -149,7 +169,7 @@
       }
     },
     {
-      "name": "feed sort longest, saved by an older version, reads as the default",
+      "name": "feed sort longest",
       "settings": {
         "feedSort": {
           "at": 1759500000000,
@@ -157,7 +177,7 @@
         }
       },
       "expected": {
-        "feedSort": "newest",
+        "feedSort": "longest",
         "channelSort": "newest",
         "autoplay": false,
         "timeChip": "none",

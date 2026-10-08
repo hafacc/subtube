@@ -299,10 +299,20 @@ button:disabled {
   background: var(--surface);
 }
 
-.chip[aria-pressed="true"] {
+.chip[aria-pressed="true"],
+.chip.filled {
   background: var(--sunflower);
   border-color: var(--sunflower);
   color: var(--ink);
+}
+
+/* a chip that is only an icon */
+.chip.round {
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
 }
 
 /* inset, so the focus ring isn't clipped by a scrolling row */

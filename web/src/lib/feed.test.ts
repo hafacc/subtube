@@ -343,6 +343,24 @@ describe("FeedController settings", () => {
     feed.setSetting("autoplay", true);
     expect(shown(feed)).toEqual(order);
   });
+
+  test("a reshuffle puts the random order in another order", () => {
+    const { feed } = loaded([], null);
+    feed.setSetting("feedSort", "random");
+    const orders = new Set<string>();
+    for (let round = 0; round < 50; round += 1) {
+      feed.reshuffle();
+      orders.add(shown(feed).join());
+    }
+    expect(orders.size).toBeGreaterThan(1);
+  });
+
+  test("a reversed order is applied and saved", () => {
+    const { feed, synced } = loaded([], null);
+    feed.setSetting("feedSort", "titleReversed");
+    expect(shown(feed)).toEqual(["b5", "a7", "a3", "a1"]);
+    expect(synced.feedSort.value).toBe("titleReversed");
+  });
 });
 
 describe("FeedController chips", () => {

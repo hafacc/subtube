@@ -89,6 +89,12 @@ object SubtubeIcons {
         "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
     )
 
+    /** The feed's sort and filter menu: three sliders. */
+    val Sliders: ImageVector = strokeIcon(
+        "Sliders",
+        "M21 4h-7", "M10 4H3", "M21 12h-9", "M8 12H3", "M21 20h-5", "M12 20H3", "M14 2v4", "M8 10v4", "M16 18v4",
+    )
+
     /** A new group. */
     val Add: ImageVector = strokeIcon("Add", "M12 5v14", "M5 12h14")
 

@@ -109,7 +109,7 @@ struct ItemCard: View {
             }
             .overlay(alignment: .bottomLeading) {
               if watched {
-                ThumbnailBadge { Text(Strings.watchedBadge) }.padding(6)
+                ThumbnailBadge { Text(Strings.watched) }.padding(6)
               }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -122,7 +122,7 @@ struct ItemCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Strings.play(item.title))
-        .accessibilityValue(watched ? Strings.watchedBadge : "")
+        .accessibilityValue(watched ? Strings.watched : "")
         .overlay(alignment: .bottom) {
           if session == nil {
             watchedControl

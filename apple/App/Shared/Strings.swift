@@ -22,7 +22,7 @@ enum Strings {
   // COPY-DRAFT
   static let hideChannels = String(localized: "Hide Channels")
   static let shortBadge = String(localized: "Short")
-  static let watchedBadge = String(localized: "Watched")
+  static let watched = String(localized: "Watched")
   static let noChannelSelected = String(localized: "Select a channel to edit its filters.")
   static let noMatches = String(localized: "Nothing new. You're caught up.")
   static let noVideosForFilter = String(localized: "No videos for the selected filter.")
@@ -67,19 +67,21 @@ enum Strings {
 
   static let player = String(localized: "Player")
 
-  static func autoplayOption(_ autoplay: Bool) -> String {
-    if autoplay {
-      String(localized: "Auto-play")
-    } else {
-      String(localized: "Play one")
-    }
-  }
+  static let autoplay = String(localized: "Auto-play")
+  #if os(macOS)
+    static let sortAndFilter = String(localized: "Sort and Filter")
+  #else
+    static let sortAndFilter = String(localized: "Sort and filter")
+  #endif
 
   static func feedSortOption(_ sort: FeedSort) -> String {
     switch sort {
     case .newest: latest
+    case .oldest: String(localized: "Oldest")
     case .shortest: String(localized: "Shortest")
-    case .title: title
+    case .longest: String(localized: "Longest")
+    case .title: String(localized: "Title A–Z")
+    case .titleReversed: String(localized: "Title Z–A")
     case .random: String(localized: "Random")
     }
   }
@@ -94,14 +96,6 @@ enum Strings {
     case .day: pastDay
     case .week: pastWeek
     case .month: String(localized: "Past month")
-    }
-  }
-
-  static func watchedModeOption(_ mode: WatchedMode) -> String {
-    switch mode {
-    case .unwatched: unwatched
-    case .watched: String(localized: "Watched")
-    case .all: String(localized: "All")
     }
   }
 
@@ -238,7 +232,6 @@ enum Strings {
     }
   }
 
-  static let chipPlayback = String(localized: "Playback")
   static let chipSort = String(localized: "Sort")
   static let chipTime = String(localized: "Time")
   static let chipShow = String(localized: "Show")

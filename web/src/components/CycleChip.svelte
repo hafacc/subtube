@@ -3,6 +3,8 @@
     label,
     options,
     value,
+    pressed = undefined,
+    filled = false,
     onchange,
   }: {
     /** what the chip sets, read out before the current choice */
@@ -11,7 +13,11 @@
     options: readonly { value: Value; label: string }[];
     /** the current one, whose label the chip shows */
     value: Value;
-    /** called with the next choice when the chip is pressed */
+    /** whether a chip that is one of a set is the selected one; leave out for a chip that only cycles */
+    pressed?: boolean;
+    /** whether a chip that only cycles is drawn as selected */
+    filled?: boolean;
+    /** called on a press with the next choice, or with the current one by a chip that was not `pressed` */
     onchange: (value: Value) => void;
   } = $props();
 
@@ -28,8 +34,10 @@
 <button
   type="button"
   class="chip cycle"
+  class:filled={filled}
   aria-label={`${label}: ${current}`}
-  onclick={() => onchange(next())}
+  aria-pressed={pressed}
+  onclick={() => onchange(pressed === false ? value : next())}
 >
   {#each options as option (option.value)}
     <span

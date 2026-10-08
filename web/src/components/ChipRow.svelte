@@ -5,7 +5,7 @@
   import Icon from "./Icon.svelte";
 
   let {
-    leading,
+    menu,
     groups = [],
     selectedGroups = [],
     ongroup = () => undefined,
@@ -14,8 +14,8 @@
     selected,
     ontopic,
   }: {
-    /** the chips before the divider */
-    leading: Snippet;
+    /** what stands before the chips and stays put while they scroll */
+    menu: Snippet;
     /** the group chips' names, in order */
     groups?: readonly string[];
     /** the selected groups' names */
@@ -60,6 +60,9 @@
 </script>
 
 <div class="chip-row">
+  <div class="menu">
+    {@render menu()}
+  </div>
   <div
     class="chips"
     class:hidden-before={hiddenBefore}
@@ -67,14 +70,13 @@
     bind:this={scroller}
     onscroll={measure}
   >
-    {@render leading()}
     {#if onnewgroup || groups.length > 0 || topics.length > 0}
       <span class="divider" aria-hidden="true"></span>
     {/if}
     {#if onnewgroup}
       <button
         type="button"
-        class="chip new-group"
+        class="chip round"
         aria-label="New group"
         title="New group"
         onclick={onnewgroup}
@@ -103,19 +105,31 @@
 </div>
 
 <style>
+  /* what the menu's drop-down is placed against */
   .chip-row {
+    position: relative;
     flex-shrink: 0;
     min-width: 0;
+    display: flex;
+    align-items: center;
     border-bottom: 1px solid var(--border);
+  }
+
+  .menu {
+    flex-shrink: 0;
+    display: flex;
+    padding: 8px 0 8px 16px;
   }
 
   .chips {
     --fade-before: 0px;
     --fade-after: 0px;
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 16px;
+    padding: 8px 16px 8px 8px;
     overflow-x: auto;
     scrollbar-width: none;
     mask-image: linear-gradient(
@@ -133,14 +147,6 @@
 
   .chips.hidden-after {
     --fade-after: 40px;
-  }
-
-  .new-group {
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border-radius: 50%;
   }
 
   .divider {

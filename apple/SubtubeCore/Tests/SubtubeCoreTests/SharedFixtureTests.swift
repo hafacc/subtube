@@ -353,6 +353,34 @@ private func channelGroups(_ testCase: JSONObject) -> [String: [String]] {
   }
 }
 
+@Suite struct SortChipTests {
+  @Test func everyOrderIsOnOneChip() {
+    #expect(feedSortChips.flatMap { $0 }.sorted { $0.rawValue < $1.rawValue }
+      == FeedSort.allCases.sorted { $0.rawValue < $1.rawValue })
+    for chip in feedSortChips {
+      #expect(chip.first?.forward == nil)
+      #expect(chip.dropFirst().allSatisfy { $0.forward == chip.first })
+    }
+  }
+
+  @Test func anUnselectedChipIsChosenAsItShows() {
+    #expect(sortChipPress(shown: .longest, current: .newest) == .choose(.longest))
+    #expect(sortChipPress(shown: .title, current: .oldest) == .choose(.title))
+    #expect(sortChipPress(shown: .random, current: .titleReversed) == .choose(.random))
+  }
+
+  @Test func theSelectedChipTurnsRound() {
+    #expect(sortChipPress(shown: .newest, current: .newest) == .choose(.oldest))
+    #expect(sortChipPress(shown: .oldest, current: .oldest) == .choose(.newest))
+    #expect(sortChipPress(shown: .shortest, current: .shortest) == .choose(.longest))
+    #expect(sortChipPress(shown: .titleReversed, current: .titleReversed) == .choose(.title))
+  }
+
+  @Test func randomReshuffles() {
+    #expect(sortChipPress(shown: .random, current: .random) == .reshuffle)
+  }
+}
+
 @Suite struct SharedChannelOrderTests {
   @Test func channelOrder() throws {
     let all = try cases("channel-order")
