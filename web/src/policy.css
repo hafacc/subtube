@@ -11,9 +11,9 @@
 }
 
 /* as Logo.svelte: the hull (0.518 of the square drawing's height, 0.74 of its
-   width) is as tall as the name's 22px line, and only the hull takes up room */
+   width) is four fifths of the name's 22px line, and only the hull takes up room */
 .policy-header img {
-  --hull: 22px;
+  --hull: 17.6px;
   --drawing: calc(var(--hull) / 0.518);
   flex-shrink: 0;
   width: var(--drawing);

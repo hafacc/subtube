@@ -68,7 +68,7 @@
 
 <div class="page">
   <div class="body">
-    <div class="wordmark"><Logo hull={36} /> SubTube</div>
+    <div class="wordmark"><Logo hull={28.8} /> SubTube</div>
     <h1>{offer.heading}</h1>
     <p class="lead">{offer.body}</p>
     {#if offer.url}
