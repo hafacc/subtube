@@ -485,18 +485,26 @@ struct NoChannelsForFilter: View {
 /// Lays its subviews out in rows, starting a new row when one is full.
 struct FlowLayout: Layout {
   var spacing: CGFloat = 6
+  /// The least width of the last subview, which then takes the rest of its
+  /// row; nil lays it out like the others.
+  var trailingFill: CGFloat?
 
   private func rows(_ subviews: Subviews, width: CGFloat) -> [[(index: Int, size: CGSize)]] {
     var rows: [[(index: Int, size: CGSize)]] = [[]]
     var used: CGFloat = 0
     for (index, subview) in subviews.enumerated() {
+      let fill = index == subviews.count - 1 ? trailingFill : nil
       let ideal = subview.sizeThatFits(.unspecified)
-      let size = CGSize(width: min(ideal.width, width), height: ideal.height)
+      var size = CGSize(width: min(fill ?? ideal.width, width), height: ideal.height)
       if let last = rows.last, !last.isEmpty, used + spacing + size.width > width {
         rows.append([])
         used = 0
       }
-      used += (rows[rows.count - 1].isEmpty ? 0 : spacing) + size.width
+      let gap = rows[rows.count - 1].isEmpty ? 0 : spacing
+      if fill != nil && width.isFinite {
+        size.width = width - used - gap
+      }
+      used += gap + size.width
       rows[rows.count - 1].append((index, size))
     }
     return rows
