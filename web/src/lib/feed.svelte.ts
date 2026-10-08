@@ -32,6 +32,7 @@ import type {
 } from "./types";
 import {
   autoplayAdvances,
+  DEFAULT_WATCHED_MODE,
   emptiedBySelection,
   modeFiltered,
   type WatchedMode,
@@ -470,7 +471,7 @@ export class FeedController {
   /** a load that only partly worked */
   notice: string | null = $state(null);
   /** which of watched and unwatched items the page lists; kept for this visit only */
-  watchedMode: WatchedMode = $state("unwatched");
+  watchedMode: WatchedMode = $state(DEFAULT_WATCHED_MODE);
   /** the synced settings, as of the last load plus changes made here since */
   settings: Settings = $state.raw(readSettings({}));
   /** a channel page's items, for a channel the feed doesn't load */
@@ -490,7 +491,7 @@ export class FeedController {
   // the content modes each channel's items have been fetched in
   private fetchedModes = new Map<string, Set<ContentMode | "shorts">>();
   private loadInFlight = false;
-  // fixes the random order until the next full load
+  // fixes the random order until the next full load or reshuffle
   private shuffleSeed = $state(newShuffleSeed());
   // the time the time chips count back from
   private chipClock = $state(Date.now());
@@ -660,6 +661,11 @@ export class FeedController {
       this.settings.topicChips,
       this.groupChannels !== null,
     );
+  }
+
+  /** Put the random order in another random order. */
+  reshuffle(): void {
+    this.shuffleSeed = newShuffleSeed();
   }
 
   /** List unwatched items, watched ones, or both. */

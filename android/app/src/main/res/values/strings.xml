@@ -7,11 +7,13 @@
     <string name="app_name" translatable="false">SubTube</string>
     <string name="tab_feed">Feed</string>
     <string name="back">Back</string>
-    <string name="autoplay_off">Play one</string>
     <string name="autoplay">Auto-play</string>
     <string name="sort_latest">Latest</string>
     <string name="sort_shortest">Shortest</string>
-    <string name="sort_title">Title</string>
+    <string name="sort_oldest">Oldest</string>
+    <string name="sort_longest">Longest</string>
+    <string name="sort_title">Title A–Z</string>
+    <string name="sort_title_reversed">Title Z–A</string>
     <string name="sort_random">Random</string>
     <string name="time_all">All time</string>
     <string name="time_day">Past day</string>
@@ -19,7 +21,6 @@
     <string name="time_month">Past month</string>
     <string name="watched_unwatched">Unwatched</string>
     <string name="watched_watched">Watched</string>
-    <string name="watched_all">All</string>
     <string name="badge_short">Short</string>
     <string name="badge_watched">Watched</string>
     <string name="play_item">Play %1$s</string>
@@ -28,10 +29,10 @@
     <string name="clear">Clear</string>
     <!-- A cycling chip's name for a screen reader: %1$s is what it sets, %2$s its current choice -->
     <string name="chip_setting">%1$s: %2$s</string>
-    <string name="chip_playback">Playback</string>
     <string name="chip_sort">Sort</string>
     <string name="chip_time">Time</string>
     <string name="chip_show">Show</string>
+    <string name="sort_and_filter">Sort and filter</string>
     <string name="remove_phrase">Remove %1$s</string>
     <string name="new_group">New group</string>
     <string name="edit_group">Edit group</string>

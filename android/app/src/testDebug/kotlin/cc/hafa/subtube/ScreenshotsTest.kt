@@ -96,6 +96,10 @@ class ScreenshotsTest {
         }
     }
 
+    private fun openMenu() {
+        compose.onNodeWithContentDescription(app.getString(R.string.sort_and_filter)).performClick()
+    }
+
     private fun openFilters() {
         compose.onNodeWithContentDescription(app.getString(R.string.filters)).performClick()
     }
@@ -114,17 +118,24 @@ class ScreenshotsTest {
     fun feed() {
         val chosen = Settings(autoplay = true, feedSort = FeedSort.SHORTEST, topicChips = listOf("26"))
         capture("08-feed", demoData())
-        capture("09-feed-all-with-chips-selected", demoData(watchedMode = WatchedMode.ALL, settings = chosen))
+        capture("09-feed-with-chips-selected", demoData(settings = chosen))
         capture("10-feed-nothing-for-selection", demoData(settings = Settings(topicChips = listOf("10"))))
-        capture("18-dark-feed", demoData(watchedMode = WatchedMode.ALL, settings = chosen), dark = true)
-        capture("31-feed-chips-scrolled-to-topics", demoData(watchedMode = WatchedMode.ALL, settings = chosen)) {
+        capture("18-dark-feed", demoData(settings = chosen), dark = true)
+        capture("31-feed-chips-scrolled-to-topics", demoData(settings = chosen)) {
             chip("Howto & Style").performScrollTo()
         }
+        capture("49-feed-menu", demoData(), act = ::openMenu)
+        capture("50-feed-menu-with-choices", demoData(watchedMode = WatchedMode.WATCHED, settings = Settings(autoplay = true, feedSort = FeedSort.SHORTEST, timeChip = TimeChip.WEEK))) {
+            openMenu()
+            compose.onNodeWithContentDescription("Sort: Shortest").performClick()
+        }
+        capture("51-dark-feed-menu", demoData(), dark = true, act = ::openMenu)
+        capture("52-feed-menu-narrow-screen", demoData(), screen = NARROW_PHONE, act = ::openMenu)
         capture("46-feed-card-marked-watched", demoData()) {
             compose.onAllNodesWithContentDescription(app.getString(R.string.mark_watched))[0].performClick()
         }
         capture("47-feed-card-swiped", demoData()) { holdFirstCardSwiped(0.4f) }
-        capture("48-dark-feed-card-swiped-back", demoData(watchedMode = WatchedMode.ALL), dark = true) { holdFirstCardSwiped(-0.4f) }
+        capture("48-dark-feed-card-swiped-back", demoData(watchedMode = WatchedMode.WATCHED), dark = true) { holdFirstCardSwiped(-0.4f) }
         capture("26-feed-short", demoData(settings = Settings(topicChips = listOf("27"))))
         capture("27-dark-feed-short", demoData(settings = Settings(topicChips = listOf("27"))), dark = true)
     }

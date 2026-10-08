@@ -3,6 +3,8 @@ import fixture from "../../../shared/fixtures/feed-order.json";
 import { feedItemId } from "./feed-item";
 import {
   byNewest,
+  FEED_SORT_CHIPS,
+  FEED_SORTS,
   type FeedSort,
   newShuffleSeed,
   shuffleKey,
@@ -78,6 +80,24 @@ describe("sortFeed", () => {
   test("leaves the list it was given as it was", () => {
     sortFeed(items, "title", 0);
     expect(items.map(feedItemId)).toEqual(["c", "a", "b"]);
+  });
+
+  test("every order is on one sort chip, the forward one first", () => {
+    expect(FEED_SORTS).toEqual([
+      "newest",
+      "oldest",
+      "shortest",
+      "longest",
+      "title",
+      "titleReversed",
+      "random",
+    ]);
+    expect(FEED_SORT_CHIPS.map((options) => options[0].label)).toEqual([
+      "Latest",
+      "Shortest",
+      "Title A–Z",
+      "Random",
+    ]);
   });
 
   test("a seed is a whole number below 2^32", () => {

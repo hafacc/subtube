@@ -48,11 +48,10 @@ describe("modeFiltered", () => {
 });
 
 describe("the watched chip", () => {
-  test("moves from Unwatched to Watched to All", () => {
+  test("moves between Unwatched and Watched", () => {
     expect(WATCHED_MODE_OPTIONS.map((option) => option.label)).toEqual([
       "Unwatched",
       "Watched",
-      "All",
     ]);
   });
 

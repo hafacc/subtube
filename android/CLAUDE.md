@@ -125,14 +125,24 @@ every client shares is in `../shared/`.
     `settings()` / `setSetting(name, value)`. `DeviceFile.settings` is null
     for a file without the section, which is then written back without it;
     the merged view always has one.
-  - `FeedOrder.kt` — `sortFeed`: the feed's four orders (`FeedSort`: newest,
-    shortest, title, random, as the sort chip cycles), every
-    one ending in `byNewest` (newest first, equal times by id). Random sorts
+  - `FeedOrder.kt` — `sortFeed`: the feed's seven orders (`FeedSort`:
+    newest, shortest and title, the reverse of each — `oldest`, `longest`,
+    `titleReversed` — and random), every one ending in `byNewest` (newest
+    first, equal times by id); a reversed order turns only its first key
+    round, and entries without a length stay last. Random sorts
     by `shuffleKey`, an FNV-1a hash of seed and id (`newShuffleSeed` picks a
-    seed; the view model picks one at each full load).
+    seed; the view model picks one at each full load and each asked-for
+    shuffle). The menu's sort chips: `FEED_SORT_CHIPS` pairs each order with
+    its reverse, `sortChipOf`, `shownSorts` (what each chip shows) and
+    `sortAfterPress` (an unselected chip in the direction it last showed,
+    the selected one turned round, Random itself again).
   - `WatchedMode.kt` — the watched chip: `modeFiltered` (Unwatched / Watched
     / All, plus the entries that changed sides on screen), `autoplayAdvances`
     (not in Watched), `emptiedBySelection` (which empty text a page shows).
+    The chip offers only Unwatched and Watched (`WATCHED_CHIP_MODES`): All
+    is kept for the shared fixtures and nothing in the app reaches it.
+    `STARTING_WATCHED_MODE` is Unwatched, and `menuNarrows` is whether the
+    time or watched chip is off where it starts.
   - `ChannelOrder.kt` — `orderChannels` by `ChannelSort`. Newest (the
     default): on with something fetched by newest fetched item
     (`newestFetched`), then on with nothing fetched; filters and watched
@@ -221,7 +231,12 @@ every client shares is in `../shared/`.
     topic or group chips (a group saved or deleted only when it changes the
     feed's selected groups) or a channel's page opening or closing; the
     sort, the tabs and single-channel fetches leave it. `settings`
-    are the synced ones, re-read after every load; `setAutoplay`,
+    are the synced ones, re-read after every load. `pressSortChip(index)` is
+    a press on one of the menu's sort chips (`sortChips` is what each
+    shows; the direction a chip last showed is kept for the visit, not
+    synced): it sets `feedSort`, or for Random pressed while selected calls
+    `reshuffle` (a new seed). `menuNarrows` is whether the menu's button is
+    drawn selected. `FilterMenuTest` covers these. `setAutoplay`,
     `setFeedSort`, `setChannelSort`, `setTimeChip`, `toggleTopicChip`,
     `clearTopicChips`, `toggleGroupChip`, `clearFeedChips`,
     `setChannelTimeChip`, `toggleChannelTopicChip`, `toggleChannelGroupChip`,
@@ -371,17 +386,32 @@ every client shares is in `../shared/`.
   - `ui/ChipRow.kt` — `Chip` (a toggle, or a removable phrase, which
     TalkBack names "Remove {phrase}") and
     `CycleChip` (shows the current choice, a press moves to the next; as wide
-    as its widest label; TalkBack names it by what it sets and its choice:
-    "Playback: Play one", "Sort: Latest", "Time: All time", "Show: Unwatched"), the same box selected or not, `AutoplayChip`
-    (a `CycleChip` over the `autoplay` setting: "Play one" when off, the
-    default, "Auto-play" when on; never drawn selected; private to this
-    file), `ChipRow` (the row both lists use: its leading chips; with
+    as its widest label, its labels fading over 0.15 s; drawn selected only
+    when told to; TalkBack names it by what it sets and its choice:
+    "Sort: Latest", "Time: All time", "Show: Unwatched"), the same box selected or not, its
+    colors running over 0.15 s unless animation is off (`chipColors`),
+    `RoundChip` (an icon-only one: + "New group", and the menu's),
+    `ChipRow` (the row both lists use, scrolling sideways and fading out
+    over 40dp at a side that has chips beyond it, `fadingScrollEdges`: its
+    leading chips, which only the channels tab has; with
     `GroupChips`, given once a load has been shown and never on a channel's
     page, a divider, the round + "New group" chip and the group chips; then,
     when there are topic chips, a divider and the topic chips) and
-    `FeedChipRow`: auto-play, sort, time, watched, then the groups and topics;
-    it scrolls sideways and fades out over 40dp at a side that has chips
-    beyond it (`fadingScrollEdges`). `ChipTitleText` is a top bar's title
+    `FeedChipRow`: the menu's button, which stays put, then the scrolling
+    groups and topics. **The menu** (`FilterMenu`, private to this file, the
+    same on the feed and a channel's page): a round chip with
+    `SubtubeIcons.Sliders`, named "Sort and filter" (also its long-press
+    tooltip), drawn selected while `menuNarrows`; it opens a Material
+    `DropdownMenu` under it that stays open while its chips are pressed and
+    closes on a press outside or Back. First row: "Auto-play", a toggle;
+    the time chip, selected off "All time"; the watched chip, which
+    switches between "Unwatched" and "Watched" only and is selected on
+    "Watched". Under a line, one chip per entry of `FEED_SORT_CHIPS`, the
+    selected one being the feed's sort, each pressed through
+    `pressSortChip`: "Latest" / "Oldest", "Shortest" / "Longest",
+    "Title A–Z" / "Title Z–A", and "Random". A sort chip holds both its
+    labels, so it never changes width, and tells TalkBack whether it is the
+    selected one. Both rows wrap on a narrow screen. `ChipTitleText` is a top bar's title
     while its row has a group or topic selected (the names joined with ", ",
     one line) and `ChipTitleActions` the actions that go with it: the pencil
     "Edit group" with exactly one group selected, and × "Clear", each
@@ -542,7 +572,8 @@ player in the corner) or `setup` (with `step` = `intro`,
 `sign_in`, `channels`, `shorts`, `start`, `done`). `--es loading first` or
 `reload` shows a load running (skeleton cards, or the feed greyed out, with
 the load bar at 3 channels of 7);
-`--es watched all` sets the watched chip. Channels One, Three and Five are
+`--es watched watched` sets the watched chip (an `all` there starts on
+Unwatched). Channels One, Three and Five are
 in the group "Woodworking", Two and Six in "Evenings". The filter sheet, the
 group editor and the delete confirmation are opened by tapping. The player still asks
 YouTube for the made-up video id.
@@ -553,10 +584,10 @@ YouTube for the made-up video id.
 `MainActivity` under Robolectric, gives it `demoData(…)` and saves each
 screen as a PNG with Roborazzi (both test-only dependencies; JUnit 4 and
 Compose's `ui-test-junit4` come with them). Phone-sized (411×914dp at 420dpi),
-light, plus some dark ones, the channels tab with a time and a topic chip chosen (Past month, so it empties once the demo's dates are over 30 days old) and with nothing for the selection, the feed's chip row scrolled to its topic chips, the group screens (a group selected in each list, a group and a topic, both editors), the player (in its card, and in the corner with and without the frame, over another tab, and on a 360dp-wide screen), a one-card feed (so the line at the end of the list shows), a card held part-way through a swipe each way and the loading states (first load, and reload in light and dark; taken with the test
+light, plus some dark ones, the channels tab with a time and a topic chip chosen (Past month, so it empties once the demo's dates are over 30 days old) and with nothing for the selection, the feed's chip row scrolled to its topic chips, the "Sort and filter" menu open (light, dark, with choices made, and on a 360dp-wide screen), the group screens (a group selected in each list, a group and a topic, both editors), the player (in its card, and in the corner with and without the frame, over another tab, and on a 360dp-wide screen), a one-card feed (so the line at the end of the list shows), a card held part-way through a swipe each way and the loading states (first load, and reload in light and dark; taken with the test
 clock stopped part-way through a shimmer sweep). The web view
-comes out black. `PlayerFlowTest`, `PlayerPageTest`, `PlayerLayoutTest` and
-`MarkWatchedTest` run in the same task.
+comes out black. `PlayerFlowTest`, `PlayerPageTest`, `PlayerLayoutTest`,
+`MarkWatchedTest` and `FilterMenuTest` run in the same task.
 
 ```sh
 ./gradlew :app:testDebugUnitTest -Pscreenshots=/some/folder

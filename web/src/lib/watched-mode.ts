@@ -5,11 +5,13 @@ import type { FeedItem } from "./types";
 /** Which of watched and unwatched items a page lists. */
 export type WatchedMode = "unwatched" | "watched" | "all";
 
-/** The watched modes, in the order their chip moves through them. */
+/** The mode a visit starts in. */
+export const DEFAULT_WATCHED_MODE: WatchedMode = "unwatched";
+
+/** The watched modes a chip offers, in the order it moves through them; "all" has no chip. */
 export const WATCHED_MODE_OPTIONS = [
   { value: "unwatched", label: "Unwatched" },
   { value: "watched", label: "Watched" },
-  { value: "all", label: "All" },
 ] as const satisfies readonly { value: WatchedMode; label: string }[];
 
 /**

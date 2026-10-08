@@ -50,12 +50,16 @@ struct Chip: View {
 }
 
 /// A chip that shows the current one of a few choices and moves to the next
-/// when pressed. It is as wide as its widest label and never drawn selected.
+/// when pressed. It is as wide as its widest label.
 struct CycleChip<Value: Hashable>: View {
   /// What the chip sets, read out before the current choice.
   let setting: String
   let options: [(value: Value, label: String)]
   let value: Value
+  /// Whether the chip is drawn selected.
+  var selected = false
+  /// Whether a press moves on; a chip that doesn't reports the choice it shows.
+  var advances = true
   let onChange: (Value) -> Void
 
   private var current: String {
@@ -69,7 +73,7 @@ struct CycleChip<Value: Hashable>: View {
 
   var body: some View {
     Button {
-      onChange(next)
+      onChange(advances ? next : value)
     } label: {
       ZStack {
         ForEach(options, id: \.value) { option in
@@ -79,20 +83,9 @@ struct CycleChip<Value: Hashable>: View {
         }
       }
     }
-    .buttonStyle(ChipButtonStyle())
+    .buttonStyle(ChipButtonStyle(selected: selected))
     .accessibilityLabel(Strings.chipSetting(setting, value: current))
-  }
-}
-
-/// Whether auto-play is on, as a chip that switches it when pressed.
-struct AutoplayChip: View {
-  let feed: FeedModel
-
-  var body: some View {
-    CycleChip(
-      setting: Strings.chipPlayback,
-      options: [false, true].map { ($0, Strings.autoplayOption($0)) },
-      value: feed.settings.autoplay, onChange: feed.setAutoplay)
+    .accessibilityAddTraits(selected ? .isSelected : [])
   }
 }
 
@@ -151,12 +144,18 @@ private struct SquareLayout: Layout {
   }
 }
 
-/// A round chip, as tall as the others, holding only a +: opens the editor
-/// for a new group.
-struct NewGroupChip: View {
+/// A round chip, as tall as the others, holding only a symbol.
+struct RoundChip: View {
+  /// The SF Symbol drawn.
+  let symbol: String
+  /// The chip's tooltip and accessibility name.
+  let label: String
+  var selected = false
   let action: () -> Void
 
   private struct Style: ButtonStyle {
+    let selected: Bool
+
     func makeBody(configuration: Configuration) -> some View {
       SquareLayout {
         configuration.label
@@ -167,9 +166,10 @@ struct NewGroupChip: View {
           #endif
           .padding(.vertical, 5)
       }
-      .foregroundStyle(Color.primary)
+      .foregroundStyle(selected ? Color.ink : Color.primary)
+      .background(selected ? Color.sunflower : Color.clear, in: Circle())
       .overlay {
-        Circle().strokeBorder(Color.secondary.opacity(0.35))
+        Circle().strokeBorder(selected ? Color.sunflower : Color.secondary.opacity(0.35))
       }
       .opacity(configuration.isPressed ? 0.7 : 1)
       .contentShape(Circle())
@@ -181,16 +181,165 @@ struct NewGroupChip: View {
       ZStack {
         // gives the chip a text chip's height
         Text(verbatim: " ")
-        Image(systemName: "plus")
+        Image(systemName: symbol)
           .imageScale(.small)
       }
     }
-    .buttonStyle(Style())
-    .accessibilityLabel(Strings.newGroup)
-    .help(Strings.newGroup)
+    .buttonStyle(Style(selected: selected))
+    .accessibilityLabel(label)
+    .accessibilityAddTraits(selected ? .isSelected : [])
+    .help(label)
   }
 }
 
+/// The round + chip that opens the editor for a new group.
+struct NewGroupChip: View {
+  let action: () -> Void
+
+  var body: some View {
+    RoundChip(symbol: "plus", label: Strings.newGroup, action: action)
+  }
+}
+
+/// Makes its one subview no wider than `limit`, at the height it then needs.
+private struct WidthLimit: Layout {
+  let limit: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    guard let subview = subviews.first else { return .zero }
+    let ideal = subview.sizeThatFits(.unspecified)
+    if ideal.width <= limit {
+      return ideal
+    } else {
+      return subview.sizeThatFits(ProposedViewSize(width: limit, height: nil))
+    }
+  }
+
+  func placeSubviews(
+    in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+  ) {
+    subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+  }
+}
+
+/// What the feed's menu holds: auto-play, how far back and unwatched or watched,
+/// then, under a divider, a chip for each order.
+private struct FeedMenu: View {
+  let feed: FeedModel
+  /// The order each sort chip showed when another took over, by its place in the row.
+  @Binding var lastShown: [Int: FeedSort]
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private struct Drawn: Hashable {
+    let settings: SyncedSettings
+    let watchedMode: WatchedMode
+  }
+
+  private var activeChip: Int? {
+    feedSortChips.firstIndex { $0.contains(feed.settings.feedSort) }
+  }
+
+  private func shownSort(_ index: Int) -> FeedSort {
+    if index == activeChip {
+      return feed.settings.feedSort
+    } else {
+      return lastShown[index] ?? feedSortChips[index][0]
+    }
+  }
+
+  private func press(_ shown: FeedSort) {
+    switch sortChipPress(shown: shown, current: feed.settings.feedSort) {
+    case .choose(let sort):
+      if let activeChip {
+        lastShown[activeChip] = feed.settings.feedSort
+      }
+      feed.setFeedSort(sort)
+    case .reshuffle:
+      feed.reshuffle()
+    }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      FlowLayout {
+        Chip(label: Strings.autoplay, selected: feed.settings.autoplay) {
+          feed.setAutoplay(!feed.settings.autoplay)
+        }
+        CycleChip(
+          setting: Strings.chipTime,
+          options: TimeChip.allCases.map { ($0, Strings.timeChipOption($0)) },
+          value: feed.settings.timeChip, selected: feed.settings.timeChip != .anyTime,
+          onChange: feed.setTimeChip)
+        CycleChip(
+          setting: Strings.chipShow,
+          options: [(.unwatched, Strings.unwatched), (.watched, Strings.watched)],
+          value: feed.watchedMode, selected: feed.watchedMode != .visitStart,
+          onChange: feed.setWatchedMode)
+      }
+      Divider()
+      FlowLayout {
+        ForEach(feedSortChips.indices, id: \.self) { index in
+          CycleChip(
+            setting: Strings.chipSort,
+            options: feedSortChips[index].map { ($0, Strings.feedSortOption($0)) },
+            value: shownSort(index), selected: index == activeChip, advances: false,
+            onChange: press)
+        }
+      }
+    }
+    .padding(12)
+    .animation(
+      reduceMotion ? nil : .easeOut(duration: 0.15),
+      value: Drawn(settings: feed.settings, watchedMode: feed.watchedMode))
+  }
+}
+
+/// The round chip that opens the feed's menu in a popover under it; drawn
+/// selected while the time or the watched chip narrows the page.
+struct FeedMenuButton: View {
+  let feed: FeedModel
+  /// The widest the popover's content may be.
+  let widthLimit: CGFloat
+  @State private var isOpen = false
+  @State private var lastShown: [Int: FeedSort] = [:]
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private var narrows: Bool {
+    feed.settings.timeChip != .anyTime || feed.watchedMode != .visitStart
+  }
+
+  // AppKit names the button's edge the popover hangs from, UIKit the popover's edge the arrow is on
+  #if os(macOS)
+    private static let arrowEdge = Edge.bottom
+  #else
+    private static let arrowEdge = Edge.top
+  #endif
+
+  var body: some View {
+    RoundChip(
+      symbol: "slider.horizontal.3", label: Strings.sortAndFilter, selected: narrows
+    ) {
+      isOpen.toggle()
+    }
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: narrows)
+    .popover(isPresented: $isOpen, arrowEdge: Self.arrowEdge) {
+      WidthLimit(limit: widthLimit) {
+        FeedMenu(feed: feed, lastShown: $lastShown)
+      }
+      .presentationCompactAdaptation(.popover)
+    }
+    #if DEBUG
+      .task {
+        if CommandLine.arguments.contains("-filterMenu") {
+          // a popover asked for before its window is on screen never opens, and one
+          // open on a Mac closes when the app stops being the active one
+          try? await Task.sleep(for: .seconds(5))
+          isOpen = true
+        }
+      }
+    #endif
+  }
+}
 
 extension String {
   /// A group name's identity in a list: two spellings `==` calls equal are two groups.
@@ -216,6 +365,8 @@ struct ChipRow<Leading: View>: View {
   let selected: [String]
   /// The space left of the first chip and right of the last.
   var inset: CGFloat = 16
+  /// The space left of the first chip, where it isn't `inset`.
+  var leadingInset: CGFloat?
   let onTopic: (String) -> Void
   @ViewBuilder let leading: Leading
 
@@ -254,48 +405,42 @@ struct ChipRow<Leading: View>: View {
           }
         }
       }
-      .padding(.horizontal, inset)
+      .padding(.leading, leadingInset ?? inset)
+      .padding(.trailing, inset)
       .padding(.vertical, 8)
     }
     .modifier(ScrollEdgeFade())
   }
 }
 
-/// The chips over the feed and over a channel's page: auto-play, the order,
-/// how far back, watched or not, then, on the feed, the groups, then the
-/// topics.
+/// The row over the feed and over a channel's page: the menu's button, which
+/// stays put, then, scrolling, the groups (on the feed) and the topics.
 struct FeedChipRow: View {
   let feed: FeedModel
-  /// The space left of the first chip and right of the last.
+  /// The space left of the menu's button and right of the last chip.
   var inset: CGFloat = 16
   /// Opens the editor for a new group.
   let onNewGroup: () -> Void
+  @State private var width: CGFloat = 0
 
   private var showsGroups: Bool {
     feed.selectedChannel == nil && feed.fullLoadShown
   }
 
   var body: some View {
-    ChipRow(
-      groups: showsGroups ? feed.groups : [], selectedGroups: feed.settings.groupChips,
-      onGroup: feed.toggleGroupChip, onNewGroup: showsGroups ? onNewGroup : nil,
-      topics: feed.topicChips, selected: feed.settings.topicChips, inset: inset,
-      onTopic: feed.toggleTopicChip
-    ) {
-      AutoplayChip(feed: feed)
-      CycleChip(
-        setting: Strings.chipSort,
-        options: FeedSort.allCases.map { ($0, Strings.feedSortOption($0)) },
-        value: feed.settings.feedSort, onChange: feed.setFeedSort)
-      CycleChip(
-        setting: Strings.chipTime,
-        options: TimeChip.allCases.map { ($0, Strings.timeChipOption($0)) },
-        value: feed.settings.timeChip, onChange: feed.setTimeChip)
-      CycleChip(
-        setting: Strings.chipShow,
-        options: WatchedMode.allCases.map { ($0, Strings.watchedModeOption($0)) },
-        value: feed.watchedMode, onChange: feed.setWatchedMode)
+    HStack(spacing: 0) {
+      FeedMenuButton(feed: feed, widthLimit: width > 0 ? max(0, width - 2 * inset) : .infinity)
+        .padding(.leading, inset)
+        .padding(.vertical, 8)
+      ChipRow(
+        groups: showsGroups ? feed.groups : [], selectedGroups: feed.settings.groupChips,
+        onGroup: feed.toggleGroupChip, onNewGroup: showsGroups ? onNewGroup : nil,
+        topics: feed.topicChips, selected: feed.settings.topicChips, inset: inset,
+        leadingInset: 8, onTopic: feed.toggleTopicChip
+      ) {
+      }
     }
+    .onGeometryChange(for: CGFloat.self, of: \.size.width) { width = $0 }
   }
 }
 

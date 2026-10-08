@@ -6,6 +6,9 @@ public enum WatchedMode: String, Sendable, CaseIterable {
   case watched
   /// Both.
   case all
+
+  /// The mode a visit starts in.
+  public static let visitStart = WatchedMode.unwatched
 }
 
 /// The items a watched mode lists. An item in `staying`, one that changed

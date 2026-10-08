@@ -35,7 +35,7 @@
       }
     },
     "settings": {
-      "description": "The last value this device saved for each synced setting, keyed by setting name. Optional: a file without it has saved no setting. Names and values this schema doesn't list are allowed and kept; shared/fixtures/settings.json says how the known ones are read: feedSort (newest, shortest, title, random), channelSort (newest, name, unwatched), autoplay (boolean), timeChip (none, day, week, month), topicChips (array of YouTube video category ids, as strings), channelTimeChip (as timeChip), channelTopicChips (as topicChips), groupChips and channelGroupChips (arrays of group names, shared/fixtures/groups.json).",
+      "description": "The last value this device saved for each synced setting, keyed by setting name. Optional: a file without it has saved no setting. Names and values this schema doesn't list are allowed and kept; shared/fixtures/settings.json says how the known ones are read: feedSort (newest, oldest, shortest, longest, title, titleReversed, random), channelSort (newest, name, unwatched), autoplay (boolean), timeChip (none, day, week, month), topicChips (array of YouTube video category ids, as strings), channelTimeChip (as timeChip), channelTopicChips (as topicChips), groupChips and channelGroupChips (arrays of group names, shared/fixtures/groups.json).",
       "type": "object",
       "propertyNames": {
         "minLength": 1

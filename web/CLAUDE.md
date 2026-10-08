@@ -193,10 +193,14 @@ values, named by the page's `h1`.
   - `text-order.ts` — the one case-insensitive compare (each code point
     lowercased alone, then code point order) behind the Title sort, channel
     names and chip labels.
-  - `feed-order.ts` — `sortFeed`: the feed's four orders (Latest, Shortest,
-    Title, Random, as the sort chip cycles); every one ends
-    newest first, then by id. Random sorts by an FNV-1a hash of seed and id;
-    the controller picks a new seed at each full load.
+  - `feed-order.ts` — `sortFeed`: the feed's seven orders (`FEED_SORTS`):
+    Latest, Shortest and Title, the reverse of each (`oldest`, `longest`,
+    `titleReversed`) and Random; `FEED_SORT_CHIPS` pairs each with its
+    reverse, as the menu's sort chips show them. Every one ends
+    newest first, then by id; a reversed order turns only its first key
+    round, and items without a length stay last. Random sorts by an FNV-1a
+    hash of seed and id; the controller picks a new seed at each full load
+    and when asked (`FeedController.reshuffle`).
   - `chips.ts` — the chips row: the fifteen topics (`CATEGORY_NAMES`, by
     YouTube category id, kept on `Video.categoryId`; `topicLabel` is null for
     any other id, which gets no chip and matches nothing), the topic chips'
@@ -244,10 +248,10 @@ values, named by the page's `h1`.
     The feed's groups filter `beforeChips` before `chipFiltered` (not on a
     channel's page) and count for `emptiedBySelection`. `keptByBoth` is
     used by the shared fixtures only.
-  - `autoplay.ts` — `AUTOPLAY_OPTIONS` (the auto-play chip's two labels) and
-    `nextUnwatched`: what plays after an item ends.
+  - `autoplay.ts` — `nextUnwatched`: what plays after an item ends.
   - `watched-mode.ts` — the watched chip: `modeFiltered` (Unwatched /
-    Watched / All, plus the items that changed sides on screen),
+    Watched / All, plus the items that changed sides on screen; the chip
+    offers only Unwatched and Watched),
     `autoplayAdvances` (not in Watched), `emptiedBySelection` (which empty
     text a page shows).
   - `playback.ts` — `Playback`: one item in one YouTube player, with no DOM:
@@ -389,17 +393,29 @@ values, named by the page's `h1`.
   channel in `channel-order.ts` order with its unwatched count and off channels dimmed; in the rail a row is
   a 40px box around its icon, so the selected one's highlight stays inside); the feed or a channel's page
   (`?channel=`) in the middle under a toolbar (theme, show/hide details,
-  account → `Settings`) and the feed's `ChipRow` (`ChipRow` is the scrolling row, the divider, the round + chip "New group" (only when given `onnewgroup`: once the first load is shown, and not on a channel's page), the group chips in name order and the
-  topic chips, with a second divider before the topic chips whenever the row has topics after a + chip or a group chip; its `leading` snippet is the chips before the first divider; here: the auto-play chip, which cycles "Play one" (off) and
-  "Auto-play" (on), the sort
-  chip, the time chip, the watched chip, a divider, the "New group" chip, the group chips, a second divider, then the topic chips; it
+  account → `Settings`) and the feed's `ChipRow` (`ChipRow` is its `menu` snippet, which stays put, then the scrolling row: a divider, the round + chip "New group" (only when given `onnewgroup`: once the first load is shown, and not on a channel's page), the group chips in name order and the
+  topic chips, with a second divider before the topic chips whenever the row has topics after a + chip or a group chip; it
   scrolls sideways with no scrollbar, fading out at an edge that hides
-  chips). Every chip is `Chip` (a toggle, or a removable
+  chips). **The menu** (`FilterMenu`, the same on the feed and on a
+  channel's page): a round chip with the sliders icon, named "Sort and
+  filter", drawn selected while the time chip is not on "All time" or the
+  watched chip is not on the mode a visit starts in
+  (`DEFAULT_WATCHED_MODE`), and ringed like the account button while its
+  drop-down is open. The drop-down is a box like Settings', placed against
+  the row, open until a press outside it or Escape. Its first row: "Auto-play", a toggle;
+  the time chip and the watched chip, which cycle and are drawn selected
+  off their defaults. Under a rule, a chip for each of `FEED_SORT_CHIPS`,
+  the active one selected: pressing another makes it active in the order
+  it last showed (`lastShown`, kept while the page is open), pressing the active one turns it round
+  ("Latest" / "Oldest", "Shortest" / "Longest", "Title A–Z" / "Title
+  Z–A"), and "Random" pressed while active reshuffles. Every chip is `Chip` (a toggle, or a removable
   phrase, named "Remove {phrase}" to a screen reader) or `CycleChip` (shows
   the current choice, a press moves to the next; it is as wide as its widest
-  label, and a screen reader hears what it sets first: "Playback: Play one",
-  "Sort: Latest", "Time: All time", "Show: Unwatched"), both styled by `.chip` in
-  `app.css`, the same box selected or not. `FeedCard` draws a 4px Sunflower
+  label, and a screen reader hears what it sets first:
+  "Sort: Latest", "Time: All time", "Show: Unwatched"; with `filled` it is
+  drawn selected, and with `pressed` it is one of a set: `aria-pressed`, and
+  a press while not pressed gives its current choice), both styled by `.chip` in
+  `app.css`, the same box selected or not; `.chip.round` is the icon-only one. `FeedCard` draws a 4px Sunflower
   bar along the bottom of the thumbnail, `bars`' fraction wide; watched cards
   are not dimmed. **The bar marks**: `.mark`, a plain button beside the
   thumbnail button in `.picture` (not Bits' `Toggle`: its name changes with
@@ -592,6 +608,7 @@ the parent still owns it.
 | `Chip` with `pressed` | `Toggle` |
 | the sidebar's "Channels" button | `Toggle` |
 | `Settings` | `Popover` (`Popover.Root` and `.Trigger` in `Feed`, `Popover.ContentStatic` in `Settings`, not portalled, focus not trapped) |
+| `FilterMenu` | `Popover`, the same way, all in the one component |
 | "Delete your profile?" | `AlertDialog`, not portalled: it stays inside the Settings popover so it stacks under the player as before; its `Content` is inside its `Overlay`, which is the centring backdrop |
 | `LoadBar` | `Progress` |
 

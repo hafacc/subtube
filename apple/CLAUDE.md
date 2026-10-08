@@ -88,9 +88,14 @@ the pbxproj.
   written back without it), `TextOrder` (the one case-insensitive compare:
   each scalar lowercased alone, then scalar order; behind the Title sort,
   channel names and chip labels),
-  `FeedOrder` (`sortFeed`: the feed's four orders — newest, shortest, title,
+  `FeedOrder` (`sortFeed`: the feed's orders — newest, shortest, title,
+  their reverses `oldest`, `longest` and `titleReversed`, which turn only
+  the first key round (`FeedSort.forward` names the order one reverses), and
   random — each ending newest first, then by id; Random sorts by
-  `shuffleKey`, an FNV-1a hash of a seed and the id),
+  `shuffleKey`, an FNV-1a hash of a seed and the id; `feedSortChips`, the
+  menu's sort chips, an order and its reverse on each, and `sortChipPress`,
+  what a press of one does: an unselected chip is chosen as it shows, the
+  selected one turns round, Random reshuffles),
   `ChannelOrder` (off channels last in every sort. Newest: on with something
   fetched by newest fetched item, then on with nothing fetched; filters and
   watched marks don't count, so an edit or a mark never reorders a list.
@@ -130,8 +135,9 @@ the pbxproj.
   `keepingEdits` puts over a running load's older copy;
   `SyncStore.savedFilters` is every saved filter, listed or not; names are
   compared by code point everywhere, in the app too, never with `==`),
-  `WatchedMode` (the watched chip: `modeFiltered`, `autoplayAdvances`,
-  `emptiedBySelection`), `Autoplay`
+  `WatchedMode` (the watched chip: `visitStart`, the mode a visit starts in,
+  `modeFiltered`, `autoplayAdvances`, `emptiedBySelection`; the apps offer
+  only unwatched and watched, `all` stays for the shared fixtures), `Autoplay`
   (`nextUnwatched`: what plays after an item ends; and the player's rules,
   shared/fixtures/player.json: `PlayerPlace` — large, card, minimized —
   `PlayQueue`, the page's list and watched chip as they were when an item
@@ -176,7 +182,8 @@ the pbxproj.
   permission left off — is not kept),
   `FeedModel` (the feed: `shown` is everything fetched that passes the
   filters, the watched chip — `watchedMode`, kept for the visit — and the
-  time and topic chips, in the `feedSort` order; `topicChips` are counted
+  time and topic chips, in the `feedSort` order, the random one under a seed
+  that a full load and `reshuffle()` replace; `topicChips` are counted
   after the filters and the watched chip, `unwatchedByChannel` ignores the
   chips; an item that becomes watched or unwatched on screen stays until a
   full load, a filter edit, a change of the watched, time, topic or group
@@ -279,14 +286,26 @@ the pbxproj.
   `ChipTitleButtons`, the
   pencil "Edit group" and the × "Clear"), `ChipViews` (`Chip`, a
   toggle or a removable phrase, which VoiceOver names "Remove {phrase}";
-  `CycleChip`, as wide as its widest label and never drawn selected, which
-  VoiceOver names by what it sets and its choice: "Playback: Play one",
-  "Sort: Latest", "Time: All time", "Show: Unwatched"; `AutoplayChip`, a `CycleChip` reading "Play one"
-  with auto-play off and "Auto-play" with it on; `ChipRow`, which fades out
+  `CycleChip`, as wide as its widest label, which
+  VoiceOver names by what it sets and its choice: "Sort: Latest",
+  "Time: All time", "Show: Unwatched"; `RoundChip`, as tall as the others
+  and holding only a symbol: `NewGroupChip`, a +, and `FeedMenuButton`,
+  `slider.horizontal.3`, named "Sort and Filter", which opens the feed's
+  menu in a popover under it — a popover on an iPhone too — and is drawn
+  selected while the time chip is not on "All time" or the watched chip is
+  on "Watched"; the menu, `FeedMenu`, is two rows of chips with a divider
+  between, no wider than the row it opens from and wrapping when it would
+  be: "Auto-play", a toggle; the time chip, selected on anything but "All
+  time"; the watched chip, "Unwatched" or "Watched", selected on "Watched";
+  then one chip per entry of `feedSortChips`, the one holding the feed's
+  order selected and each other one showing the order it last had; the
+  menu's chips and its button change over 0.15 s, not under reduced motion;
+  `ChipRow`, which fades out
   over 40 pt at an edge with chips beyond it and shows no scroll indicator:
-  its leading chips, a divider, `NewGroupChip` — round, a + alone — and the
-  group toggles, a divider, then the topic toggles; there is no clear chip;
-  `FeedChipRow` (no group chips on a channel's page) and `ChannelChipRow`
+  its leading chips, a divider, `NewGroupChip` and
+  the group toggles, a divider, then the topic toggles; there is no clear chip;
+  `FeedChipRow` — the menu's button, which stays put, then a `ChipRow`
+  without leading chips; no group chips on a channel's page — and `ChannelChipRow`
   (sort, time, groups, topics; iOS only) are the two rows; `NoChannelsForFilter`; `FlowLayout`), `FeedViews` (also `LoadProgressBar`: 3 pt
   of Sunflower over the top edge of the feed while `loadProgress` is set,
   running to the end and fading out when the load finishes; no animation
@@ -371,7 +390,7 @@ the pbxproj.
   sidebar is always on screen, so it asks for a new order when Feed or a
   channel is selected, when the player opens or closes and when the
   Settings window appears or goes; detail:
-  the chip row, Auto-play first, over the grid, both 20 pt in so they start
+  the chip row, the menu's button first, over the grid, both 20 pt in so they start
   under the window's title, the load bar over both; inspector: filters, opened
   only from the toolbar, and the group editor takes the same panel: opening
   one replaces the other and a change of page drops the draft; while the
@@ -398,7 +417,7 @@ the pbxproj.
   scrolls to the top and refreshes, and pull to refresh stays); the Feed and
   Channels tabs have the standard large title, alone. The Channels list's
   first row is its chip row, then `ChannelSearchField`, which narrows what
-  the chips keep. The chip row, Auto-play
+  the chips keep. The chip row, the menu's button
   first, is the first row of the feed and of a channel's page; a channel's
   page has an inline title, the channel's name, with the Filters button
   beside it and, while it has topics selected, the × "Clear" before that;
@@ -498,8 +517,10 @@ and `Strings.summary` words each.
   start scrolled to the end); macOS also `-sidebarCollapsed`; both platforms
   take `-theme:<light|dark>` (not saved) and `-loading` (the feed as
   during a reload, its bar stopped at three channels of eight; with `-empty`,
-  as during the first load), `-unwatched` (the
-  watched chip on Unwatched; the demo otherwise opens on All) and `-confirmDelete` (the Delete
+  as during the first load), `-watched` (the
+  watched chip on Watched), `-filterMenu` (the feed's menu opens five
+  seconds after launch: a Mac's closes when the app stops being the active
+  one, so it opens late, shortly before a snapshot is taken) and `-confirmDelete` (the Delete
   Profile confirmation, once Settings shows); macOS `-settings` opens the
   Settings window, on the pane `-settingsPane:<general|account>` names. Values ride in the same
   argument: macOS opens any bare argument as a file and then skips the main
@@ -508,7 +529,9 @@ and `Strings.summary` words each.
   `open -W -n …/SubTube.app --args -demo -snapshot:<name>` writes PNGs to
   `~/Library/Containers/cc.hafa.subtube/Data/tmp/snapshots/<name>`, each
   window twice half a second apart (`later-…`) to show what moves. The
-  sidebar's rows and the web view don't render in them; the inspector does,
+  sidebar's rows and the web view don't render in them; an open popover is
+  a window of its own, so a picture of its own, with noise where its shadow
+  is, and `windows.txt` has each window's frame for putting the two together; the inspector does,
   with a dark window's cards and switches in the wrong colors.
 - iOS: `xcrun simctl io <device> screenshot`. Use an existing simulator; never
   create one.

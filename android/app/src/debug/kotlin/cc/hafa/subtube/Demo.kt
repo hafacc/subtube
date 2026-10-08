@@ -14,6 +14,8 @@ import cc.hafa.subtube.core.Settings
 import cc.hafa.subtube.core.ShortsFilter
 import cc.hafa.subtube.core.Subscription
 import cc.hafa.subtube.core.Video
+import cc.hafa.subtube.core.STARTING_WATCHED_MODE
+import cc.hafa.subtube.core.WATCHED_CHIP_MODES
 import cc.hafa.subtube.core.WatchedMode
 import cc.hafa.subtube.core.defaultFilter
 import cc.hafa.subtube.core.phrasesToPattern
@@ -125,8 +127,8 @@ private fun demoItem(index: Int, row: DemoRow): FeedItem {
  * player in the corner) or `setup` (with `--es step`
  * naming a [SetUpStep] in lower case: `intro`, `sign_in`, `channels`,
  * `shorts`, `start`, `done`). `--es loading first` or `reload` shows a load
- * running: skeleton cards, or the feed greyed out. `--es watched all` (or
- * `watched`) sets the watched chip.
+ * running: skeleton cards, or the feed greyed out. `--es watched watched` sets
+ * the watched chip.
  */
 internal fun showDemoIfAsked(intent: Intent, viewModel: SubtubeViewModel) {
     if (intent.getBooleanExtra(EXTRA_DEMO, false)) {
@@ -138,8 +140,8 @@ internal fun showDemoIfAsked(intent: Intent, viewModel: SubtubeViewModel) {
                 channelId = intent.getStringExtra(EXTRA_CHANNEL) ?: "UCOne",
                 loading = DemoLoading.entries.firstOrNull { entry -> entry.name.equals(intent.getStringExtra(EXTRA_LOADING), ignoreCase = true) }
                     ?: DemoLoading.NONE,
-                watchedMode = WatchedMode.entries.firstOrNull { entry -> entry.name.equals(intent.getStringExtra(EXTRA_WATCHED), ignoreCase = true) }
-                    ?: WatchedMode.UNWATCHED,
+                watchedMode = WATCHED_CHIP_MODES.firstOrNull { entry -> entry.name.equals(intent.getStringExtra(EXTRA_WATCHED), ignoreCase = true) }
+                    ?: STARTING_WATCHED_MODE,
             ),
         )
     }
@@ -166,7 +168,7 @@ internal fun demoData(
     step: SetUpStep = SetUpStep.INTRO,
     channelId: String = "UCOne",
     loading: DemoLoading = DemoLoading.NONE,
-    watchedMode: WatchedMode = WatchedMode.UNWATCHED,
+    watchedMode: WatchedMode = STARTING_WATCHED_MODE,
     settings: Settings = Settings(),
 ): DemoData {
     val signedOut = screen == "setup" && step <= SetUpStep.SIGN_IN

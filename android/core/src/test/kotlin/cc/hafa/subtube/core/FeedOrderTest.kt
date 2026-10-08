@@ -47,3 +47,37 @@ class WatchedModeTest {
         assertEquals(true, emptiedBySelection(WatchedMode.UNWATCHED, TimeChip.NONE, listOf("10")))
     }
 }
+
+class SortChipsTest {
+    @Test
+    fun everyOrderIsOnOneChip() {
+        assertEquals(FeedSort.entries, FEED_SORT_CHIPS.flatten())
+        assertEquals(listOf(0, 0, 1, 1, 2, 2, 3), FeedSort.entries.map(::sortChipOf))
+    }
+
+    @Test
+    fun theSelectedChipTurnsRoundAndRandomStays() {
+        assertEquals(FeedSort.OLDEST, sortAfterPress(0, FeedSort.NEWEST, emptyMap()))
+        assertEquals(FeedSort.NEWEST, sortAfterPress(0, FeedSort.OLDEST, emptyMap()))
+        assertEquals(FeedSort.TITLE, sortAfterPress(2, FeedSort.TITLE_REVERSED, emptyMap()))
+        assertEquals(FeedSort.RANDOM, sortAfterPress(3, FeedSort.RANDOM, emptyMap()))
+    }
+
+    @Test
+    fun anotherChipIsChosenInTheDirectionItLastShowed() {
+        assertEquals(FeedSort.SHORTEST, sortAfterPress(1, FeedSort.OLDEST, emptyMap()))
+        assertEquals(FeedSort.LONGEST, sortAfterPress(1, FeedSort.OLDEST, mapOf(1 to FeedSort.LONGEST)))
+        assertEquals(
+            listOf(FeedSort.OLDEST, FeedSort.LONGEST, FeedSort.TITLE, FeedSort.RANDOM),
+            shownSorts(FeedSort.OLDEST, mapOf(0 to FeedSort.NEWEST, 1 to FeedSort.LONGEST)),
+        )
+    }
+
+    @Test
+    fun theMenuNarrowsOffTheStartingTimeOrWatchedMode() {
+        assertEquals(false, menuNarrows(WatchedMode.UNWATCHED, TimeChip.NONE))
+        assertEquals(true, menuNarrows(WatchedMode.ALL, TimeChip.NONE))
+        assertEquals(true, menuNarrows(WatchedMode.WATCHED, TimeChip.NONE))
+        assertEquals(true, menuNarrows(WatchedMode.UNWATCHED, TimeChip.WEEK))
+    }
+}

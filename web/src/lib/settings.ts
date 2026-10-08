@@ -1,6 +1,6 @@
 import type { ChannelSort } from "./channel-order";
 import type { TimeChip } from "./chips";
-import type { FeedSort } from "./feed-order";
+import { FEED_SORTS, type FeedSort } from "./feed-order";
 import { oneOf } from "./values";
 
 /** The settings synced through the Drive file, as this version reads them. */
@@ -38,12 +38,6 @@ export const DEFAULT_SETTINGS: Settings = {
   channelGroupChips: [],
 };
 
-const FEED_SORTS: readonly FeedSort[] = [
-  "newest",
-  "shortest",
-  "title",
-  "random",
-];
 const CHANNEL_SORTS: readonly ChannelSort[] = ["newest", "name", "unwatched"];
 const TIME_CHIPS: readonly TimeChip[] = ["none", "day", "week", "month"];
 

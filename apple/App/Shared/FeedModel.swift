@@ -99,8 +99,8 @@ final class FeedModel {
   private(set) var settings = SyncedSettings()
   private var settingEdits = 0
   /// Which of watched and unwatched items the page lists; kept for the visit.
-  private(set) var watchedMode = WatchedMode.unwatched
-  /// Fixes the random order until the next full load.
+  private(set) var watchedMode = WatchedMode.visitStart
+  /// Fixes the random order until the next full load or reshuffle.
   private var shuffleSeed = newShuffleSeed()
   /// The time the time chips count back from.
   private var chipClock = epochMilliseconds()
@@ -882,6 +882,12 @@ final class FeedModel {
     saveSetting(.feedSort, .string(sort.rawValue))
   }
 
+  /// Put the random order in another random order.
+  func reshuffle() {
+    shuffleSeed = newShuffleSeed()
+    rebuild()
+  }
+
   /// Order the channel lists.
   func setChannelSort(_ sort: ChannelSort) {
     settings.channelSort = sort
@@ -1307,7 +1313,9 @@ private enum FetchMark {
         }
         feed.readEntry(id, durationSeconds: Double(item.durationSeconds))
       }
-      feed.watchedMode = CommandLine.arguments.contains("-unwatched") ? .unwatched : .all
+      if CommandLine.arguments.contains("-watched") {
+        feed.watchedMode = .watched
+      }
       for channel in feed.channels {
         feed.fetched[channel.channelId] =
           channel.contentMode == .playlists ? [.playlists] : [.videos, .shorts]
