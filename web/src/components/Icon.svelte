@@ -25,8 +25,10 @@
       '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
     close: '<path d="M18 6 6 18M6 6l12 12"/>',
-    expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
-    minimize: '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>',
+    expand:
+      '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 12 7.5 8.5M7.5 12V8.5H11"/><rect x="13" y="12.5" width="6" height="4.5" rx="1" fill="currentColor" stroke="none"/>',
+    minimize:
+      '<rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11.5" width="7" height="5.5" rx="1" fill="currentColor" stroke="none"/>',
     trash:
       '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',

@@ -696,9 +696,9 @@ struct PlayerFrame: View {
           .truncationMode(.tail)
         Spacer(minLength: 8)
         if session.place == .minimized {
-          button(Strings.expand, "arrow.up.left.and.arrow.down.right", action: onExpand)
+          button(Strings.expand, "pip.exit", action: onExpand)
         } else {
-          button(Strings.minimize, "arrow.down.right.and.arrow.up.left", action: feed.minimize)
+          button(Strings.minimize, "pip.enter", action: feed.minimize)
         }
         button(Strings.close, "xmark", action: feed.closePlayer)
       }

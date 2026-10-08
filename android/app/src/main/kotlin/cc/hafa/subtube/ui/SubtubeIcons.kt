@@ -101,8 +101,12 @@ object SubtubeIcons {
     /** Edit a group. */
     val Edit: ImageVector = strokeIcon("Edit", "M4 20h4L19 9l-4-4L4 16v4z", "M13 7l4 4")
 
-    /** Return the minimized player to its card: two arrows pointing outward. */
-    val Expand: ImageVector = strokeIcon("Expand", "M14 4h6v6", "M20 4l-7 7", "M10 20H4v-6", "M4 20l7-7")
+    /** Return the minimized player to its card: an arrow leaving the small screen in a large one's corner. */
+    val Expand: ImageVector = strokeIcon(
+        "Expand",
+        "M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z", "M12 12 7.5 8.5", "M7.5 12V8.5H11",
+        filled = listOf("M14 12.5h4a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1z"),
+    )
 
     /** The player's play glyph, filled. */
     val PlayFilled: ImageVector = strokeIcon("PlayFilled", filled = listOf("M8 5.5v13l10.5-6.5z"))
