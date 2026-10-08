@@ -108,7 +108,7 @@ window on a long feed. Both are still under `prefers-reduced-motion`. The
 grid's `aria-busy` is what announces loading.
 
 A full load (not a channel fetched by itself, nor a channel page's own fetch)
-also draws `LoadBar`: a 3px Sunflower bar laid over the top edge of `.pane`,
+also draws `LoadBar`: a 3px Sunflower bar laid over the top edge of `.center` (the heading, chips and cards), above the heading,
 taking no room, as wide as `FeedController.loadProgress` (null when no load
 runs). That is `loadFraction` in `load-progress.ts`: 0.05 from the start of
 the load until the subscription list and Drive are read, then channels
@@ -394,12 +394,25 @@ values, named by the page's `h1`.
 - `src/components/` — `Feed` is the signed-in app, laid out like the Mac app:
   `ChannelSidebar` on the left (the brand, which goes to the feed and
   refreshes; there is no Refresh button — clicking the row of the page
-  already showing, Feed or a channel, refreshes it; "Feed" with its unwatched count,
+  already showing, Feed or a channel, refreshes it; the button beside the
+  brand, drawn as a stack of videos, is "Hide channels" / "Show channels"; "Feed" with its unwatched count,
   under the "Channels" heading, which has no chips, every
-  channel in `channel-order.ts` order with its unwatched count and off channels dimmed; in the rail a row is
+  channel in `channel-order.ts` order: its name over "{n} unwatched" or
+  "Off", off channels dimmed. A row is a `.row` box holding two buttons:
+  `.go`, which opens the page, and `.filters` ("Filters", named "Filters
+  for {channel}"), which calls `onfilters` and is drawn only for the row
+  under the pointer, the keyboard's, the open page's and the one whose
+  filters show — always where there is no pointer to hover with. The open
+  page's row is Sunflower with ink text; in the rail a row is
   a 40px box around its icon, so the selected one's highlight stays inside); the feed or a channel's page
-  (`?channel=`) in the middle under a toolbar (theme, show/hide details,
-  account → `Settings`) and the feed's `ChipRow` (`ChipRow` is its `menu` snippet, which stays put, then the scrolling row: a divider, the round + chip "New group" (only when given `onnewgroup`: once the first load is shown, and not on a channel's page), the group chips in name order and the
+  (`?channel=`) in the middle under its heading (the name at 28px over the
+  video count, which is kept hidden during the first load; at the right
+  the theme button and the account → `Settings`), with no line under it,
+  and the feed's `ChipRow`; the cards scroll under both and fade out over
+  their top 16px once scrolled (`.content.scrolled`). A page with nothing
+  to show and nothing wrong (`showsEmptyState`) has, in the middle of the
+  pane, a Sunflower disk with a check mark, the empty text as an `h2` and
+  "Refresh". `ChipRow` (`ChipRow` is its `menu` snippet, which stays put, then the scrolling row: a divider, the round + chip "New group" (only when given `onnewgroup`: once the first load is shown, and not on a channel's page), the group chips in name order and the
   topic chips, with a second divider before the topic chips whenever the row has topics after a + chip or a group chip; it
   scrolls sideways with no scrollbar, fading out at an edge that hides
   chips). **The menu** (`FilterMenu`, the same on the feed and on a
@@ -455,8 +468,17 @@ values, named by the page's `h1`.
   line holds the channel name (cut with an ellipsis) and the date at the
   right (never cut); `FeedCardSkeleton` is the same height as a card with a
   two-line title. `FilterEditor` on the
-  right, hidden until its toolbar button is pressed, editing the open
-  channel's filter with no preview (the page beside it is the preview):
+  right, opened by a channel row's "Filters" button (`toggleFilters` in
+  `Feed`: that channel's page with the panel beside it, or the panel
+  closed when it already shows that channel) and closed by its × or by
+  going to the feed; there is no button for it in the heading. The panel
+  runs the window's whole height, beside the heading. It edits the open
+  channel's filter with no preview (the page beside it is the preview)
+  under a header (the avatar, the name over "Subscribed on YouTube" or
+  "Followed in SubTube", the ×), in cards with no lines between rows:
+  "Show in feed" alone, then "Videos" (Show, Shorts, Live, "Hide videos
+  under"; only Show for playlists), the phrases under their heading, and
+  "Topics", each title above its card.
   `PatternFields` is the phrase input (Enter or a comma makes the typed
   phrase a chip, pressing a chip removes it, Backspace in the empty field
   removes the last), and "Topics" lists all fifteen as toggles for the
@@ -470,8 +492,7 @@ values, named by the page's `h1`.
   **`GroupEditor`** takes the filter editor's place in the right panel
   (`groupEdit` in `Feed`): the "New group" chip or the pencil opens the panel
   on it, each opening a fresh editor; it leaves when it closes itself or
-  the page's channel changes (the panel then shows the filter editor), and
-  the details button opens the filter editor again. It
+  the page's channel changes. It
   fills the panel's height as a column: the `.filter-group` card "Name"
   (no `maxlength`, which counts UTF-16 units, not code points: a name
   `groupName` refuses just disables "Save"); the card "Channels" with every listed channel by name with a `Switch`, in
@@ -499,8 +520,8 @@ values, named by the page's `h1`.
   keyboard focus widens the rail over the grid without reflowing it. Both
   sidebars animate over 200ms, not at all under `prefers-reduced-motion`.
   Under 1100px the right sidebar lies over the grid; under 760px the left one
-  is a drawer opened from a toolbar button, sliding in over 200ms while its
-  scrim fades; the toolbar stays one row.
+  is a drawer opened from "Show channels" at the heading's left, sliding in over 200ms while its
+  scrim fades.
   Playing: one player for the whole app. `PlayerController`
   (`player.svelte.ts`) holds what plays and where; `PlayerHost`, mounted once
   beside `.app`, draws it: one `position: fixed` box that is exactly the

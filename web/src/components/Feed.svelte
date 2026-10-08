@@ -118,6 +118,24 @@
         : "Feed",
   );
 
+  // the channel whose filters the details panel shows
+  const filtersChannel = $derived(
+    showDetails && groupEdit === null ? route.channel : null,
+  );
+
+  // a page with nothing to show and nothing wrong
+  const showsEmptyState = $derived(
+    feed.feed.length === 0 &&
+      !firstLoad &&
+      !feed.channelError &&
+      session.ready &&
+      !feed.error &&
+      !session.error,
+  );
+
+  // the cards have scrolled under the heading, so they fade out at their top edge
+  let scrolled = $state(false);
+
   // changes whenever the user goes somewhere, which lets the channel list be put in order again
   const whereabouts = $derived(
     JSON.stringify([
@@ -171,11 +189,13 @@
     showSidebar = false;
   }
 
-  /** The details button: closing the panel ends a group edit, so it opens on the filter editor. */
-  function toggleDetails(): void {
-    if (showDetails) {
+  /** A sidebar row's filters button: that channel's page with its filters beside it, or the panel closed when it already shows them. */
+  function toggleFilters(channelId: string): void {
+    if (filtersChannel === channelId) {
       showDetails = false;
     } else {
+      open(channelId);
+      // after the page change, which ends a group edit
       groupEdit = null;
       showDetails = true;
     }
@@ -257,8 +277,13 @@
   // going to another page leaves the group editor, unsaved edits and all
   $effect(() => {
     void router.route.channel;
+    const channel = router.route.channel;
     untrack(() => {
       groupEdit = null;
+      // the panel has only a channel's filters to show
+      if (channel === null) {
+        showDetails = false;
+      }
       feed.pageChanged();
     });
   });
@@ -271,7 +296,9 @@
         {feed}
         selected={route.channel}
         {whereabouts}
+        {filtersChannel}
         onselect={select}
+        onfilters={toggleFilters}
         onhome={home}
         collapsed={!narrow && collapsed}
         ontoggle={toggleSidebar}
@@ -291,262 +318,273 @@
   {/if}
 
   <div class="main">
-    <Popover.Root bind:open={showSettings}>
-      <header>
-        {#if narrow}
-          <button
-            type="button"
-            class="icon-button sidebar-toggle"
-            aria-label="Channels"
-            title="Channels"
-            aria-expanded={showSidebar}
-            onclick={toggleSidebar}
-          >
-            <Icon name="sidebarLeft" />
-          </button>
-        {/if}
-        <div class="titles">
-          <h1 id="page-title">{title}</h1>
-          {#if selection.names.length > 0}
-            {#if selection.edit !== null}
-              {@const group = selection.edit}
-              <button
-                type="button"
-                class="icon-button"
-                aria-label="Edit group"
-                title="Edit group"
-                onclick={() => editGroup(group)}
-              >
-                <Icon name="pencil" />
-              </button>
-            {/if}
+    <div class="center">
+      <LoadBar progress={feed.loadProgress} labelledby="page-title" />
+      <Popover.Root bind:open={showSettings}>
+        <header>
+          {#if narrow}
+            <button
+              type="button"
+              class="icon-button sidebar-toggle"
+              aria-label="Show channels"
+              title="Show channels"
+              aria-expanded={showSidebar}
+              onclick={toggleSidebar}
+            >
+              <Icon name="channels" />
+            </button>
+          {/if}
+          <div class="heading">
+            <div class="titles">
+              <h1 id="page-title">{title}</h1>
+              {#if selection.names.length > 0}
+                {#if selection.edit !== null}
+                  {@const group = selection.edit}
+                  <button
+                    type="button"
+                    class="icon-button"
+                    aria-label="Edit group"
+                    title="Edit group"
+                    onclick={() => editGroup(group)}
+                  >
+                    <Icon name="pencil" />
+                  </button>
+                {/if}
+                <button
+                  type="button"
+                  class="icon-button"
+                  aria-label="Clear"
+                  title="Clear"
+                  onclick={() => {
+                    if (route.channel) {
+                      feed.setSetting("topicChips", []);
+                    } else {
+                      feed.clearChips();
+                    }
+                  }}
+                >
+                  <Icon name="close" />
+                </button>
+              {/if}
+            </div>
+            <!-- a count of the stand-in cards would be none -->
+            <span class="secondary subtitle" class:unknown={firstLoad}
+              >{videoCount(feed.feed.length)}</span
+            >
+          </div>
+          <div class="tools">
             <button
               type="button"
               class="icon-button"
-              aria-label="Clear"
-              title="Clear"
+              aria-label={`Theme: ${THEME_NAME[theme]}`}
+              title={`Theme: ${THEME_NAME[theme]}`}
               onclick={() => {
-                if (route.channel) {
-                  feed.setSetting("topicChips", []);
-                } else {
-                  feed.clearChips();
-                }
+                theme = cycleTheme(theme);
               }}
             >
-              <Icon name="close" />
+              <Icon name={THEME_ICON[theme]} />
             </button>
-          {/if}
-          {#if !route.channel && !firstLoad}
-            <span class="secondary subtitle"
-              >{videoCount(feed.feed.length)}</span
-            >
-          {/if}
-        </div>
-        <div class="tools">
-          <button
-            type="button"
-            class="icon-button"
-            aria-label={`Theme: ${THEME_NAME[theme]}`}
-            title={`Theme: ${THEME_NAME[theme]}`}
-            onclick={() => {
-              theme = cycleTheme(theme);
-            }}
-          >
-            <Icon name={THEME_ICON[theme]} />
-          </button>
-          <button
-            type="button"
-            class="icon-button"
-            aria-label={showDetails ? "Hide details" : "Show details"}
-            title={showDetails ? "Hide details" : "Show details"}
-            aria-expanded={showDetails}
-            onclick={toggleDetails}
-          >
-            <Icon name="sidebarRight" />
-          </button>
-        </div>
+            {#if account}
+              <Popover.Trigger aria-label="Account and settings">
+                {#snippet child({
+                  props,
+                })}
+                  <button
+                    {...props}
+                    type="button"
+                    class="account"
+                    class:open={showSettings}
+                  >
+                    <Avatar
+                      title={account.title}
+                      thumbnail={account.thumbnail}
+                      size={28}
+                      tint
+                    />
+                  </button>
+                {/snippet}
+              </Popover.Trigger>
+            {/if}
+          </div>
+        </header>
+
         {#if account}
-          <Popover.Trigger aria-label="Account and settings">
-            {#snippet child({
-              props,
-            })}
-              <button
-                {...props}
-                type="button"
-                class="account"
-                class:open={showSettings}
-              >
-                <Avatar
-                  title={account.title}
-                  thumbnail={account.thumbnail}
-                  size={28}
-                  tint
-                />
-              </button>
-            {/snippet}
-          </Popover.Trigger>
+          <Settings
+            {account}
+            lastSynced={store.lastSynced}
+            onsignout={() => {
+              showSettings = false;
+              void session.signOut();
+            }}
+            ondelete={() => session.deleteProfile()}
+          />
         {/if}
-      </header>
+      </Popover.Root>
 
-      {#if account}
-        <Settings
-          {account}
-          lastSynced={store.lastSynced}
-          onsignout={() => {
-            showSettings = false;
-            void session.signOut();
-          }}
-          ondelete={() => session.deleteProfile()}
-        />
-      {/if}
-    </Popover.Root>
-
-    <ChipRow
-      groups={route.channel ? [] : feed.groups}
-      selectedGroups={feed.settings.groupChips}
-      ongroup={(group) => feed.toggleGroupChip(group)}
-      onnewgroup={!route.channel && feed.loadCount > 0
-        ? () => editGroup(null)
-        : undefined}
-      topics={feed.topicChips}
-      selected={feed.settings.topicChips}
-      ontopic={(categoryId) => feed.toggleTopicChip(categoryId)}
-    >
-      {#snippet menu()}
-        <FilterMenu {feed} />
-      {/snippet}
-    </ChipRow>
-
-    <div class="body">
-      <div class="pane">
-        <div
-          class="content"
-          data-player-view
-          style:padding-bottom={player.playing?.place === "minimized"
-            ? `${MINIMIZED_ROOM}px`
-            : undefined}
-        >
-          {#if !session.ready && !session.checking && !session.connecting}
-            <div class="banner">
-              <span>
-                {session.expired
-                  ? "Your Google session ended. Sign in again to refresh."
-                  : "Sign in again to load your feed."}
-              </span>
-              <button
-                type="button"
-                class="button-small"
-                onclick={() => void session.signIn()}
-              >
-                Sign in
-              </button>
-            </div>
-          {/if}
-          {#if session.error || feed.error}
-            <div class="banner error" role="alert">
-              <span>{feed.error ?? session.error}</span>
-            </div>
-          {/if}
-          {#if feed.notice}
-            <div class="banner" role="status">
-              <span>{feed.notice}</span>
-              <button
-                type="button"
-                class="icon-button"
-                aria-label="Dismiss"
-                onclick={() => {
-                  feed.notice = null;
-                }}
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-          {/if}
-
-          <main
-            class:stale={feed.loading}
-            class:shimmer={firstLoad}
-            inert={feed.loading || firstLoad}
-            aria-busy={feed.loading || firstLoad}
-          >
-            {#if firstLoad}
-              {#each SKELETONS as index (index)}
-                <FeedCardSkeleton />
-              {/each}
-            {/if}
-            {#each feed.feed as item (feedItemId(item))}
-              {@const id = feedItemId(item)}
-              <FeedCard
-                {item}
-                watched={feed.watched.has(id)}
-                progress={feed.bars.get(id) ?? null}
-                playing={player.isPlaying(id)}
-                holdsPlayer={player.inCard(id)}
-                onopen={() => player.play(item)}
-                onmark={() => feed.setWatched(id, !feed.watched.has(id))}
-                onopenchannel={() => open(item.channelId)}
-              />
-            {/each}
-          </main>
-
-          {#if feed.feed.length === 0}
-            {#if firstLoad}
-              <!-- the skeleton cards above stand in for the list -->
-            {:else if feed.channelError}
-              <p class="empty error-text">{feed.channelError}</p>
-            {:else if session.ready && !feed.error && !session.error}
-              <p class="empty secondary">
-                {feed.emptiedBySelection
-                  ? "No videos for the selected filter."
-                  : "Nothing new. You're caught up."}
-              </p>
-            {/if}
-          {/if}
-          {#if !firstLoad}
-            <div class="attribution">
-              <YouTubeAttribution />
-            </div>
-          {/if}
-        </div>
-        {#if feed.loading && !firstLoad}
-          <div class="shimmer-band"></div>
-        {/if}
-        <LoadBar progress={feed.loadProgress} labelledby="page-title" />
-      </div>
-
-      <aside
-        class="right"
-        class:open={showDetails}
-        inert={!showDetails}
-        aria-label={groupEdit
-          ? groupEdit.group === null
-            ? "New group"
-            : "Edit group"
-          : feed.channelEntry
-            ? `Filters for ${feed.channelEntry.title}`
-            : "Details"}
+      <ChipRow
+        groups={route.channel ? [] : feed.groups}
+        selectedGroups={feed.settings.groupChips}
+        ongroup={(group) => feed.toggleGroupChip(group)}
+        onnewgroup={!route.channel && feed.loadCount > 0
+          ? () => editGroup(null)
+          : undefined}
+        topics={feed.topicChips}
+        selected={feed.settings.topicChips}
+        ontopic={(categoryId) => feed.toggleTopicChip(categoryId)}
       >
-        <div class="right-panel">
-          {#if groupEdit}
-            {#key groupEdit.opening}
-              <GroupEditor
-                {feed}
-                group={groupEdit.group}
-                onclose={() => {
-                  showDetails = false;
-                }}
-              />
-            {/key}
-          {:else if feed.channelEntry}
-            {#key feed.channelEntry.channelId}
-              <FilterEditor {feed} channel={feed.channelEntry} />
-            {/key}
-          {:else}
-            <p class="secondary none">Select a channel to edit its filters.</p>
+        {#snippet menu()}
+          <FilterMenu {feed} />
+        {/snippet}
+      </ChipRow>
+
+      <div class="body">
+        <div class="pane">
+          <div
+            class="content"
+            class:scrolled={scrolled}
+            class:vacant={showsEmptyState}
+            onscroll={(event) => {
+              scrolled = event.currentTarget.scrollTop > 1;
+            }}
+            data-player-view
+            style:padding-bottom={player.playing?.place === "minimized"
+              ? `${MINIMIZED_ROOM}px`
+              : undefined}
+          >
+            {#if !session.ready && !session.checking && !session.connecting}
+              <div class="banner">
+                <span>
+                  {session.expired
+                    ? "Your Google session ended. Sign in again to refresh."
+                    : "Sign in again to load your feed."}
+                </span>
+                <button
+                  type="button"
+                  class="button-small"
+                  onclick={() => void session.signIn()}
+                >
+                  Sign in
+                </button>
+              </div>
+            {/if}
+            {#if session.error || feed.error}
+              <div class="banner error" role="alert">
+                <span>{feed.error ?? session.error}</span>
+              </div>
+            {/if}
+            {#if feed.notice}
+              <div class="banner" role="status">
+                <span>{feed.notice}</span>
+                <button
+                  type="button"
+                  class="icon-button"
+                  aria-label="Dismiss"
+                  onclick={() => {
+                    feed.notice = null;
+                  }}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+            {/if}
+
+            <main
+              class:stale={feed.loading}
+              class:shimmer={firstLoad}
+              inert={feed.loading || firstLoad}
+              aria-busy={feed.loading || firstLoad}
+            >
+              {#if firstLoad}
+                {#each SKELETONS as index (index)}
+                  <FeedCardSkeleton />
+                {/each}
+              {/if}
+              {#each feed.feed as item (feedItemId(item))}
+                {@const id = feedItemId(item)}
+                <FeedCard
+                  {item}
+                  watched={feed.watched.has(id)}
+                  progress={feed.bars.get(id) ?? null}
+                  playing={player.isPlaying(id)}
+                  holdsPlayer={player.inCard(id)}
+                  onopen={() => player.play(item)}
+                  onmark={() => feed.setWatched(id, !feed.watched.has(id))}
+                  onopenchannel={() => open(item.channelId)}
+                />
+              {/each}
+            </main>
+
+            {#if feed.feed.length === 0}
+              {#if firstLoad}
+                <!-- the skeleton cards above stand in for the list -->
+              {:else if feed.channelError}
+                <p class="empty error-text">{feed.channelError}</p>
+              {:else if showsEmptyState}
+                <div class="empty-state">
+                  <span class="disk">
+                    <Icon name="check" size={28} strokeWidth={2.5} />
+                  </span>
+                  <h2>
+                    {feed.emptiedBySelection
+                      ? "No videos for the selected filter."
+                      : "Nothing new. You're caught up."}
+                  </h2>
+                  <button
+                    type="button"
+                    class="button-compact"
+                    onclick={refresh}
+                  >
+                    Refresh
+                  </button>
+                </div>
+              {/if}
+            {/if}
+            {#if !firstLoad}
+              <div class="attribution">
+                <YouTubeAttribution />
+              </div>
+            {/if}
+          </div>
+          {#if feed.loading && !firstLoad}
+            <div class="shimmer-band"></div>
           {/if}
         </div>
-      </aside>
+      </div>
     </div>
+    <aside
+      class="right"
+      class:open={showDetails}
+      inert={!showDetails}
+      aria-label={groupEdit
+        ? groupEdit.group === null
+          ? "New group"
+          : "Edit group"
+        : `Filters for ${feed.channelEntry?.title ?? ""}`}
+    >
+      <div class="right-panel">
+        {#if groupEdit}
+          {#key groupEdit.opening}
+            <GroupEditor
+              {feed}
+              group={groupEdit.group}
+              onclose={() => {
+                showDetails = false;
+              }}
+            />
+          {/key}
+        {:else if feed.channelEntry}
+          {#key feed.channelEntry.channelId}
+            <FilterEditor
+              {feed}
+              channel={feed.channelEntry}
+              onclose={() => {
+                showDetails = false;
+              }}
+            />
+          {/key}
+        {/if}
+      </div>
+    </aside>
   </div>
 </div>
 
@@ -610,17 +648,32 @@
     flex: 1;
     min-width: 0;
     display: flex;
+    overflow: hidden;
+  }
+
+  .center {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
     flex-direction: column;
   }
 
+  /* no line under it: the cards fade out where they meet the chips */
   header {
     flex-shrink: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--header);
+    padding: 14px 20px 2px;
+  }
+
+  .heading {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .titles {
@@ -636,22 +689,29 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 18px;
+    font-size: 28px;
+    line-height: 34px;
     font-weight: 700;
   }
 
   .subtitle {
-    flex-shrink: 0;
-    margin-left: 6px;
-    font-size: 13px;
+    font-size: 14px;
+  }
+
+  .subtitle.unknown {
+    visibility: hidden;
   }
 
   .tools {
-    margin-left: auto;
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
+    height: 34px;
+  }
+
+  .sidebar-toggle {
+    margin-top: 3px;
   }
 
   .account {
@@ -689,6 +749,16 @@
     overflow-y: auto;
   }
 
+  .content.scrolled {
+    mask-image: linear-gradient(to bottom, transparent, #000 16px);
+  }
+
+  /* the empty state stands in the middle, the attribution at the foot */
+  .content.vacant {
+    display: flex;
+    flex-direction: column;
+  }
+
   .right {
     flex-shrink: 0;
     width: 0;
@@ -717,13 +787,6 @@
     background: var(--page);
   }
 
-  .none {
-    margin: 0;
-    padding: 48px 24px;
-    text-align: center;
-    font-size: 14px;
-  }
-
   .banner {
     display: flex;
     align-items: center;
@@ -744,12 +807,14 @@
   }
 
   main {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 16px;
+    padding: 12px 20px 20px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
     gap: 16px;
+  }
+
+  .content.vacant > main {
+    display: none;
   }
 
   main.stale > :global(.card) {
@@ -763,6 +828,44 @@
     margin: 0;
     padding: 32px 16px;
     text-align: center;
+  }
+
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 32px 20px;
+    text-align: center;
+  }
+
+  .disk {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--sunflower);
+    color: var(--ink);
+  }
+
+  .empty-state h2 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 26px;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  .empty-state .button-compact {
+    padding: 0 18px;
+    background: var(--surface);
+  }
+
+  .empty-state .button-compact:hover {
+    background: var(--border);
   }
 
   .attribution {
@@ -823,6 +926,11 @@
       transition: none;
     }
 
+    .right,
+    .right.open {
+      width: 100%;
+    }
+
     .left.open {
       transform: none;
       visibility: visible;
@@ -840,8 +948,17 @@
       cursor: default;
     }
 
-    .subtitle {
-      display: none;
+    header {
+      padding: 10px 16px 2px;
+    }
+
+    h1 {
+      font-size: 24px;
+      line-height: 30px;
+    }
+
+    main {
+      padding: 12px 16px 16px;
     }
   }
 

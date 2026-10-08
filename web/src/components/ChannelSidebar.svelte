@@ -12,7 +12,9 @@
     feed,
     selected,
     whereabouts,
+    filtersChannel,
     onselect,
+    onfilters,
     onhome,
     collapsed,
     ontoggle,
@@ -23,8 +25,12 @@
     selected: string | null;
     /** where the user is in the app; the list is put in order again when it changes */
     whereabouts: string;
+    /** the channel whose filters the details panel shows, or null */
+    filtersChannel: string | null;
     /** a row was clicked: the feed (null) or a channel; the current one again refreshes */
     onselect: (channelId: string | null) => void;
+    /** a row's filters button was clicked: open that channel's filters, or close them when they show */
+    onfilters: (channelId: string) => void;
     /** the logo was clicked: show the feed and refresh it */
     onhome: () => void;
     /** whether the sidebar is collapsed to its icons, widening only on hover */
@@ -60,8 +66,8 @@
         <span class="wide-only">SubTube</span>
       </button>
       <Toggle.Root
-        aria-label="Channels"
-        title="Channels"
+        aria-label={collapsed ? "Show channels" : "Hide channels"}
+        title={collapsed ? "Show channels" : "Hide channels"}
         aria-expanded={!collapsed}
         bind:pressed={() => !collapsed, () => ontoggle()}
       >
@@ -69,48 +75,67 @@
           props,
         })}
           <button {...props} type="button" class="icon-button">
-            <Icon name="sidebarLeft" />
+            <Icon name="channels" />
           </button>
         {/snippet}
       </Toggle.Root>
     </div>
-    <button
-      type="button"
-      class="row"
-      class:current={selected === null}
-      aria-current={selected === null ? "page" : undefined}
-      onclick={() => onselect(null)}
-    >
-      <span class="feed-icon"><Icon name="tray" size={18} /></span>
-      <span class="title">Feed</span>
-      {#if feed.unwatchedCount > 0}
-        <span class="count wide-only" aria-hidden="true"
-          >{feed.unwatchedCount}</span
-        >
-        <span class="visually-hidden">{feed.unwatchedCount} unwatched</span>
-      {/if}
-    </button>
+    <div class="row feed" class:current={selected === null}>
+      <button
+        type="button"
+        class="go"
+        aria-current={selected === null ? "page" : undefined}
+        onclick={() => onselect(null)}
+      >
+        <span class="feed-icon"><Icon name="tray" size={18} /></span>
+        <span class="title">Feed</span>
+        {#if feed.unwatchedCount > 0}
+          <span class="count wide-only" aria-hidden="true"
+            >{feed.unwatchedCount}</span
+          >
+          <span class="visually-hidden">{feed.unwatchedCount} unwatched</span>
+        {/if}
+      </button>
+    </div>
     <h2>Channels</h2>
     {#each channels as channel (channel.channelId)}
       {@const current = channel.channelId === selected}
       {@const unwatched = channel.filter.enabled
         ? (feed.unwatchedByChannel.get(channel.channelId) ?? 0)
         : 0}
-      <button
-        type="button"
-        class="row"
-        class:current
-        class:off={!channel.filter.enabled}
-        aria-current={current ? "page" : undefined}
-        onclick={() => onselect(channel.channelId)}
-      >
-        <Avatar title={channel.title} thumbnail={channel.thumbnail} size={24} />
-        <span class="title">{channel.title}</span>
-        {#if unwatched > 0}
-          <span class="count wide-only" aria-hidden="true">{unwatched}</span>
-          <span class="visually-hidden">{unwatched} unwatched</span>
-        {/if}
-      </button>
+      <div class="row" class:current class:off={!channel.filter.enabled}>
+        <button
+          type="button"
+          class="go"
+          aria-current={current ? "page" : undefined}
+          onclick={() => onselect(channel.channelId)}
+        >
+          <Avatar
+            title={channel.title}
+            thumbnail={channel.thumbnail}
+            size={24}
+          />
+          <span class="names">
+            <span class="title">{channel.title}</span>
+            {#if !channel.filter.enabled}
+              <span class="detail">Off</span>
+            {:else if unwatched > 0}
+              <span class="detail">{unwatched} unwatched</span>
+            {/if}
+          </span>
+        </button>
+        <button
+          type="button"
+          class="filters wide-only"
+          class:shown={channel.channelId === filtersChannel}
+          aria-label={`Filters for ${channel.title}`}
+          title="Filters"
+          aria-expanded={channel.channelId === filtersChannel}
+          onclick={() => onfilters(channel.channelId)}
+        >
+          <Icon name="filterLines" />
+        </button>
+      </div>
     {/each}
     <div class="foot wide-only">
       <div class="legal">
@@ -141,7 +166,8 @@
    */
   @container (max-width: 120px) {
     .wide-only,
-    .title,
+    .names,
+    .feed .title,
     h2 {
       visibility: hidden;
     }
@@ -225,18 +251,18 @@
   }
 
   .row {
+    position: relative;
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 36px;
-    padding: 4px 8px;
-    border: 0;
+    height: 44px;
     border-radius: 8px;
-    background: transparent;
     color: var(--text);
     font-size: 14px;
-    text-align: left;
+  }
+
+  .row.feed {
+    height: 36px;
   }
 
   .row:hover {
@@ -244,13 +270,101 @@
   }
 
   .row.current {
-    background: var(--tint);
-    color: var(--tint-text);
-    font-weight: 500;
+    background: var(--sunflower);
+    color: var(--ink);
   }
 
-  .row.off > :global(*) {
+  .go {
+    flex: 1;
+    min-width: 0;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  .row.off > .go > :global(*) {
     opacity: 0.45;
+  }
+
+  .names {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .detail {
+    font-size: 12px;
+    line-height: 15px;
+    color: var(--text-secondary);
+  }
+
+  .row.current .detail {
+    color: var(--ink);
+  }
+
+  /* drawn only for the row under the pointer, the keyboard's, the open page's and the one whose filters show */
+  .filters {
+    position: absolute;
+    top: 8px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    opacity: 0;
+  }
+
+  .row:hover > .filters,
+  .row.current > .filters,
+  .filters.shown,
+  .row:has(:focus-visible) > .filters {
+    opacity: 1;
+  }
+
+  /* the name gives the button room only while it is drawn */
+  .row:hover > .go,
+  .row.current > .go,
+  .row:has(:focus-visible) > .go,
+  .row:has(.filters.shown) > .go {
+    padding-right: 40px;
+  }
+
+  .filters:hover {
+    background: var(--border);
+  }
+
+  .row.current > .filters {
+    color: var(--ink);
+  }
+
+  .row.current > .filters:hover {
+    background: rgb(0 0 0 / 0.1);
+  }
+
+  /* a touch screen has no pointer to be under */
+  @media (hover: none) {
+    .filters {
+      opacity: 1;
+    }
+
+    .row:not(.feed) > .go {
+      padding-right: 40px;
+    }
   }
 
   .feed-icon {
@@ -261,12 +375,20 @@
     color: var(--gold);
   }
 
+  .row.current .feed-icon {
+    color: var(--ink);
+  }
+
   .title {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .names .title {
+    font-weight: 500;
   }
 
   .count {
