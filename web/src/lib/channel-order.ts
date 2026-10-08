@@ -4,13 +4,6 @@ import type { Channel, FeedItem } from "./types";
 /** The orders the channel list can be read in. */
 export type ChannelSort = "newest" | "name" | "unwatched";
 
-/** The channel list's orders, in menu order. */
-export const CHANNEL_SORT_OPTIONS = [
-  { value: "newest", label: "Latest" },
-  { value: "name", label: "Name" },
-  { value: "unwatched", label: "Unwatched" },
-] as const satisfies readonly { value: ChannelSort; label: string }[];
-
 /** What a channel list orders a channel by. */
 export interface ChannelOrderKey {
   /** YouTube channel id */
@@ -129,8 +122,7 @@ export function inHeldOrder(
 /**
  * A channel list's order, held while the list is worked in: the list is put
  * in order only when the moment it is shown for changes, so a switch, a mark
- * or a filter edit in between changes a row without moving it or taking it
- * out.
+ * or a filter edit in between changes a row without moving it.
  */
 export class HeldChannelOrder {
   private moment: string | null = null;
@@ -138,31 +130,16 @@ export class HeldChannelOrder {
 
   /**
    * The channels as the list shows them. `fresh` is every channel in sorted
-   * order and `kept` the ids the list's chips keep (null for all of them).
-   * When `moment` differs from the last call's, the kept channels are taken
-   * as they are; otherwise the channels shown then stay, joined by any kept
-   * since, rearranged by {@link inHeldOrder}.
+   * order. When `moment` differs from the last call's, they are taken as
+   * they are; otherwise they are rearranged by {@link inHeldOrder}.
    */
-  arrange(
-    fresh: readonly Channel[],
-    moment: string,
-    kept: ReadonlySet<string> | null = null,
-  ): Channel[] {
-    const isKept = ({ channelId }: Channel): boolean =>
-      kept === null || kept.has(channelId);
+  arrange(fresh: readonly Channel[], moment: string): Channel[] {
     if (moment === this.moment) {
-      const shown = new Set(this.held);
-      return inHeldOrder(
-        fresh.filter(
-          (channel) => shown.has(channel.channelId) || isKept(channel),
-        ),
-        this.held,
-      );
+      return inHeldOrder(fresh, this.held);
     } else {
-      const listed = fresh.filter(isKept);
       this.moment = moment;
-      this.held = listed.map(({ channelId }) => channelId);
-      return listed;
+      this.held = fresh.map(({ channelId }) => channelId);
+      return Array.from(fresh);
     }
   }
 }

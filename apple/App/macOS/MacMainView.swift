@@ -11,6 +11,9 @@ struct PlatformMainView: View {
   @Environment(\.scenePhase) private var scenePhase
   /// The width the details panel takes at the trailing edge; 0 when closed.
   @State private var panelWidth: CGFloat = 0
+  #if DEBUG
+    @Environment(\.openSettings) private var openSettings
+  #endif
 
   var body: some View {
     ZStack {
@@ -22,6 +25,13 @@ struct PlatformMainView: View {
     }
     // per feed, not per view: a feed made anew while this view stays must load too
     .task(id: ObjectIdentifier(feed)) { feed.appeared() }
+    #if DEBUG
+      .task {
+        if CommandLine.arguments.contains("-settings") {
+          openSettings()
+        }
+      }
+    #endif
     .onChange(of: scenePhase) { _, phase in
       if phase == .active {
         feed.appeared()
@@ -142,8 +152,16 @@ private struct MacFeedSplitView: View {
 
   var body: some View {
     NavigationSplitView(columnVisibility: $columns) {
-      MacSidebar(feed: feed, onGroup: editGroup)
+      MacSidebar(feed: feed)
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
+        .toolbar(removing: .sidebarToggle)
+        .toolbar {
+          // at the sidebar's trailing edge, where the system's own button sits
+          if #available(macOS 26.0, *) {
+            ToolbarSpacer(.flexible)
+          }
+          ToolbarItem { ChannelsButton(columns: $columns) }
+        }
     } detail: {
       MacFeedGrid(app: app, feed: feed, onGroup: editGroup)
         .inspector(isPresented: $showInspector) {
@@ -161,13 +179,13 @@ private struct MacFeedSplitView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
           }
-          .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
           .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { inspectorWidth = $0 }
           .accessibilityLabel(
             groupTarget != nil
               ? (groupTarget == .new ? Strings.newGroup : Strings.editGroup)
               : feed.selectedChannel.flatMap(feed.channel).map { Strings.filtersFor($0.title) }
                 ?? Strings.inspector)
+          .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
         }
         .toolbar {
           MacFeedToolbar(
@@ -187,11 +205,30 @@ private struct MacFeedSplitView: View {
   }
 }
 
-/// Feed with its unwatched count, then every channel.
+/// Shows or hides the sidebar, drawn as what the sidebar holds.
+private struct ChannelsButton: View {
+  @Binding var columns: NavigationSplitViewVisibility
+
+  private var isCollapsed: Bool {
+    columns == .detailOnly
+  }
+
+  var body: some View {
+    let title = isCollapsed ? Strings.showChannels : Strings.hideChannels
+    Button {
+      withAnimation {
+        columns = isCollapsed ? .all : .detailOnly
+      }
+    } label: {
+      Label(title, systemImage: "play.square.stack")
+    }
+    .help(title)
+  }
+}
+
+/// Feed with its unwatched count, then every channel, newest video first.
 private struct MacSidebar: View {
   @Bindable var feed: FeedModel
-  /// Opens the group editor.
-  let onGroup: (GroupTarget) -> Void
 
   private enum Row: Hashable {
     case feed
@@ -243,7 +280,7 @@ private struct MacSidebar: View {
       .contentShape(Rectangle())
       .simultaneousGesture(refreshOnReclick(.feed))
       .tag(Row.feed)
-      Section {
+      Section(Strings.channels) {
         ForEach(feed.orderedChannels, id: \.channelId) { channel in
           let isSelected = selected == .channel(channel.channelId)
           Label {
@@ -256,31 +293,11 @@ private struct MacSidebar: View {
             Avatar(url: channel.thumbnail, title: channel.title)
           }
           .foregroundStyle(isSelected ? Color.ink : Color.primary)
-          .opacity(channel.enabled ? 1 : 0.45)
+          .opacity(channel.enabled ? 1 : offChannelOpacity)
           .frame(maxWidth: .infinity, alignment: .leading)
           .contentShape(Rectangle())
           .simultaneousGesture(refreshOnReclick(.channel(channel.channelId)))
           .tag(Row.channel(channel.channelId))
-        }
-        if feed.explainsNoChannels && feed.orderedChannels.isEmpty {
-          NoChannelsForFilter()
-            .padding(.vertical, 24)
-        }
-      } header: {
-        let title = feed.channelListTitle
-        VStack(alignment: .leading, spacing: 0) {
-          HStack(spacing: 6) {
-            Text(title.names.isEmpty ? Strings.channels : title.text)
-              .lineLimit(1)
-              .truncationMode(.tail)
-            Spacer(minLength: 0)
-            ChipTitleButtons(
-              title: title, onEdit: { onGroup(.existing($0)) }, onClear: feed.clearChannelChips
-            )
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-          }
-          ChannelChipRow(feed: feed, inset: 0, onNewGroup: { onGroup(.new) })
         }
       }
     }
@@ -352,7 +369,7 @@ private struct MacFeedToolbar: ToolbarContent {
       } label: {
         Label(
           showsFilters ? Strings.hideInspector : Strings.showInspector,
-          systemImage: "sidebar.right")
+          systemImage: "line.3.horizontal.decrease")
       }
       .help(showsFilters ? Strings.hideInspector : Strings.showInspector)
     }
@@ -373,6 +390,10 @@ private struct MacFeedGrid: View {
       ?? (selected.names.isEmpty ? Strings.feed : selected.text)
   }
 
+  /// The space beside the chips and around the cards, which puts both under
+  /// the window's title.
+  private static let margin: CGFloat = 20
+
   private var subtitle: String {
     if feed.selectedChannel != nil {
       return ""
@@ -383,11 +404,13 @@ private struct MacFeedGrid: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      FeedChipRow(feed: feed, onNewGroup: { onGroup(.new) })
+      FeedChipRow(feed: feed, inset: Self.margin, onNewGroup: { onGroup(.new) })
       Divider()
       ScrollView {
         VStack(spacing: 16) {
-          FeedBanners(feed: feed, app: app)
+          if feed.error != nil || feed.notice != nil {
+            FeedBanners(feed: feed, app: app)
+          }
           LazyVGrid(
             columns: [GridItem(.adaptive(minimum: 220), spacing: 16, alignment: .top)],
             alignment: .leading, spacing: 18
@@ -408,7 +431,7 @@ private struct MacFeedGrid: View {
             YouTubeAttribution().padding(.top, 8)
           }
         }
-        .padding(20)
+        .padding(Self.margin)
       }
       .minimizedPlayerRoom(feed)
     }

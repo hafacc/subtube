@@ -182,7 +182,11 @@ values, named by the page's `h1`.
     `autoplay`, `timeChip`, `topicChips`, `groupChips`, and the channel list's own
     `channelTimeChip`, `channelTopicChips` and `channelGroupChips`) read out of the Drive files'
     `settings` map, which merges like the other maps; a missing or unknown
-    value reads as the default and the entry is kept. `SyncStore.settings()` /
+    value reads as the default and the entry is kept. The web app shows no
+    chips over its channel list, so it reads `channelSort`,
+    `channelTimeChip` and `channelTopicChips` and never uses or writes them,
+    and writes `channelGroupChips` only when a group is renamed or deleted;
+    they sync on untouched for the phone apps. `SyncStore.settings()` /
     `setSetting(name, value)` hold the raw entries; `FeedController.settings`
     is what the app reads, re-read after every load, and
     `FeedController.setSetting` changes one here and in Drive.
@@ -233,11 +237,13 @@ values, named by the page's `h1`.
     filters in one `SyncStore.setFilters` (over `savedFilters()`, which has
     the channels no longer listed too) and set the settings; a save counts
     only listed channels as members;
-    `toggleGroupChip` / `toggleChannelGroupChip` select, and
-    `clearChips("feed" | "channels")` empties a row's groups and topics.
+    `toggleGroupChip` selects, and `clearChips()` empties the feed row's
+    groups and topics. A rename or delete follows through to
+    `channelGroupChips` as well as `groupChips`, which keeps the phone
+    apps' channel list selection right.
     The feed's groups filter `beforeChips` before `chipFiltered` (not on a
-    channel's page) and count for `emptiedBySelection`; the channel list's
-    narrow `chipChannels`, so with only a group selected off channels stay.
+    channel's page) and count for `emptiedBySelection`. `keptByBoth` is
+    used by the shared fixtures only.
   - `autoplay.ts` — `AUTOPLAY_OPTIONS` (the auto-play chip's two labels) and
     `nextUnwatched`: what plays after an item ends.
   - `watched-mode.ts` — the watched chip: `modeFiltered` (Unwatched /
@@ -326,34 +332,24 @@ values, named by the page's `h1`.
     channels (subscriptions) it is the load's error, and setup's "Choose
     channels" shows it as its error.
   - `channel-order.ts` — the order of every channel list (the left sidebar;
-    not setup's "Choose channels"), by the `channelSort` setting. "Latest"
-    (`newest`): on with something fetched by newest fetched item, then on with
-    nothing fetched; filters and watched marks don't count, so an edit or a
-    mark never reorders the list. "Name"; "Unwatched" (`unwatched`), by
-    `FeedController.unwatchedByChannel`, which does move as marks change. Off
-    channels are last in every sort.
-  - `channel-chips.ts` — the channel list's time and topic chips
-    (`channelTimeChip`, `channelTopicChips`; apart from the feed's).
-    `passingItems`: every fetched item, watched or not, of the kind its
-    channel shows, that passes the filter of a channel that is on
-    (`FeedController.listed`, which the unwatched counts are counted from
-    too). `FeedController.channelTopicChips` is `chipRow` over those, so the
-    open page, the watched chip and the list's time chip don't change which
-    topics are offered. `chipKeptChannels` (`FeedController.chipChannels`):
-    null with "All time" and no topic, else the ids of the channels with one
-    item inside the span and in a selected topic (one item meets both), so
-    off channels and channels with nothing passing drop out. The chips
-    change neither the order nor the unwatched counts.
+    not setup's "Choose channels"). The sidebar is always in the `newest`
+    order: on with something fetched by newest fetched item, then on with
+    nothing fetched, off channels last; filters and watched marks don't
+    count, so an edit or a mark never reorders the list. The `name` and
+    `unwatched` orders of the `channelSort` setting are the phone apps';
+    `compareChannelOrder` keeps them for the shared fixtures.
+  - `channel-chips.ts` — `passingItems`: every fetched item, watched or
+    not, of the kind its channel shows, that passes the filter of a channel
+    that is on (`FeedController.listed`, which the unwatched counts are
+    counted from). `chipKeptChannels` is what the phone apps' channel list
+    chips keep; the web app has no such chips and runs it for the shared
+    fixtures only.
   - **The shown order is held** (`HeldChannelOrder`, `inHeldOrder`): the
     sidebar sorts only when its "moment" changes, and between changes every
     row keeps its place while its count and dimming update (a channel the
     held order doesn't know goes after the known ones, in sorted order).
-    Which rows are shown is held the same way: `arrange` takes the ids the
-    chips keep, and a channel shown at the last moment stays until the next
-    even when the chips no longer keep it (switched off, say). The
-    moment changes after each full load that is shown
-    (`FeedController.loadCount`), when the channel sort or one of the list's
-    chips changes, and when the
+    The moment changes after each full load that is shown
+    (`FeedController.loadCount`) and when the
     user goes somewhere (`whereabouts` in `Feed`: the page's channel, the
     player over the app opening or closing, Settings opening or closing, the
     narrow drawer opening or closing). So switching a channel off, a mark, a
@@ -389,15 +385,12 @@ values, named by the page's `h1`.
   `ChannelSidebar` on the left (the brand, which goes to the feed and
   refreshes; there is no Refresh button — clicking the row of the page
   already showing, Feed or a channel, refreshes it; "Feed" with its unwatched count,
-  under the "Channels" heading a `ChipRow` of the list's own (hidden in the rail, where it keeps its height):
-  the sort chip, the time chip, a divider, the "New group" chip, the group chips, a second divider, then the topic chips, no auto-play or watched chip; every
-  channel the chips keep (`channel-chips.ts`) in `channel-order.ts` order with its unwatched count and off channels dimmed,
-  or "No channels for the selected filter." in the feed's empty-text style when a loaded list's chips keep none; in the rail a row is
+  under the "Channels" heading, which has no chips, every
+  channel in `channel-order.ts` order with its unwatched count and off channels dimmed; in the rail a row is
   a 40px box around its icon, so the selected one's highlight stays inside); the feed or a channel's page
   (`?channel=`) in the middle under a toolbar (theme, show/hide details,
   account → `Settings`) and the feed's `ChipRow` (`ChipRow` is the scrolling row, the divider, the round + chip "New group" (only when given `onnewgroup`: once the first load is shown, and not on a channel's page), the group chips in name order and the
-  topic chips, with a second divider before the topic chips whenever the row has topics after a + chip or a group chip; its `leading` snippet is the chips before the first divider, and a parent fits it in with
-  `--chip-row-padding` and `--chip-row-rule`, as the sidebar does; here: the auto-play chip, which cycles "Play one" (off) and
+  topic chips, with a second divider before the topic chips whenever the row has topics after a + chip or a group chip; its `leading` snippet is the chips before the first divider; here: the auto-play chip, which cycles "Play one" (off) and
   "Auto-play" (on), the sort
   chip, the time chip, the watched chip, a divider, the "New group" chip, the group chips, a second divider, then the topic chips; it
   scrolls sideways with no scrollbar, fading out at an edge that hides
@@ -447,14 +440,13 @@ values, named by the page's `h1`.
   removes the last), and "Topics" lists all fifteen as toggles for the
   filter's `topics`, hidden for playlists.
   **Titles while chips are selected** (`chipTitle`): with an existing group
-  or a topic selected in its row, the feed's `h1` and the sidebar's
-  "Channels" `h2` (a 15px-high `.heading` row, so nothing moves) show the
+  or a topic selected in the feed's row, the feed's `h1` shows the
   selected names joined with ", ", followed by a pencil "Edit group" (only
   with exactly one group selected) and an × "Clear" (`clearChips`). A
   channel's page keeps its name and gets only the ×, which empties
   `topicChips`. There is no clear chip in the rows.
   **`GroupEditor`** takes the filter editor's place in the right panel
-  (`groupEdit` in `Feed`): the "New group" chip or a pencil opens the panel
+  (`groupEdit` in `Feed`): the "New group" chip or the pencil opens the panel
   on it, each opening a fresh editor; it leaves when it closes itself or
   the page's channel changes (the panel then shows the filter editor), and
   the details button opens the filter editor again. It
@@ -482,12 +474,7 @@ values, named by the page's `h1`.
   rail of icons, and pins it open again from the widened rail; the rail only
   clips the full-width list, so no icon moves as it widens
   (remembered in localStorage as `subtube.sidebarCollapsed`); hover or
-  keyboard focus widens the rail over the grid without reflowing it. In
-  the rail, the room the hidden heading and chip row leave shows the
-  channel list's selected groups and topics as round marks (`chipMarks` in
-  `lib/groups.ts`: a group's first letter, a topic's icon from
-  `TOPIC_ICONS`, two at most, the last one "+n" when there are more),
-  starting right under "Feed"; they are not controls. Both
+  keyboard focus widens the rail over the grid without reflowing it. Both
   sidebars animate over 200ms, not at all under `prefers-reduced-motion`.
   Under 1100px the right sidebar lies over the grid; under 760px the left one
   is a drawer opened from a toolbar button, sliding in over 200ms while its

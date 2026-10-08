@@ -17,6 +17,10 @@ enum Strings {
   static let inspector = String(localized: "Details")
   static let showInspector = String(localized: "Show Details")
   static let hideInspector = String(localized: "Hide Details")
+  // COPY-DRAFT
+  static let showChannels = String(localized: "Show Channels")
+  // COPY-DRAFT
+  static let hideChannels = String(localized: "Hide Channels")
   static let shortBadge = String(localized: "Short")
   static let watchedBadge = String(localized: "Watched")
   static let noChannelSelected = String(localized: "Select a channel to edit its filters.")

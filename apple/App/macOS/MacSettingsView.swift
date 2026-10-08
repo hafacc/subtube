@@ -5,16 +5,31 @@ import SwiftUI
 /// profile).
 struct MacSettingsView: View {
   let app: AppModel
+  @State private var pane = startingPane
+
+  private enum Pane: String {
+    case general
+    case account
+  }
+
+  /// General, or the pane a debug build's `-settingsPane:<general|account>` names.
+  private static var startingPane: Pane {
+    #if DEBUG
+      debugArgument("settingsPane").flatMap(Pane.init(rawValue:)) ?? .general
+    #else
+      .general
+    #endif
+  }
 
   var body: some View {
-    TabView {
-      Tab(Strings.general, systemImage: "gearshape") {
+    TabView(selection: $pane) {
+      Tab(Strings.general, systemImage: "gearshape", value: Pane.general) {
         Form {
           ThemePicker(app: app)
         }
         .formStyle(.grouped)
       }
-      Tab(Strings.account, systemImage: "person.crop.circle") {
+      Tab(Strings.account, systemImage: "person.crop.circle", value: Pane.account) {
         MacAccountPane(app: app)
       }
     }

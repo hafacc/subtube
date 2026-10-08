@@ -373,22 +373,6 @@ describe("FeedController chips", () => {
     expect(shown(feed)).toEqual(["a7"]);
   });
 
-  test("the channel list's chips are its own, count watched items and ignore the page", () => {
-    const feed = withTopics("UCb");
-    feed.watched = new Set(["a7"]);
-    feed.toggleTopicChip("10");
-    expect(feed.channelTopicChips).toEqual(["10", "27", "20"]);
-    expect(feed.chipChannels).toBeNull();
-    feed.toggleChannelTopicChip("27");
-    expect(feed.settings.channelTopicChips).toEqual(["27"]);
-    expect(feed.settings.topicChips).toEqual(["10"]);
-    expect(Array.from(feed.chipChannels ?? [])).toEqual(["UCa"]);
-    expect(shown(feed)).toEqual(["b5"]);
-    feed.toggleChannelTopicChip("27");
-    feed.setSetting("channelTimeChip", "day");
-    expect(Array.from(feed.chipChannels ?? [])).toEqual([]);
-  });
-
   test("the chip row is counted before the chips filter", () => {
     const feed = withTopics();
     feed.toggleTopicChip("27");
@@ -518,7 +502,7 @@ describe("FeedController groups", () => {
     expect(feed.topicChips).toEqual(["10", "20"]);
     feed.toggleTopicChip("10");
     expect(shown(feed)).toEqual(["a1"]);
-    feed.clearChips("feed");
+    feed.clearChips();
     expect(shown(feed)).toEqual(["b5", "a3", "a1"]);
     expect(feed.settings.channelGroupChips).toEqual([]);
   });
@@ -546,23 +530,7 @@ describe("FeedController groups", () => {
       channelGroupChips: { at: 1, value: ["Gone"] },
     });
     expect(shown(feed)).toHaveLength(4);
-    expect(feed.chipChannels).toBeNull();
     expect(feed.emptiedBySelection).toBe(false);
-  });
-
-  test("the channel list's groups are its own and keep a channel that is off", () => {
-    const { feed } = loaded([], null);
-    feed.saveGroup(null, "Making", ["UCb"]);
-    feed.updateFilter("UCb", {
-      ...defaultFilter(),
-      enabled: false,
-      groups: ["Making"],
-    });
-    feed.toggleChannelGroupChip("Making");
-    expect(feed.chipChannels).toEqual(new Set(["UCb"]));
-    expect(shown(feed)).toEqual(["a7", "a3", "a1"]);
-    feed.toggleChannelTopicChip("10");
-    expect(feed.chipChannels).toEqual(new Set());
   });
 
   test("the editor's save renames and changes channels in one save", () => {
@@ -585,10 +553,11 @@ describe("FeedController groups", () => {
   });
 
   test("renaming and deleting follow through to the selected chips", () => {
-    const { feed } = loaded([], null);
+    const { feed } = loaded([], null, [], {
+      channelGroupChips: { at: 1, value: ["Making"] },
+    });
     feed.saveGroup(null, "Making", ["UCa"]);
     feed.toggleGroupChip("Making");
-    feed.toggleChannelGroupChip("Making");
     feed.saveGroup("Making", "Workshop", ["UCa"]);
     expect(feed.groups).toEqual(["Workshop"]);
     expect(feed.settings.groupChips).toEqual(["Workshop"]);

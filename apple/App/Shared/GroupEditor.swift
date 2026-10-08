@@ -101,29 +101,48 @@ struct GroupEditor: View {
   }
 
   #if os(macOS)
-    var body: some View {
-      VStack(alignment: .leading, spacing: 12) {
-        Text(title).font(.headline)
-        nameField.textFieldStyle(.roundedBorder)
-        Text(Strings.channels).font(.subheadline.weight(.medium))
-        ScrollView {
-          LazyVStack(spacing: 0) {
-            ForEach(rows, id: \.channelId) { channel in
-              HStack(spacing: 10) {
-                Avatar(url: channel.thumbnail, title: channel.title, size: 28)
-                Text(channel.title).lineLimit(1)
-                Spacer()
-                memberSwitch(channel)
-              }
-              .padding(.vertical, 6)
-              .padding(.horizontal, 10)
-              .opacity(channel.enabled ? 1 : offChannelOpacity)
-              Divider()
-            }
+    /// The panel's edge to a card, and a card's edge to what is in it: a
+    /// grouped form's two insets, so this panel lines up with the filters.
+    private static let inset: CGFloat = 10
+
+    private var memberRows: some View {
+      LazyVStack(spacing: 0) {
+        ForEach(rows, id: \.channelId) { channel in
+          HStack(spacing: 8) {
+            Avatar(url: channel.thumbnail, title: channel.title, size: 24)
+            Text(channel.title).lineLimit(1)
+            Spacer()
+            memberSwitch(channel).controlSize(.small)
+          }
+          .padding(.vertical, 6)
+          .padding(.horizontal, Self.inset)
+          .opacity(channel.enabled ? 1 : offChannelOpacity)
+          if channel.channelId != rows.last?.channelId {
+            Divider().padding(.horizontal, Self.inset)
           }
         }
+      }
+      .background(Color.secondary.opacity(0.06))
+      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    var body: some View {
+      VStack(alignment: .leading, spacing: 0) {
+        Text(title)
+          .font(.headline)
+          .padding(.horizontal, Self.inset)
+        nameField
+          .textFieldStyle(.roundedBorder)
+          .padding(.top, 10)
+        Text(Strings.channels)
+          .font(.subheadline.weight(.semibold))
+          .padding(.horizontal, Self.inset)
+          .padding(.top, 18)
+          .padding(.bottom, 6)
+        ScrollView {
+          memberRows
+        }
         .frame(maxHeight: .infinity)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
         HStack {
           if exists {
             Button(Strings.deleteGroup, role: .destructive, action: delete)
@@ -132,12 +151,16 @@ struct GroupEditor: View {
           }
           Spacer()
           Button(Strings.cancel, action: onClose)
+            .controlSize(.large)
           Button(Strings.save, action: save)
             .buttonStyle(.prominent)
             .disabled(!canSave)
         }
+        .padding(.leading, Self.inset)
+        .padding(.top, 12)
       }
-      .padding(16)
+      .padding(.horizontal, Self.inset)
+      .padding(.vertical, 16)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .accessibilityElement(children: .contain)
       .accessibilityLabel(title)
