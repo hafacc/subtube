@@ -26,12 +26,6 @@
     onscope: (scope: FilterScope) => void;
   } = $props();
 
-  const HEADING: Record<FilterScope, string> = {
-    title: "Title phrases",
-    both: "Text phrases",
-    description: "Description phrases",
-  };
-
   // the phrase being typed, not yet a chip
   let draft = $state("");
 
@@ -59,7 +53,6 @@
   }
 </script>
 
-<label for="filter-phrase" class="label">{HEADING[matchIn]}</label>
 <div class="phrases">
   {#each phrases as phrase (phrase)}
     <Chip
@@ -94,16 +87,11 @@
 />
 
 <style>
-  .label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-
   .phrases {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    padding-top: 8px;
   }
 
   .phrases > :global(.chip) {
@@ -118,7 +106,7 @@
   }
 
   .help {
-    margin: 0;
+    margin: 6px 0 4px;
     font-size: 13px;
   }
 </style>
