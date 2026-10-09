@@ -26,13 +26,22 @@ Independent clients that share behaviour, not code. Each directory has its own
   `shared/fixtures` and must pass them.** A change to the Drive format or to
   filter, merge, prune, Shorts or feed-order semantics starts here, then goes to
   every client.
-- `design/icons/` — `sub-play.svg` is the logo as it stands beside the name:
-  the hull centred in the square, so it sits on the name's line with the
-  tower above. `sub-play-centred.svg` is the same drawing with all of it
-  centred, for wherever the logo stands alone; every client's icons are made
-  from that one. `sub-ports`, `shark` and `bubbles` are the shortlisted alternatives,
-  and `sub-ports-loading`, `sub-play-to-loading` and `bubbles-rising` are
-  animated versions.
+- `design/icons/` — the logo, a submarine on YouTube's shape: body, a
+  tail that narrows and then flares, tower, two bubbles behind and the play
+  triangle. `make.py` draws
+  every `sub-` file (needs shapely); change the logo there. `sub-play.svg`
+  is the logo as it stands beside the name: fin and body centered across
+  and the body centered down, so it sits on the name's line with the tower
+  and bubbles above. `sub-play-centred.svg` has all of it centered, for
+  wherever the logo stands alone; every client's icons are made from it,
+  and from `sub-play-centred-small.svg` (one large bubble) at 16 points and
+  under. `sub-ports.svg` has three windows for the triangle;
+  `sub-ports-loading.svg` is what a client shows while it loads (windows
+  rolling tail to nose, puffs of bubbles rising), and
+  `sub-play-to-loading.svg` plays the change there and back. `make.py`'s
+  `motion()` and `bubbles()` are that animation, which each client draws
+  itself. `shark`, `bubbles` and `bubbles-rising` are
+  earlier alternatives.
 
 Brand: Sunflower `#FFC20E` is the only brand color; yellow fills carry ink
 `#1B1E24` text, a slightly blue charcoal that is also the logo's play

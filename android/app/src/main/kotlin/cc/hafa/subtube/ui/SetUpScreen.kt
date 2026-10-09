@@ -96,7 +96,7 @@ fun SetUpScreen(viewModel: SubtubeViewModel) {
         ) { shown ->
             Column(Modifier.fillMaxSize().padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 24.dp)) {
                 when (shown) {
-                    SetUpStep.INTRO -> IntroStep { viewModel.goToStep(SetUpStep.SIGN_IN) }
+                    SetUpStep.INTRO -> IntroStep(viewModel.loading) { viewModel.goToStep(SetUpStep.SIGN_IN) }
                     SetUpStep.SIGN_IN -> SignInStep(viewModel)
                     SetUpStep.CHANNELS -> ChannelsStep(viewModel)
                     SetUpStep.SHORTS -> ShortsStep(viewModel)
@@ -119,12 +119,12 @@ private fun StepBody(text: String) {
 }
 
 @Composable
-private fun ColumnScope.IntroStep(onNext: () -> Unit) {
+private fun ColumnScope.IntroStep(loading: Boolean, onNext: () -> Unit) {
     Column(
         Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 40.dp),
         verticalArrangement = Arrangement.spacedBy(32.dp),
     ) {
-        Wordmark(fontSize = 36)
+        Wordmark(fontSize = 36, loading = loading)
         Text(stringResource(R.string.intro_title), style = MaterialTheme.typography.headlineMedium)
         Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
             IntroPoint(SubtubeIcons.Subscriptions, stringResource(R.string.intro_subscriptions))

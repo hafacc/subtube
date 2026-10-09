@@ -114,6 +114,14 @@ the pbxproj.
   `LoadProgress` (`loadFraction`: a full load's bar, `loadProgressStart`
   while the subscription list is read, then one equal step per channel
   fetched, failed or skipped; `FeedLoadSink.progress` reports the counts),
+  `Logo` (the logo as `../design/icons/make.py` draws it, in the drawing's
+  own coordinates: the yellow outline, the two bubbles, the play triangle
+  and `Logo.beside`, the framing beside the name; `logoFrame`, the logo so
+  many seconds into a load — make.py's `motion()`, a step every half
+  second, and its `bubbles()`: the two resting bubbles float off, puffs of
+  three follow every two seconds, and once the load has ended two last
+  bubbles rise into the resting places — and `logoSettles`, when it is the
+  still logo again; `LogoTests` holds make.py's numbers),
   `Chips` (the fifteen topics, `categoryNames` by YouTube category id;
   `topicLabel` is nil for any other id, which gets no chip and matches
   nothing; the topic chips' order, `chipRow`; the filter editor's,
@@ -384,9 +392,14 @@ the pbxproj.
   unwatched": a full swipe toggles and the row slides back, a short one
   leaves the button showing to be tapped; how far a full swipe is, its
   haptic, the edge swipe back and VoiceOver's row action are the system's;
-  not on the card of the item the player has, nor during a load), `Brand` (also `LogoMark`, sized by its hull so only the
-  hull takes layout room, and `Wordmark`, the logo beside the name with the
-  hull four fifths of the name's line; the one shimmer, `shimmering()`, and
+  not on the card of the item the player has, nor during a load), `Brand` (also `LogoMark`, the logo drawn in a `Canvas` from
+  SubtubeCore's `Logo`, with no image of it in the asset catalog, and sized
+  by its body so only the fin and the body take layout room, and `Wordmark`,
+  the logo beside the name with the body four fifths of the name's line;
+  while `loading` — setup's first screen passes `FeedModel.loading` — the
+  logo plays `logoFrame`, a load that begins while the ending plays waits
+  for it and then starts from the triangle, and under reduced motion the
+  logo stays the still play logo; the one shimmer, `shimmering()`, and
   `skeleton()` for stand-ins: a first load shows skeleton cards, a reload
   sweeps the greyed feed with a dark band on light and a light band on dark;
   still under reduced motion; the card that holds the player is never
@@ -515,7 +528,9 @@ system's: the Settings window's selected tab, the text selection and
 insertion point, alerts' default buttons, menus, and the keyboard focus ring
 of ordinary buttons. Icons: `Config/make-icons.sh`
 from `../design/icons/sub-play-centred.svg` (all of the logo centred on the
-tile; `Logo` in the asset catalog, shown beside the name, stays hull-centred).
+tile), the two 16 pt files from `sub-play-centred-small.svg`, which has one
+large bubble; the logo beside the name is drawn by `LogoMark`, fin and body
+centred.
 
 ## Copy
 

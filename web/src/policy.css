@@ -10,16 +10,16 @@
   text-decoration: none;
 }
 
-/* as Logo.svelte: the hull (0.518 of the square drawing's height, 0.74 of its
-   width) is four fifths of the name's 22px line, and only the hull takes up room */
+/* as Logo.svelte: fin and body (0.4908 of the square drawing's height, 0.851 of its
+   width) are four fifths of the name's 22px line, and only they take up room */
 .policy-header img {
   --hull: 17.6px;
-  --drawing: calc(var(--hull) / 0.518);
+  --drawing: calc(var(--hull) / 0.4908);
   flex-shrink: 0;
   width: var(--drawing);
   height: var(--drawing);
   margin: calc((var(--hull) - var(--drawing)) / 2)
-    calc(var(--drawing) * (0.74 - 1) / 2);
+    calc(var(--drawing) * (0.851 - 1) / 2);
 }
 
 .policy {

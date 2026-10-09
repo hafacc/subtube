@@ -203,6 +203,18 @@ every client shares is in `../shared/`.
     keeps waiting) and its text form for the preferences.
   - `Swipe.kt` — `swipeMarks`: whether a card has been swiped far enough
     sideways to mark it (`SWIPE_MARK_SHARE`, a quarter of its width).
+  - `LogoMotion.kt` — the logo's loading animation as numbers, a port of
+    `motion()`, `bubbles()`, `window_at()`, `bubble_at()`, `spline()` and
+    `smoothstep()` in `design/icons/make.py`, in that drawing's 24 by 24 box
+    (`LogoMotionTest` holds it to make.py's numbers; change both together).
+    `logoMotion(steps, ended)` is the inside of the logo (the still
+    triangle, or four windows and the triangle in motion, a step being
+    0.5 s), `logoBubbles(seconds, endedSeconds)` the seven bubbles (the two
+    resting ones floating off, a puff of three every two seconds, and the
+    two last ones that rise into the resting places once the load has
+    ended; radius 0 when one does not show); `logoFrame(seconds,
+    endedSeconds)` is both for a moment of a load, `logoSettled` whether the
+    logo is still again after one, and `LOGO_STILL` the logo at rest.
   - `Autoplay.kt` — `nextUnwatched`: the next unwatched entry after the one
     that ended, in the order shown.
   - `Playback.kt` — `Playback`: one entry in one player, with no Android:
@@ -386,8 +398,10 @@ every client shares is in `../shared/`.
     Their wording is approved text; don't reword it.
     `MainNavigationBar` (`ui/Components.kt`) draws its own items so the
     current tab's highlight covers icon and label. `Wordmark` sizes the logo
-    so its hull (0.518 of the drawing) is four fifths of the name's line
-    height; only the hull takes up room and the tower rises above it.
+    so its fin and body (0.4908 of the drawing's height, 0.851 of its
+    width) are four fifths of the name's line height; only they take up
+    room, and the tower and bubbles rise above. It takes `loading`, which
+    first run's intro, the only place it is shown, gives `viewModel.loading`.
   - `ui/ChipRow.kt` — `Chip` (a toggle, or a removable phrase, which
     TalkBack names "Remove {phrase}") and
     `CycleChip` (shows the current choice, a press moves to the next; as wide
@@ -530,15 +544,32 @@ every client shares is in `../shared/`.
     `loadFraction`: it moves to each value in 0.2 s, runs to the end when the
     load finishes and fades out, gone 0.5 s after; with animation off it jumps and vanishes. It has
     progress semantics while a load runs and no text.
+  - `ui/Logo.kt` — `Logo(loading)`, the logo drawn on a `Canvas` as it
+    stands beside the name (`design/icons/sub-play.svg`: the drawing at
+    0.95, moved 0.7425 across and -2.63 down), the same on light and dark;
+    there is no logo drawable. Its outline and body are make.py's paths
+    before framing. While `loading` it plays `:core`'s `LogoMotion.kt`,
+    one `logoFrame` per frame (`withFrameNanos`): the play triangle rounds
+    into a window, four windows roll tail to nose inside the body and puffs
+    of bubbles rise; when `loading` ends the windows go back to the triangle
+    at the next whole step and two last bubbles rise into the resting
+    places. A load that begins while that ending plays starts over from the
+    triangle once the logo is still. Where the system's
+    animator scale is 0 it is the still logo with the play triangle, loading
+    or not. Nothing shows a logo where a full load runs: the wordmark is
+    only on first run's intro, so the animation is seen only in demo mode
+    (`--es screen setup --es loading reload`).
   - `ui/Theme.kt` — Sunflower light/dark schemes (no dynamic color) on
     slightly blue greys, white page on light and `#121418` on dark, plus
     `MaterialTheme.brand.accent` (dark gold on light) for text-coloured
-    accents, since `primary` is Sunflower. The logo is `drawable/logo.xml`, the same on light and dark:
-    `design/icons/sub-play.svg`'s paths under the same translate and scale.
+    accents, since `primary` is Sunflower.
     The launcher icon (`ic_launcher_foreground.xml`, `ic_launcher_monochrome.xml`)
-    is those paths at 2.42, placed so the smallest circle holding all of the
-    logo, tower included, is centred on the 108dp canvas: launchers cut the
-    icon to a circle, and centring the logo's box instead leaves it looking
+    is `design/icons/sub-play-centred.svg`'s paths at 2.42 (its two bubbles
+    as paths, since a vector drawable has no circle; the monochrome one has
+    the triangle cut out of the outline), placed so the smallest circle
+    holding all of the logo, fin, tower and bubbles included, is centered on
+    the 108dp canvas (that circle is 59dp across): launchers cut the
+    icon to a circle, and centering the logo's box instead leaves it looking
     low. It sits inside the 66dp safe circle. `ui/SubtubeIcons.kt` — the
     mockups' stroke icons as `ImageVector`s.
   - `auth/GoogleAuth.kt` — Play services `AuthorizationClient`; expiry from
@@ -589,7 +620,7 @@ YouTube for the made-up video id.
 `MainActivity` under Robolectric, gives it `demoData(…)` and saves each
 screen as a PNG with Roborazzi (both test-only dependencies; JUnit 4 and
 Compose's `ui-test-junit4` come with them). Phone-sized (411×914dp at 420dpi),
-light, plus some dark ones, the channels tab with a time and a topic chip chosen (Past month, so it empties once the demo's dates are over 30 days old) and with nothing for the selection, the feed's chip row scrolled to its topic chips, the "Sort and filter" menu open (light, dark, with choices made, and on a 360dp-wide screen), the group screens (a group selected in each list, a group and a topic, both editors), the player (in its card, and in the corner with and without the frame, over another tab, and on a 360dp-wide screen), a one-card feed (so the line at the end of the list shows), a card held part-way through a swipe each way and the loading states (first load, and reload in light and dark; taken with the test
+light, plus some dark ones, the channels tab with a time and a topic chip chosen (Past month, so it empties once the demo's dates are over 30 days old) and with nothing for the selection, the feed's chip row scrolled to its topic chips, the "Sort and filter" menu open (light, dark, with choices made, and on a 360dp-wide screen), the group screens (a group selected in each list, a group and a topic, both editors), the player (in its card, and in the corner with and without the frame, over another tab, and on a 360dp-wide screen), a one-card feed (so the line at the end of the list shows), a card held part-way through a swipe each way and the loading states (first load, and reload in light and dark, and first run's intro with a load running, which only the demo can show, for the logo's windows; taken with the test
 clock stopped part-way through a shimmer sweep). The web view
 comes out black. `PlayerFlowTest`, `PlayerPageTest`, `PlayerLayoutTest`,
 `MarkWatchedTest` and `FilterMenuTest` run in the same task.
