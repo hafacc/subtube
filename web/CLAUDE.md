@@ -18,12 +18,16 @@ settings; no CNAME file).
   browser. SvelteKit's router has nothing to do: the app is one route and
   moves through its own `Router` (see `router.svelte.ts` below), so the dev
   console warns once that the page changes the URL itself.
-- `bun scripts/icons.ts` regenerates `static/` from `../design/icons/`
-  (needs rsvg-convert and ImageMagick); the output is committed. `logo.svg`
-  is `sub-play.svg`, for beside the name (hull centred, tower above the
-  line); `icon.svg` and the PNG icons are `sub-play-centred.svg`, all of the
-  logo centred, for where it stands alone. In the collapsed sidebar, where
-  the name is hidden, `logo.svg` is moved down to the same place.
+- `bun scripts/icons.ts` regenerates `static/` and `src/lib/logo-drawing.ts`
+  from `../design/icons/` (needs rsvg-convert and ImageMagick); the output is
+  committed. `logo.svg` is `sub-play.svg`, for beside the name (fin and body
+  centered, tower and bubbles above the line), and `logo-drawing.ts` is its
+  shapes, which `Logo.svelte` draws; `icon.svg` and the PNG icons are
+  `sub-play-centred.svg`, all of the logo centered, for where it stands
+  alone; `favicon.svg` and `favicon-32.png`, the browser tab's, are
+  `sub-play-centred-small.svg`, with one large bubble. In the collapsed
+  sidebar, where the name is hidden, the logo is moved down to the same
+  place.
 - Dev sign-in: load `../extension/dist` unpacked, then put its id in
   `web/.env.local` as `VITE_EXTENSION_ID=…` and restart `bun run dev`. The
   extension's redirect URI must be on the web OAuth client.
@@ -612,11 +616,18 @@ values, named by the page's `h1`.
   each channel's older items watched when that channel is first fetched; the list is in name order (`compareIgnoringCase`) and its search is `nameMatches`, case only;
   the sign-in screen's button is `GoogleButton`: Google's standard button, its four-colour mark on the neutral `--google-*` fill, stroke and text for a light and a dark page, never a Sunflower button),
   `ExtensionRequired`, `GetApp` (iOS/Android + Mac page). `Logo` takes the
-  height of its hull, which is four fifths of the line height of the name
+  height of its body, which is four fifths of the line height of the name
   beside it (17.6px by the 18px name on its 22px line, 28.8px by the 30px
-  one on its 36px line), so the tower rises little above the line: the
-  drawing is hull / 0.518 square with negative margins, so only the hull
-  takes up room.
+  one on its 36px line): the drawing is body / 0.4908 square with negative
+  margins, so only fin and body take up room and the tower and bubbles rise
+  above the line. It is an inline SVG. With `loading` (the sidebar's passes
+  `feed.loading`) it plays `lib/logo-motion.ts`, a port of
+  `design/icons/make.py`'s `motion()` and `bubbles()`: the play triangle rounds into a
+  window that leaves by the nose, windows roll tail to nose, the two
+  resting bubbles float off and puffs of three rise every two seconds; when
+  the load ends the first window becomes the triangle again at the next
+  half second and two last bubbles rise into the resting places. A load that begins during that ending plays from
+  the start once it is over. Still under `prefers-reduced-motion`.
 
 ## Controls (Bits UI)
 

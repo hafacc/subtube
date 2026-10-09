@@ -62,7 +62,7 @@
         aria-label="Refresh"
         onclick={onhome}
       >
-        <Logo />
+        <Logo loading={feed.loading} />
         <span class="wide-only">SubTube</span>
       </button>
       <Toggle.Root
@@ -223,21 +223,21 @@
     color: var(--text);
   }
 
-  /* beside the name the hull sits on its line; alone in the rail all of the logo is centred */
-  .home :global(img) {
+  /* beside the name the body sits on its line; alone in the rail all of the logo is centered */
+  .home :global(.logo) {
     transition: translate 0.2s;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .home :global(img) {
+    .home :global(.logo) {
       transition: none;
     }
   }
 
   @container (max-width: 120px) {
-    /* the hull's centre is 12.04% of the drawing below the whole logo's */
-    .home :global(img) {
-      translate: 0 12.04%;
+    /* the body's center is 12.07% of the drawing below the whole logo's */
+    .home :global(.logo) {
+      translate: 0 12.07%;
     }
   }
 

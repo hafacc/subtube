@@ -112,6 +112,8 @@ class ScreenshotsTest {
         }
         capture("17-dark-setup-intro", demoData(screen = "setup"), dark = true)
         capture("24-dark-setup-start", demoData(screen = "setup", step = SetUpStep.START), dark = true)
+        // no load runs on this screen in the app; this is the only place the logo's loading animation can be seen
+        capture("53-setup-intro-loading", demoData(screen = "setup", loading = DemoLoading.RELOAD))
     }
 
     @Test

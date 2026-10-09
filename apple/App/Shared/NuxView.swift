@@ -221,15 +221,17 @@ struct NuxView: View {
     }
   }
 
+  private var loading: Bool { app.feed?.loading ?? false }
+
   private var intro: some View {
     VStack(alignment: horizontalAlignment, spacing: 24) {
       #if os(macOS)
         VStack(spacing: 6) {
-          Wordmark(font: .system(size: 30, weight: .bold))
+          Wordmark(font: .system(size: 30, weight: .bold), loading: loading)
           Text(Strings.nuxHeadline).font(.title3).foregroundStyle(.secondary)
         }
       #else
-        Wordmark(font: .largeTitle.bold())
+        Wordmark(font: .largeTitle.bold(), loading: loading)
           .padding(.top, 36)
         Text(Strings.nuxHeadline).font(.title.bold())
       #endif
