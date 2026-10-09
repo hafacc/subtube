@@ -111,31 +111,26 @@ fun MainNavigationBar(current: Screen, onSelect: (Screen) -> Unit) {
     }
 }
 
-/** The hull's share of the square logo drawing's height; it is centred in it, the tower above. */
-private const val LOGO_HULL_HEIGHT = 0.518f
-
-/** The hull's share of the square logo drawing's width. */
-private const val LOGO_HULL_WIDTH = 0.74f
-
 /** The name's line height as a multiple of its font size. */
 private const val WORDMARK_LINE_HEIGHT = 1.2f
 
-/** The hull's height as a share of the name's line height. */
-private const val WORDMARK_HULL = 0.8f
+/** The logo's fin and body's height as a share of the name's line height. */
+private const val WORDMARK_BODY = 0.8f
 
 /**
- * The logo beside the name. The logo's hull is four fifths of the name's line
- * and centred on it; only the hull takes up room, so the tower rises without
- * making the row taller.
+ * The logo beside the name. The logo's fin and body are four fifths of the
+ * name's line high and centered on it; only they take up room, so the tower
+ * and bubbles rise without making the row taller. While [loading] the logo
+ * plays its loading animation ([Logo]).
  */
 @Composable
-fun Wordmark(modifier: Modifier = Modifier, fontSize: Int = 22) {
+fun Wordmark(modifier: Modifier = Modifier, fontSize: Int = 22, loading: Boolean = false) {
     val lineHeight = (fontSize * WORDMARK_LINE_HEIGHT).sp
     val line = with(LocalDensity.current) { lineHeight.toDp() }
-    val hull = line * WORDMARK_HULL
+    val body = line * WORDMARK_BODY
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(line * 0.3f)) {
-        Box(Modifier.size(width = hull * (LOGO_HULL_WIDTH / LOGO_HULL_HEIGHT), height = hull), contentAlignment = Alignment.Center) {
-            Image(painterResource(R.drawable.logo), contentDescription = null, modifier = Modifier.requiredSize(hull / LOGO_HULL_HEIGHT))
+        Box(Modifier.size(width = body * (LOGO_BODY_WIDTH / LOGO_BODY_HEIGHT), height = body), contentAlignment = Alignment.Center) {
+            Logo(loading, Modifier.requiredSize(body / LOGO_BODY_HEIGHT))
         }
         Text(stringResource(R.string.app_name), fontSize = fontSize.sp, lineHeight = lineHeight, fontWeight = FontWeight.Bold)
     }

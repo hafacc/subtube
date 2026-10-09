@@ -1,3 +1,4 @@
+import SubtubeCore
 import SwiftUI
 
 extension Color {
@@ -208,36 +209,115 @@ struct ThumbnailBadge<Content: View>: View {
   }
 }
 
-/// The logo, sized by its hull: in the square drawing the hull is 0.518 of
-/// the height and 0.74 of the width, centred. Only the hull's box takes
-/// layout room, so the tower rises over the line without making it taller.
+/// The logo, drawn from `Logo` and sized by its body: only the box of the
+/// fin and the body takes layout room, so the tower and the bubbles rise
+/// over the line without making it taller. While `loading` the play
+/// triangle gives way to rolling windows and the bubbles rise, and when the
+/// load ends they settle back; still under reduced motion.
 struct LogoMark: View {
-  /// The hull's height.
-  var hull: CGFloat
+  /// The body's height.
+  var height: CGFloat
+  var loading = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  /// When the load the logo moves for began; nil while the logo is still.
+  @State private var began: Date?
+  /// When that load ended; nil while it runs.
+  @State private var ended: Date?
 
-  private static let hullHeight = 0.518
-  private static let hullWidth = 0.74
+  private static let hull = Path(closed: Logo.hull)
+  private static let triangle = Path(closed: Logo.triangle)
 
   var body: some View {
-    let side = hull / Self.hullHeight
-    Image("Logo")
-      .resizable()
-      .frame(width: side, height: side)
-      .frame(width: side * Self.hullWidth, height: hull)
-      .accessibilityHidden(true)
+    let side = height / Logo.besideHeight
+    Group {
+      if let began, !reduceMotion {
+        TimelineView(.animation) { context in
+          drawing(
+            logoFrame(
+              seconds: context.date.timeIntervalSince(began),
+              endedSeconds: ended?.timeIntervalSince(began)))
+        }
+      } else {
+        drawing(.still)
+      }
+    }
+    .frame(width: side, height: side)
+    .frame(width: side * Logo.besideWidth, height: height)
+    .accessibilityHidden(true)
+    .onChange(of: loading, initial: true) { _, now in
+      if began == nil {
+        began = now ? Date() : nil
+      } else if !now && ended == nil {
+        ended = Date()
+      }
+    }
+    .task(id: ended) {
+      if let began, let ended {
+        let settles = began.addingTimeInterval(
+          logoSettles(endedSeconds: ended.timeIntervalSince(began)))
+        try? await Task.sleep(for: .seconds(max(settles.timeIntervalSinceNow, 0)))
+        if !Task.isCancelled {
+          // a load that began meanwhile starts from the triangle
+          self.began = loading ? Date() : nil
+          self.ended = nil
+        }
+      }
+    }
+  }
+
+  private func drawing(_ frame: LogoFrame) -> some View {
+    Canvas { context, size in
+      let framing = Logo.beside
+      context.scaleBy(x: size.width / 24, y: size.height / 24)
+      context.translateBy(x: framing.across, y: framing.down)
+      context.scaleBy(x: framing.scale, y: framing.scale)
+      context.fill(Self.hull, with: .color(.sunflower))
+      for bubble in frame.bubbles {
+        context.fill(Path(bubble), with: .color(.sunflower))
+      }
+      if frame.motion.triangle {
+        context.fill(Self.triangle, with: .color(.ink))
+      } else {
+        for window in frame.motion.windows where window.radius > 0 {
+          context.fill(Path(window), with: .color(.ink))
+        }
+        let piece = frame.motion.piece
+        if piece.circle.radius > 0 {
+          context.clip(to: Path(closed: piece.corners))
+          context.fill(Path(piece.circle), with: .color(.ink))
+        }
+      }
+    }
   }
 }
 
-/// The logo beside the app's name, its hull four fifths of the name's line.
+extension Path {
+  fileprivate init(closed points: [LogoPoint]) {
+    self.init()
+    addLines(points.map { CGPoint(x: $0.x, y: $0.y) })
+    closeSubpath()
+  }
+
+  fileprivate init(_ circle: LogoCircle) {
+    self.init(
+      ellipseIn: CGRect(
+        x: circle.x - circle.radius, y: circle.y - circle.radius,
+        width: 2 * circle.radius, height: 2 * circle.radius))
+  }
+}
+
+/// The logo beside the app's name, its body four fifths of the name's line;
+/// it moves while `loading`.
 struct Wordmark: View {
   let font: Font
+  var loading = false
   @State private var lineHeight: CGFloat = 0
 
-  private static let hullShare = 0.8
+  private static let bodyShare = 0.8
 
   var body: some View {
     HStack(spacing: lineHeight * 0.3) {
-      LogoMark(hull: lineHeight * Self.hullShare)
+      LogoMark(height: lineHeight * Self.bodyShare, loading: loading)
       Text(Strings.appName)
         .font(font)
         .lineLimit(1)
