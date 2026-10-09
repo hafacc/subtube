@@ -2,6 +2,9 @@ package cc.hafa.subtube.core
 
 import java.io.IOException
 import java.util.logging.Level
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl
@@ -45,6 +48,18 @@ private val SERVER_ERRORS = 500..599
 
 /** Titles the Data API gives entries that can't be played. */
 private val HIDDEN_TITLES = setOf("Private video", "Deleted video")
+
+/** The parts of a `thumbnails` object that are read, as a `fields` selector. */
+private const val THUMBNAIL_FIELDS = "thumbnails(default(url),medium(url))"
+
+// each request's `fields`: exactly what its response class below reads, so YouTube sends nothing else
+private const val SUBSCRIPTION_FIELDS = "nextPageToken,items(snippet(title,resourceId(channelId),$THUMBNAIL_FIELDS))"
+private const val VIDEO_FIELDS = "items(id,snippet(liveBroadcastContent,categoryId),contentDetails(duration),liveStreamingDetails(actualEndTime))"
+private const val UPLOAD_FIELDS =
+    "items(snippet(title,description,publishedAt,videoOwnerChannelId,videoOwnerChannelTitle,$THUMBNAIL_FIELDS),contentDetails(videoId,videoPublishedAt))"
+private const val SHORT_ID_FIELDS = "items(contentDetails(videoId))"
+private const val PLAYLIST_FIELDS = "items(id,snippet(title,description,publishedAt,channelId,channelTitle,$THUMBNAIL_FIELDS),contentDetails(itemCount))"
+private const val CHANNEL_FIELDS = "items(id,snippet(title,customUrl,$THUMBNAIL_FIELDS))"
 
 @Serializable
 private data class Thumbnail(val url: String)
@@ -150,10 +165,16 @@ private fun VideoItem.liveStatus(): LiveStatus = when (snippet.liveBroadcastCont
     else -> if (liveStreamingDetails?.actualEndTime != null) LiveStatus.VOD else LiveStatus.NORMAL
 }
 
+/** Whether what is held of a video can stand for a new `videos.list` answer: it has a length and is neither live nor upcoming. */
+private fun Video.hasSettledDetails(): Boolean =
+    (durationSeconds ?: 0) > 0 && (liveStatus == LiveStatus.VOD || liveStatus == LiveStatus.NORMAL)
+
 /** The YouTube Data API v3, as subtube reads it. Every call takes the access token to use. */
 class YouTubeClient(
     private val http: OkHttpClient,
     private val baseUrl: HttpUrl = "https://www.googleapis.com/youtube/v3/".toHttpUrl(),
+    /** Where answers are decoded, so a caller on the main thread isn't held up. */
+    private val compute: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -162,7 +183,7 @@ class YouTubeClient(
             params.forEach { (key, value) -> addQueryParameter(key, value) }
         }.build()
         val body = http.googleCall(Request.Builder().url(url).build(), token, GoogleApi.YOUTUBE, "YouTube API /$path")
-        return json.decodeFromString(body)
+        return withContext(compute) { json.decodeFromString(body) }
     }
 
     /** Every channel the account subscribes to, alphabetically. */
@@ -175,6 +196,7 @@ class YouTubeClient(
                 put("mine", "true")
                 put("maxResults", "50")
                 put("order", "alphabetical")
+                put("fields", SUBSCRIPTION_FIELDS)
                 pageToken?.let { put("pageToken", it) }
             }
             val data = get<SubscriptionListResponse>("subscriptions", params, token)
@@ -197,7 +219,7 @@ class YouTubeClient(
         for (batch in videoIds.chunked(50)) {
             val data = get<VideoListResponse>(
                 "videos",
-                mapOf("part" to "snippet,contentDetails,liveStreamingDetails", "id" to batch.joinToString(",")),
+                mapOf("part" to "snippet,contentDetails,liveStreamingDetails", "id" to batch.joinToString(","), "fields" to VIDEO_FIELDS),
                 token,
             )
             for (item in data.items) {
@@ -217,6 +239,8 @@ class YouTubeClient(
      * Shorts list is not fetched and a video that could be a Short is left
      * unjudged. [probe] asks `/shorts/{id}` directly, for when the Shorts list
      * can't be read. A channel YouTube has no uploads list for has no uploads.
+     * A video among [held], by id, keeps the details it has there and is not
+     * asked for again, unless it has no length or is live or upcoming.
      */
     suspend fun fetchUploads(
         channelId: String,
@@ -225,11 +249,17 @@ class YouTubeClient(
         maxResults: Int = 15,
         probe: (suspend (String) -> Boolean?)? = null,
         judgeShorts: Boolean = true,
+        held: Map<String, Video> = emptyMap(),
     ): List<Video> {
         val data = try {
             get<PlaylistItemsResponse>(
                 "playlistItems",
-                mapOf("part" to "snippet,contentDetails", "playlistId" to uploadsPlaylistId(channelId), "maxResults" to "$maxResults"),
+                mapOf(
+                    "part" to "snippet,contentDetails",
+                    "playlistId" to uploadsPlaylistId(channelId),
+                    "maxResults" to "$maxResults",
+                    "fields" to UPLOAD_FIELDS,
+                ),
                 token,
             )
         } catch (_: PlaylistNotFoundException) {
@@ -246,7 +276,10 @@ class YouTubeClient(
                 thumbnail = item.snippet.thumbnails.best,
             )
         }
-        val details = fetchVideoDetails(videos.map(Video::videoId), token)
+        val settled = videos.mapNotNull { video -> held[video.videoId]?.takeIf(Video::hasSettledDetails) }.associate { kept ->
+            kept.videoId to VideoDetails(kept.durationSeconds ?: 0, kept.liveStatus ?: LiveStatus.NORMAL, kept.categoryId)
+        }
+        val details = settled + fetchVideoDetails(videos.map(Video::videoId).filter { videoId -> videoId !in settled }, token)
         val detailed = videos.map { video ->
             val detail = details[video.videoId]
             video.copy(
@@ -277,7 +310,7 @@ class YouTubeClient(
     suspend fun fetchPlaylists(channelId: String, channelTitle: String, token: String, maxResults: Int = 50): List<Playlist> {
         val data = get<PlaylistListResponse>(
             "playlists",
-            mapOf("part" to "snippet,contentDetails", "channelId" to channelId, "maxResults" to "$maxResults"),
+            mapOf("part" to "snippet,contentDetails", "channelId" to channelId, "maxResults" to "$maxResults", "fields" to PLAYLIST_FIELDS),
             token,
         )
         return data.items.map { item ->
@@ -309,7 +342,7 @@ class YouTubeClient(
         val playlistId = shortsPlaylistId(channelId)
         suspend fun ask(): Set<String> = get<PlaylistItemsResponse>(
             "playlistItems",
-            mapOf("part" to "contentDetails", "playlistId" to playlistId, "maxResults" to "$max"),
+            mapOf("part" to "contentDetails", "playlistId" to playlistId, "maxResults" to "$max", "fields" to SHORT_ID_FIELDS),
             token,
         ).items.mapTo(HashSet()) { item -> item.contentDetails.videoId }
         return try {
@@ -335,7 +368,7 @@ class YouTubeClient(
 
     /** The signed-in account's own channel: its id keys everything stored for the account. */
     suspend fun fetchMyChannel(token: String): ChannelSummary {
-        val data = get<ChannelListResponse>("channels", mapOf("part" to "snippet", "mine" to "true"), token)
+        val data = get<ChannelListResponse>("channels", mapOf("part" to "snippet", "mine" to "true", "fields" to CHANNEL_FIELDS), token)
         return data.items?.firstOrNull()?.toSummary() ?: throw NoYouTubeChannelException()
     }
 
@@ -345,7 +378,7 @@ class YouTubeClient(
         for (batch in channelIds.distinct().chunked(50)) {
             val data = get<ChannelListResponse>(
                 "channels",
-                mapOf("part" to "snippet", "id" to batch.joinToString(","), "maxResults" to "50"),
+                mapOf("part" to "snippet", "id" to batch.joinToString(","), "maxResults" to "50", "fields" to CHANNEL_FIELDS),
                 token,
             )
             data.items.orEmpty().mapTo(found) { item -> item.toSummary() }

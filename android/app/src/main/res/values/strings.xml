@@ -42,6 +42,7 @@
     <string name="feed_empty">Nothing new. You\'re caught up.</string>
     <string name="feed_empty_filtered">No videos for the selected filter.</string>
     <string name="sign_in">Sign in</string>
+    <string name="refresh">Refresh</string>
     <string name="sign_in_again">Sign in again to load your feed.</string>
     <string name="session_ended">Your Google session ended. Sign in again to refresh.</string>
     <string name="needs_permissions">SubTube needs both permissions Google asks for. Sign in again and allow them.</string>

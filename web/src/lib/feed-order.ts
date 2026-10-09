@@ -1,5 +1,5 @@
 import { feedItemId } from "./feed-item";
-import { compareIgnoringCase } from "./text-order";
+import { compareCodePoints, foldCase } from "./text-order";
 import type { FeedItem } from "./types";
 
 /** The orders the feed can be read in. */
@@ -122,8 +122,10 @@ export function sortFeed(
   const direction = forward === sort ? 1 : -1;
   let primary: (left: FeedItem, right: FeedItem) => number;
   if (forward === "title") {
+    const folded = new Map(items.map((item) => [item, foldCase(item.title)]));
     primary = (left, right) =>
-      direction * compareIgnoringCase(left.title, right.title);
+      direction *
+      compareCodePoints(folded.get(left) ?? "", folded.get(right) ?? "");
   } else if (forward === "shortest") {
     primary = (left, right) => byLength(left, right, direction);
   } else if (forward === "random") {

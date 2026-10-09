@@ -35,9 +35,13 @@ struct PlatformMainView: View {
     .onChange(of: scenePhase) { _, phase in
       if phase == .active {
         feed.appeared()
-      } else {
+      } else if phase == .background {
+        // not on `.inactive`: the window only lost the focus, and a video goes on playing
         Task { await feed.leftForeground() }
       }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) {
+      _ in feed.quitting()
     }
   }
 }
@@ -619,8 +623,6 @@ private struct MacFeedGrid: View {
           ForEach(feed.shown) { item in
             ItemCard(
               item: item,
-              watched: feed.watched.contains(item.id),
-              progress: feed.bars[item.id],
               feed: feed,
               onOpenChannel: { feed.selectedChannel = item.channelId },
               showsAvatar: feed.selectedChannel == nil,
@@ -669,7 +671,7 @@ private struct MacFeedGrid: View {
       }
     }
     .overlay(alignment: .top) {
-      LoadProgressBar(progress: feed.loadProgress)
+      LoadProgressBar(feed: feed)
     }
     // kept for the Window menu and Mission Control; the page shows it itself
     .navigationTitle(title)

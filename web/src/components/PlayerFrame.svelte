@@ -95,6 +95,7 @@
               }
               current.stateChanged(event.data, event.target);
             },
+            onError: () => current.failed(),
           },
         });
         // read when the frame's page loads, so it must be set before then

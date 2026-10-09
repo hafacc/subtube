@@ -1,5 +1,15 @@
+<script module lang="ts">
+  // the module is also loaded where the page is built, which has no window
+  const NARROW = globalThis.window?.matchMedia("(max-width: 760px)");
+  const REDUCED_MOTION = globalThis.window?.matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  );
+  /** How long after a swipe a click is taken as its release, in milliseconds. */
+  const SWIPE_CLICK_MS = 100;
+</script>
+
 <script lang="ts">
-  import { formatDuration } from "../lib/duration";
+  import { formatDuration, shortDate } from "../lib/duration";
   import { feedItemId } from "../lib/feed-item";
   import { swipeIntent, swipeOffset, swipePasses } from "../lib/swipe";
   import type { FeedItem } from "../lib/types";
@@ -35,16 +45,6 @@
 
   const titleId = $props.id();
 
-  const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-
-  const NARROW = window.matchMedia("(max-width: 760px)");
-  const REDUCED_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)");
-  /** How long after a swipe a click is taken as its release, in milliseconds. */
-  const SWIPE_CLICK_MS = 100;
-
   /** A pointer that went down on the card and may be swiping it. */
   interface Press {
     /** the pointer */
@@ -75,7 +75,7 @@
 
   function pressed(event: PointerEvent) {
     swallowClick = false;
-    if (!playing && event.isPrimary && event.button === 0 && NARROW.matches) {
+    if (!playing && event.isPrimary && event.button === 0 && NARROW?.matches) {
       press = {
         pointerId: event.pointerId,
         downX: event.clientX,
@@ -111,7 +111,7 @@
     }
     if (press !== null && press.swipeX !== null) {
       distance = swipeOffset(event.clientX - press.swipeX, cardWidth);
-      offset = REDUCED_MOTION.matches ? 0 : distance;
+      offset = REDUCED_MOTION?.matches ? 0 : distance;
       uncoversRight = distance < 0;
     }
   }
@@ -247,9 +247,7 @@
         <button type="button" class="channel" onclick={onopenchannel}>
           {item.channelTitle}
         </button>
-        <span class="date"
-          >{DATE_FORMAT.format(new Date(item.publishedAt))}</span
-        >
+        <span class="date">{shortDate(item.publishedAt)}</span>
       </div>
     </div>
   </div>

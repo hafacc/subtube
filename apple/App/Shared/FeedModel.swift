@@ -38,14 +38,23 @@ final class FeedModel {
   /// them; edits apply here at once and sync through Drive.
   private(set) var channels: [ChannelFilter] = [] {
     didSet {
-      compiled = Dictionary(channels.map { ($0.channelId, compileFilter($0)) }) { first, _ in first }
+      // compiling a pattern is the costly part, so a filter that didn't change keeps its own
+      let before = Dictionary(oldValue.map { ($0.channelId, $0) }) { first, _ in first }
+      var recompiled: [String: CompiledFilter] = [:]
+      for channel in channels where recompiled[channel.channelId] == nil {
+        if before[channel.channelId] == channel, let unchanged = compiled[channel.channelId] {
+          recompiled[channel.channelId] = unchanged
+        } else {
+          recompiled[channel.channelId] = compileFilter(channel)
+        }
+      }
+      compiled = recompiled
       modes = Dictionary(channels.map { ($0.channelId, $0.contentMode) }) { first, _ in first }
       channelGroups = Dictionary(channels.map { ($0.channelId, $0.groups) }) { first, _ in first }
       let names = groupNames(channelGroups.values)
       if !names.elementsEqual(groups, by: sameScalars) {
         groups = names
       }
-      holdChannels()
     }
   }
   /// The channel lists' rows as last worked out; edits neither move nor
@@ -64,7 +73,14 @@ final class FeedModel {
   /// The channels the account subscribes to on YouTube.
   private(set) var subscribedIds = Set<String>()
   /// Every item fetched, for the feed or a channel page.
-  private var items: [String: FeedItem] = [:]
+  private var items: [String: FeedItem] = [:] {
+    didSet { index = nil }
+  }
+  /// `items` by channel; nil until asked for after they changed.
+  @ObservationIgnored private var index: ItemIndex?
+  /// Each `publishedAt` read so far, in milliseconds since the epoch; nil
+  /// inside for one that isn't a time.
+  @ObservationIgnored private var publishedTimes: [String: Int64?] = [:]
   /// What each channel's items have been fetched as.
   private var fetched: [String: Set<FetchMark>] = [:]
   /// The loaded items' watched entries, as last read from the store or
@@ -163,6 +179,7 @@ final class FeedModel {
   /// The Google account's name and address, once asked.
   private(set) var user: DriveUser?
   private(set) var lastSyncedAt: Date?
+  /// When a full load last succeeded.
   private var lastLoadedAt = Date.distantPast
   /// What a load asked for while another was running wanted.
   private var loadAskedMeanwhile: LoadDepth?
@@ -291,15 +308,7 @@ final class FeedModel {
 
   /// The channel ids in the order their sort gives them now.
   private func freshChannelOrder() -> [String] {
-    var newest: [String: String] = [:]
-    for item in items.values {
-      if let known = newest[item.channelId],
-        !known.utf8.lexicographicallyPrecedes(item.publishedAt.utf8)
-      {
-        continue
-      }
-      newest[item.channelId] = item.publishedAt
-    }
+    let newest = itemIndex().newest
     return channelOrder(
       channels.map { channel in
         ChannelOrderEntry(
@@ -342,7 +351,45 @@ final class FeedModel {
 
   /// Everything fetched for a channel, whatever its filter keeps.
   func channelFetched(_ channelId: String) -> [FeedItem] {
-    items.values.filter { $0.channelId == channelId }
+    itemIndex().byChannel[channelId] ?? []
+  }
+
+  private func itemIndex() -> ItemIndex {
+    // read even when the index is there, so a view that asks is redrawn when the items change
+    let all = items
+    if let index {
+      return index
+    } else {
+      var built = ItemIndex()
+      for item in all.values {
+        built.byChannel[item.channelId, default: []].append(item)
+        if let known = built.newest[item.channelId],
+          !known.utf8.lexicographicallyPrecedes(item.publishedAt.utf8)
+        {
+          continue
+        }
+        built.newest[item.channelId] = item.publishedAt
+      }
+      index = built
+      return built
+    }
+  }
+
+  /// An item's `publishedAt` in milliseconds since the epoch, read once for
+  /// each time; nil when it isn't one.
+  private func publishedTime(_ item: FeedItem) -> Int64? {
+    if let known = publishedTimes[item.publishedAt] {
+      return known
+    } else {
+      let read = parseTimestamp(item.publishedAt)
+      publishedTimes[item.publishedAt] = .some(read)
+      return read
+    }
+  }
+
+  /// When an item was published; nil when YouTube sent something unexpected.
+  func publishedDate(_ item: FeedItem) -> Date? {
+    publishedTime(item).map { Date(timeIntervalSince1970: Double($0) / 1000) }
   }
 
   /// Whether an item is the kind its channel currently shows.
@@ -358,30 +405,40 @@ final class FeedModel {
     channel(channelId)?.enabled != true
   }
 
-  /// Everything a page could show, watched or not; `page` is a channel's
-  /// id, or nil for the feed.
-  private func passing(on page: String?) -> [FeedItem] {
-    items.values.filter { item in
-      guard page == nil || item.channelId == page, matchesMode(item)
-      else { return false }
-      let filter = compiled[item.channelId]
-      if page == nil && filter?.enabled != true {
-        return false
-      } else if let filter {
-        return itemPassesFilter(item, filter)
+  /// Everything the feed and the channel lists could show, watched or not:
+  /// the one pass of the filters over everything fetched.
+  private func feedPassing() -> [FeedItem] {
+    listedItems(items.values, filters: compiled, modes: modes)
+  }
+
+  /// Everything a page could show, watched or not, out of `feedPassing`
+  /// (``feedPassing()``); `page` is a channel's id, or nil for the feed.
+  private func passing(on page: String?, feedPassing: [FeedItem]) -> [FeedItem] {
+    if let page {
+      let filter = compiled[page]
+      if filter?.enabled == true {
+        return feedPassing.filter { $0.channelId == page }
       } else {
-        return true
+        // a channel that is off is not among them
+        return channelFetched(page).filter { item in
+          matchesMode(item) && (filter.map { itemPassesFilter(item, $0) } ?? true)
+        }
       }
+    } else {
+      return feedPassing
     }
   }
 
   /// What a page lists, unordered: `beforeChips` after the filters and the
   /// watched chip, `kept` after the group, time and topic chips too. `page`
   /// is a channel's id, or nil for the feed; another page than the one
-  /// showing is listed as it will be once it is opened.
-  private func listed(on page: String?) -> (beforeChips: [FeedItem], kept: [FeedItem]) {
+  /// showing is listed as it will be once it is opened. `feedPassing` is
+  /// ``feedPassing()``.
+  private func listed(on page: String?, feedPassing: [FeedItem])
+    -> (beforeChips: [FeedItem], kept: [FeedItem])
+  {
     let beforeChips = modeFiltered(
-      passing(on: page), mode: watchedMode, watched: watched,
+      passing(on: page, feedPassing: feedPassing), mode: watchedMode, watched: watched,
       staying: page == selectedChannel ? staying : [])
     let inGroups = groupFiltered(
       beforeChips,
@@ -389,17 +446,18 @@ final class FeedModel {
     return (
       beforeChips,
       chipFiltered(
-        inGroups, timeChip: settings.timeChip, topicChips: settings.topicChips, now: chipClock)
+        inGroups, timeChip: settings.timeChip, topicChips: settings.topicChips, now: chipClock,
+        published: publishedTime)
     )
   }
 
   /// Work out what the page shows, both rows' topic chips, the unwatched
   /// counts and the channels the channel lists' chips keep.
   private func rebuild() {
-    let (beforeChips, kept) = listed(on: selectedChannel)
+    let listed = feedPassing()
+    let (beforeChips, kept) = self.listed(on: selectedChannel, feedPassing: listed)
     topicChips = chipRow(beforeChips, selected: settings.topicChips)
     shown = sortFeed(kept, by: settings.feedSort, seed: shuffleSeed)
-    let listed = listedItems(items.values, filters: compiled, modes: modes)
     var counts: [String: Int] = [:]
     var newestUnwatched: [String: String] = [:]
     for item in listed where !watched.contains(item.id) {
@@ -418,7 +476,7 @@ final class FeedModel {
       groupKeptChannels(channelGroups, selected: settings.channelGroupChips),
       chipKeptChannels(
         listed, timeChip: settings.channelTimeChip, topicChips: settings.channelTopicChips,
-        now: chipClock))
+        now: chipClock, published: publishedTime))
     holdChannels()
     if let player, player.place == .card, !shown.contains(where: { $0.id == player.item.id }) {
       minimize()
@@ -438,7 +496,6 @@ final class FeedModel {
   /// The first load, and a load on returning after a while away.
   func appeared() {
     if Date().timeIntervalSince(lastLoadedAt) > Self.staleAfter {
-      lastLoadedAt = Date()
       Task { await load() }
     }
   }
@@ -460,12 +517,18 @@ final class FeedModel {
   private func readEntry(_ id: String, durationSeconds: Double) -> Bool {
     let entry = entries[id]
     let isWatchedNow = isWatched(entry, durationSeconds: durationSeconds)
-    if isWatchedNow {
-      watched.insert(id)
-    } else {
-      watched.remove(id)
+    // only what differs is written: every write redraws the cards
+    if isWatchedNow != watched.contains(id) {
+      if isWatchedNow {
+        watched.insert(id)
+      } else {
+        watched.remove(id)
+      }
     }
-    bars[id] = progressFraction(entry, durationSeconds: durationSeconds)
+    let bar = progressFraction(entry, durationSeconds: durationSeconds)
+    if bars[id] != bar {
+      bars[id] = bar
+    }
     return isWatchedNow
   }
 
@@ -570,9 +633,6 @@ final class FeedModel {
       loading = false
       loadProgress = nil
       editsDuringLoad = [:]
-      if wantsItems {
-        lastLoadedAt = Date()
-      }
     }
     let sink = FeedLoadSink(
       channels: { [weak self] loaded in await self?.receiveChannels(loaded) },
@@ -588,7 +648,7 @@ final class FeedModel {
     do {
       let result = try await loadFeed(
         tokens: auth, store: store, probe: probe.function, sink: sink, items: wantsItems,
-        prefetched: prefetched)
+        prefetched: prefetched, known: wantsItems ? heldDetails() : [:])
       let fresh = result.fetched.values.flatMap(\.items)
       appLog.notice(
         "loaded items=\(wantsItems) channels=\(result.channels.count) on=\(result.channels.filter(\.enabled).count) fetched=\(result.fetched.count) failed=\(result.failed.count) videos=\(fresh.count) limit=\(result.dailyLimit)"
@@ -609,6 +669,7 @@ final class FeedModel {
           kept[item.id] = item
         }
         items = kept
+        publishedTimes = [:]
         for (channelId, got) in result.fetched {
           fetched[channelId] = nil
           markFetched(channelId, got)
@@ -640,6 +701,9 @@ final class FeedModel {
         try? await fetchChannel(selectedChannel, again: true)
       }
       channelsLoaded = true
+      if wantsItems {
+        lastLoadedAt = Date()
+      }
     } catch SyncError.profileDeleted {
       appLog.notice("load ended: profile deleted elsewhere")
       onProfileDeleted?()
@@ -677,6 +741,8 @@ final class FeedModel {
 
   private func receiveChannels(_ loaded: [ChannelFilter]) {
     channels = keepingEdits(loaded, edits: editsDuringLoad)
+    // no rebuild follows here to do it
+    holdChannels()
   }
 
   /// Move the load's bar on; reports arrive out of order, and from the start
@@ -705,10 +771,23 @@ final class FeedModel {
     }
   }
 
+  /// The details of the held videos that YouTube needn't be asked for again,
+  /// by video id; those of one channel, or of all.
+  private func heldDetails(of channelId: String? = nil) -> [String: VideoDetails] {
+    var details: [String: VideoDetails] = [:]
+    let held = channelId.map(channelFetched) ?? Array(items.values)
+    for case .video(let video) in held {
+      details[video.videoId] = settledDetails(video)
+    }
+    return details
+  }
+
   private func fetchItems(_ channel: ChannelFilter) async throws -> ChannelItems {
     let probe = probe.function
+    let known = heldDetails(of: channel.channelId)
     return try await withToken { token in
-      try await fetchChannelItems(channel, client: YouTubeClient(accessToken: token), probe: probe)
+      try await fetchChannelItems(
+        channel, client: YouTubeClient(accessToken: token), probe: probe, known: known)
     }
   }
 
@@ -1103,7 +1182,8 @@ final class FeedModel {
     write { store in
       await store.setProgress(id, position: whole, ended: ended, upload: upload != .later)
       if upload == .now {
-        try? await store.flush()
+        // started, not waited for: the queue must not stand behind an upload
+        _ = await store.startFlush()
       }
     }
     let known = length(of: id)
@@ -1160,7 +1240,8 @@ final class FeedModel {
   /// item, whatever page shows now: only then can it go back in its card.
   var cardIsListed: Bool {
     if let player, player.place == .minimized {
-      listed(on: player.startedOn).kept.contains { $0.id == player.item.id }
+      listed(on: player.startedOn, feedPassing: feedPassing()).kept
+        .contains { $0.id == player.item.id }
     } else {
       false
     }
@@ -1228,7 +1309,9 @@ final class FeedModel {
   /// Upload edits still waiting out the pause.
   func flush() async {
     guard !offline else { return }
-    await read { _ = try? await $0.flush() }
+    // the queue only starts the upload, so nothing asked later waits behind it
+    let upload = await read { await $0.startFlush() }
+    _ = try? await upload?.value
   }
 
   /// The app is leaving the foreground: save what is playing and upload.
@@ -1236,6 +1319,26 @@ final class FeedModel {
     player?.save(upload: .now)
     await flush()
   }
+
+  /// The app is quitting: have the playing position on disk before this
+  /// returns, waiting no more than a second for it.
+  func quitting() {
+    guard !offline else { return }
+    player?.save(upload: .later)
+    let written = DispatchSemaphore(value: 0)
+    write { store in
+      await store.persist()
+      written.signal()
+    }
+    // the store's queue runs off the main thread, so waiting here doesn't hold it up
+    _ = written.wait(timeout: .now() + .seconds(1))
+  }
+}
+
+/// The fetched items by channel, with each channel's newest `publishedAt`.
+private struct ItemIndex {
+  var byChannel: [String: [FeedItem]] = [:]
+  var newest: [String: String] = [:]
 }
 
 /// One channel's items of one kind.

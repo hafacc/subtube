@@ -71,7 +71,10 @@ globalThis.fetch = (async (
 }) as typeof fetch;
 
 const { Session, setupDoneFor } = await import("./session.svelte");
-const { forgetToken, getValidToken } = await import("./auth");
+const { expectAccount, forgetToken, getValidToken, withToken } = await import(
+  "./auth"
+);
+const { TokenExpiredError } = await import("./youtube");
 const { recheckPlatform } = await import("./platform");
 // an earlier test file may have looked for the extension before it was faked
 await recheckPlatform();
@@ -179,5 +182,40 @@ describe("Session", () => {
     signedInAs = "B";
     await expect(getValidToken()).rejects.toThrow("Sign in again to continue.");
     session.store?.close();
+  });
+});
+
+describe("withToken", () => {
+  test("a request refused after another's renewal runs again with the renewed token", async () => {
+    let minted = 0;
+    tokenAnswer = () => {
+      minted += 1;
+      return { accessToken: `token-${minted}`, expiresIn: 3600 };
+    };
+    expectAccount(null);
+    const refused = await getValidToken();
+    let refuseLate: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      refuseLate = resolve;
+    });
+    const late = withToken(async (token) => {
+      if (token === refused) {
+        await held;
+        throw new TokenExpiredError();
+      } else {
+        return token;
+      }
+    });
+    const early = await withToken(async (token) => {
+      if (token === refused) {
+        throw new TokenExpiredError();
+      } else {
+        return token;
+      }
+    });
+    expect(early).toBe("token-2");
+    refuseLate();
+    expect(await late).toBe("token-2");
+    expect(minted).toBe(2);
   });
 });

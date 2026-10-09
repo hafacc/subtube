@@ -34,6 +34,8 @@
     <img
       src={thumbnail}
       alt=""
+      loading="lazy"
+      decoding="async"
       referrerpolicy="no-referrer"
       onerror={() => {
         broken = true;

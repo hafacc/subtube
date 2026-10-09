@@ -111,6 +111,16 @@ the grid: a band stretched over the grid's whole height never reaches the
 window on a long feed. Both are still under `prefers-reduced-motion`. The
 grid's `aria-busy` is what announces loading.
 
+**Cards are drawn in parts.** `Feed` draws the first 60 (`CARD_CHUNK`) of
+the page's items and 60 more whenever `.more`, a 1px strip after the grid,
+comes within two pane heights of the pane (an `IntersectionObserver`; the
+strip is made anew after each part, so one that still shows asks again).
+Going to another page starts over at 60. The card of what the player plays
+is always drawn, with every card before it, and stays drawn afterwards: the
+player lies in it in a narrow window, auto-play scrolls to it and focus
+returns to it. The heading's count and everything in `FeedController` are
+of all the page's items, drawn or not.
+
 A full load (not a channel fetched by itself, nor a channel page's own fetch)
 also draws `LoadBar`: a 3px Sunflower bar laid over the top edge of `.center` (the heading, chips and cards), above the heading,
 taking no room, as wide as `FeedController.loadProgress` (null when no load
@@ -130,7 +140,9 @@ values, named by the page's `h1`.
   against `../shared/fixtures` (patterns, filters, merge, prune, Shorts, feed
   order, channel order, channel chips, settings, feed chips, groups, phrases, watch progress, the card swipe's rules, and every `device-files/` example against the JSON Schema via ajv).
   `bunfig.toml` preloads `scripts/test-svelte-modules.ts`, which compiles
-  `.svelte.ts` modules so tests can drive `FeedController` (`feed.test.ts`).
+  `.svelte.ts` modules so tests can drive `FeedController` (`feed.test.ts`),
+  and gives them the browser's `svelte/reactivity` (bun would pick the
+  server's, whose collections signal nothing).
   - `types.ts` — `ChannelFilter` is exactly the Drive file's filter: **no
     channelId/title/thumbnail** (the schema forbids them). `Channel` = YouTube's
     identity + `filter`.
@@ -138,14 +150,20 @@ values, named by the page's `h1`.
     `setFilter(channelId, filter)` strips identity keys and keeps unknown ones;
     every write goes through `sanitizeDeviceFile` + prune. Unsent edits live in
     localStorage and go up after the next load. **Tabs of one browser are
-    one device**: before it writes to localStorage or uploads, a store takes
+    one device**: before it loads or uploads, a store takes
     in what another tab kept there (`absorbStored`, `mergeOwnCopies`: the
     entry saved last, of two saved at once the one seen in a load last), and
-    `Session` passes the window's `storage` event to `storageChanged`. Saves
+    `Session` passes the window's `storage` event to `storageChanged`, which
+    takes in the copy the event carries; a store that wrote before it heard
+    of the other tab's write then writes again, so storage has both. A
+    write to localStorage itself reads nothing first. Saves
     run one tab at a time (`navigator.locks`), a save with no file id loads
     again first, and a load that finds several files under this device's
     name merges them into the first by id and deletes the rest, so two tabs
-    never leave two files. A Drive request Google refuses (401) renews the
+    never leave two files. A load downloads a file only when it changed:
+    another device's by the listing's `modifiedTime`, this device's own
+    unless that is still the time this store's last upload was answered
+    with (`ownModifiedTime`). A Drive request Google refuses (401) renews the
     token once and runs again (`renew`, the constructor's fourth argument).
     `close()` stops uploads before the token can become another account's. An edit keeps unknown fields
     beside `at` (`editedEntry`); unsent edits go up again after the next
@@ -166,8 +184,12 @@ values, named by the page's `h1`.
     A watched entry is written by `markedEntry` (a mark keeps the entry's
     `position`, an unmark drops it) or `playedEntry` (`position`, with
     `watched` true only when the player reported the end);
-    `SyncStore.setProgress` keeps a position in localStorage at once and
-    starts an upload only when told to. `setFilter` saves through
+    `SyncStore.setProgress` changes only that entry of the merged file
+    (merging everything again only when another device's entry is as new)
+    and starts an upload only when told to: then localStorage is written at
+    once, and otherwise, for a playing video's 5-second saves, within
+    `LOCAL_WRITE_DELAY_MS` (30 s) or at the next `flush()` (the tab hidden,
+    the page going), `close()` or upload. `setFilter` saves through
     `editedFilter`, which drops a pattern that is not phrases.
     `FeedController.applyLoad` hands each full load's item ids to
     `SyncStore.noteLoaded`, which sets `seen` on this device's entries for
@@ -262,6 +284,9 @@ values, named by the page's `h1`.
     starts a video at `resumeAt`, saves its position (every 5 s on the
     device; with an upload on pause, on leaving and, at once, when the tab is
     hidden), marks it at the player's reported end and calls `onended`.
+    A video the player reports an error for (`failed`, from the embed's
+    `onError`) is over at once, unmarked, so what comes next plays as after
+    any end; a playlist's player skips such a video itself.
     Nothing is saved for a live broadcast or a playlist; a playlist is marked
     when its last video ends. `cover(true)` pauses it and `cover(false)`
     plays again what that paused; `ontoggle` reports a pause or play that
@@ -290,21 +315,32 @@ values, named by the page's `h1`.
     channel's fetch lands),
     `autoplayNext` (the next unwatched item of the page, null with
     "Auto-play" off or in Watched), watched marks and progress (`watched` and `bars`
-    are read from the store's entries with each video's length;
+    are read from the store's entries with each video's length, a
+    `SvelteSet` and a `SvelteMap` changed one id at a time, so a save
+    redraws only that id's card;
     `recordProgress` saves the player's position, `resumeAt` is where a video
     opens), mid-load 401 silent retry, reload
-    after `STALE_AFTER_MS` away. Filter edits only re-filter; a channel that
+    on returning `STALE_AFTER_MS` after the last load that worked (a failed
+    load is tried again on every return), and when the browser is online
+    again while a load's error shows. Filter edits only re-filter; a channel that
     is on is fetched by itself only when something its filter needs is
     missing (`isMissing`: its mode's items never fetched or failed in the
     last load, or the Shorts list — see below), at most 6 at a
     time, and after a running load ends. Refresh also refetches the open
-    page of a channel that is off. Any request whose token Google refuses
+    page of a channel that is off. Such a page is fetched only once the
+    first load is shown and no load runs (`ensureChannelItems`; a load's end
+    asks again), so a channel never shows before the load says whether it
+    is on. Any request whose token Google refuses
     renews it once and retries (`withToken` in `auth.ts`; the store's own
     for Drive), asking the extension for a token it has not handed out
-    before; a full load starts over instead. A channel's own fetch that
+    before; a full load starts over instead, keeping the channels it had
+    fetched. A channel's own fetch that
     fails leaves the page as it is and shows the partial-results notice,
     not the error banner; a failure signing in fixes goes to the session
-    (`needsSignIn`), which shows the banner with "Sign in". The empty text
+    (`needsSignIn`), which shows the banner with "Sign in". A silent
+    renewal the extension says failed by itself (`signInRequired: false`,
+    as without a network) is an ordinary error and keeps the session; an
+    older extension doesn't say, and is read as before. The empty text
     is not shown beside an error. `Prefetch` fetches
     the items of the channels `fetchOnly` names, 6 at a time, before the feed
     opens; a later `fetchOnly` keeps what is fetched or being fetched for
@@ -313,6 +349,12 @@ values, named by the page's `h1`.
     the queue (they have no items there). The load that gets it through
     `handOffPrefetched` builds on what it has for each enabled channel
     (`completeItems`) instead of fetching it again.
+    **Details asked for once**: `fetchUploads` asks `videos.list` only
+    for the videos not in `known`, which the controller gives as
+    `settledDetails` of everything loaded: the videos with a length that
+    are not live or upcoming. A new video, a live or upcoming one and one
+    whose length is not known are asked for at every fetch; a `Prefetch`
+    knows none.
     **Shorts list only when needed**: `needsShorts(filter)` is uploads mode
     with Shorts on Hide or Only. Otherwise `fetchUploads` skips the `UUSH`
     request (`withoutShortsList`: a video that can't be a Short gets
@@ -353,7 +395,9 @@ values, named by the page's `h1`.
     apps'; `compareChannelOrder` keeps them for the shared fixtures.
   - `channel-chips.ts` — `passingItems`: every fetched item, watched or
     not, of the kind its channel shows, that passes the filter of a channel
-    that is on (`FeedController.listed`; those not watched are
+    that is on (`FeedController.listed`, through `passingCompiled` over
+    `FeedController.compiled`, the channels' filters compiled once per change
+    of the channels and shared with `passing`; those not watched are
     `FeedController.unwatched`, which the unwatched counts are counted from
     and the sidebar is ordered by). `chipKeptChannels` is what the phone apps' channel list
     chips keep; the web app has no such chips and runs it for the shared
@@ -470,7 +514,7 @@ values, named by the page's `h1`.
   and in the card it has none; it doesn't swipe either. `.mark` is described by its card's title
   (`aria-describedby`). Under the title one
   line holds the channel name (cut with an ellipsis) and the date at the
-  right (never cut); `FeedCardSkeleton` is the same height as a card with a
+  right (never cut; `shortDate`, with the year when it is not this year); `FeedCardSkeleton` is the same height as a card with a
   two-line title. `FilterEditor` on the
   right, opened by a channel row's "Filters" button (`toggleFilters` in
   `Feed`: that channel's page with the panel beside it, or the panel
@@ -481,7 +525,7 @@ values, named by the page's `h1`.
   under a header (the avatar, the name over "Subscribed on YouTube" or
   "Followed in SubTube", the ×), in cards with no lines between rows:
   "Show in feed" alone, then "Videos" (Show, Shorts, Live, "Hide videos
-  under"; only Show for playlists), the phrases under their heading, and
+  under", saved when the field is left or Enter pressed, not at each key; only Show for playlists), the phrases under their heading, and
   "Topics", each title above its card.
   `PatternFields` is the phrase input (Enter or a comma makes the typed
   phrase a chip, pressing a chip removes it, Backspace in the empty field
@@ -497,7 +541,8 @@ values, named by the page's `h1`.
   (`groupEdit` in `Feed`): the "New group" chip or the pencil opens the panel
   on it, each opening a fresh editor; it leaves when it closes itself or
   the page's channel changes. It
-  fills the panel's height as a column: the `.filter-group` card "Name"
+  fills the panel's height as a column: the heading "New group" or
+  "Edit group", an `h2` like the filter editor's; the `.filter-group` card "Name"
   (no `maxlength`, which counts UTF-16 units, not code points: a name
   `groupName` refuses just disables "Save"); the card "Channels" with every listed channel by name with a `Switch`, in
   setup's `.channel-row` rows (now in `app.css`; only channels that are off
@@ -605,7 +650,9 @@ values, named by the page's `h1`.
   `Settings`, `Nux` (setup uses the app's own controls, never its own
   variants: `ChoiceRow` is shared with `FilterEditor`, the cards are
   `.filter-group`; its screens are intro, extension, sign-in, "Choose
-  channels", "Shorts", "Where to start", done. "Choose channels"' Next saves
+  channels", "Shorts", "Where to start", done. "Choose channels" whose load
+  failed shows the error with "Refresh", which loads again, or "Sign in"
+  when only that helps. "Choose channels"' Next saves
   the switches and tells its `Prefetch` to fetch only the channels left on
   (nothing is fetched for a channel before that, so one turned off costs no
   quota; going Back and pressing Next again fetches only the newly-on

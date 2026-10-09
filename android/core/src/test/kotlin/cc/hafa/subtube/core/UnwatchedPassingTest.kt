@@ -32,4 +32,20 @@ class UnwatchedPassingTest {
         val items = listOf(video(videoId = "seen"), video(videoId = "filtered", title = "Trailer 2"))
         assertEquals(emptyList(), unwatchedPassing(hidesTrailers, items, setOf("seen")))
     }
+
+    @Test
+    fun aFilterAlreadyCompiledIsNotCompiledAgain() {
+        val items = listOf(video(videoId = "new"), video(videoId = "filtered", title = "Official Trailer"))
+        val compiled = compileFilter(hidesTrailers)
+        var compiles = 0
+        assertEquals(listOf("new"), unwatchedPassing(channel(), items, emptySet(), compiled))
+        assertEquals(
+            listOf("new"),
+            passingItems(listOf(channel()), items) { _ ->
+                compiles += 1
+                compiled
+            }.map(FeedItem::id),
+        )
+        assertEquals(1, compiles)
+    }
 }

@@ -49,6 +49,21 @@ public struct VideoDetails: Sendable, Hashable {
   public var categoryId: String?
 }
 
+/// A held video's details when they can no longer change, so YouTube needn't
+/// be asked for them again: nil for a broadcast that is live or still to
+/// come, and for a video without a length.
+public func settledDetails(_ video: Video) -> VideoDetails? {
+  let liveStatus = video.liveStatus ?? .normal
+  if let durationSeconds = video.durationSeconds, durationSeconds > 0, liveStatus != .live,
+    liveStatus != .upcoming
+  {
+    return VideoDetails(
+      durationSeconds: durationSeconds, liveStatus: liveStatus, categoryId: video.categoryId)
+  } else {
+    return nil
+  }
+}
+
 /// A channel's uploads playlist: its id with `UU` in place of `UC`.
 public func uploadsPlaylistId(_ channelId: String) -> String {
   "UU" + channelId.dropFirst(2)
@@ -313,13 +328,15 @@ public struct YouTubeClient: Sendable {
   /// and with `judgeShorts` whether it is a Short; without, the Shorts list
   /// is not fetched and a video that could be a Short is left unjudged.
   /// `probe` asks `/shorts/{id}` directly. A channel YouTube keeps no
-  /// uploads list for has no uploads.
+  /// uploads list for has no uploads. The details of a video in `known`, by
+  /// video id, are taken from there and not asked for.
   public func uploads(
     channelId: String,
     channelTitle: String,
     maxResults: Int = uploadsPerChannel,
     probe: ShortsProbeFunction? = nil,
-    judgeShorts: Bool = true
+    judgeShorts: Bool = true,
+    known: [String: VideoDetails] = [:]
   ) async throws -> [Video] {
     let page: PlaylistItemsResponse
     do {
@@ -348,12 +365,13 @@ public struct YouTubeClient: Sendable {
         return nil
       }
     }
-    let details = try await videoDetails(videos.map(\.videoId))
+    let asked = try await videoDetails(videos.map(\.videoId).filter { known[$0] == nil })
     let detailed = videos.map { video in
+      let details = known[video.videoId] ?? asked[video.videoId]
       var detailedVideo = video
-      detailedVideo.durationSeconds = details[video.videoId]?.durationSeconds ?? 0
-      detailedVideo.liveStatus = details[video.videoId]?.liveStatus ?? .normal
-      detailedVideo.categoryId = details[video.videoId]?.categoryId
+      detailedVideo.durationSeconds = details?.durationSeconds ?? 0
+      detailedVideo.liveStatus = details?.liveStatus ?? .normal
+      detailedVideo.categoryId = details?.categoryId
       return detailedVideo
     }
     if judgeShorts {

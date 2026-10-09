@@ -200,6 +200,9 @@ function onYouTubeIframeAPIReady() {
         var loaded = event.target.getPlaylist();
         var last = !!loaded && event.target.getPlaylistIndex() === loaded.length - 1;
         report("state", { code: event.data, time: event.target.getCurrentTime() || 0, duration: event.target.getDuration() || 0, last: last });
+      },
+      onError: function (event) {
+        report("error", { code: event.data });
       }
     }
   });
@@ -314,6 +317,11 @@ internal class PlayerPage {
         current(token)?.positionChanged(time, duration)
     }
 
+    /** The page with [token] reports that its player can't play the video, which ends it as its end does. */
+    fun playerFailed(token: String) {
+        current(token)?.failed()
+    }
+
     /** The page with [token] reports that the IFrame API script didn't load. */
     fun loadFailed(token: String) {
         if (current(token) != null) {
@@ -350,6 +358,7 @@ internal class PlayerBridge(private val page: PlayerPage) {
                 when (report.kind) {
                     "state" -> page.stateChanged(report.token, playerState(report.code), report.time, report.duration, report.last)
                     "position" -> page.positionChanged(report.token, report.time, report.duration)
+                    "error" -> page.playerFailed(report.token)
                     "failed" -> page.loadFailed(report.token)
                 }
             }

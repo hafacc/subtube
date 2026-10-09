@@ -33,7 +33,8 @@ interface PlaybackFeed {
  *
  * The player reports through [positionChanged] and [stateChanged]. Nothing is
  * saved for a playlist or a live broadcast; a playlist is marked when its last
- * video ends. [onEnded] runs once the entry is over.
+ * video ends. [onEnded] runs once the entry is over, also when the player
+ * reports that it can't play the video ([failed]).
  */
 class Playback(
     private val id: String,
@@ -48,6 +49,10 @@ class Playback(
     // from the first time the video plays until it ends: while set, its position is worth saving
     private var tracking = false
 
+    // the whole second last saved, and whether an upload was asked for with it; null when nothing saved stands
+    private var savedSecond: Long? = null
+    private var savedUpload = ProgressUpload.LATER
+
     /** Whether the position is saved: not for a playlist or a live broadcast. */
     private fun savesPosition(): Boolean = !isPlaylist && (feed.findItem(id) as? Video)?.liveStatus != LiveStatus.LIVE
 
@@ -57,10 +62,15 @@ class Playback(
         this.duration = duration
     }
 
-    /** Save the position of a video that has played. */
+    /** Save the position of a video that has played, unless that second is saved already. */
     fun save(upload: ProgressUpload) {
-        if (tracking && savesPosition()) {
+        val second = position.toLong()
+        // saving the same second again would only make it newer than what another device saved since
+        val alreadySaved = second == savedSecond && (upload == ProgressUpload.LATER || savedUpload != ProgressUpload.LATER)
+        if (tracking && savesPosition() && !alreadySaved) {
             feed.recordProgress(id, position, duration, ended = false, upload)
+            savedSecond = second
+            savedUpload = upload
         }
     }
 
@@ -73,12 +83,21 @@ class Playback(
 
     private fun finish() {
         tracking = false
+        savedSecond = null
         if (savesPosition()) {
             feed.recordProgress(id, position, duration, ended = true, ProgressUpload.SOON)
         } else {
             feed.setWatched(id, true)
         }
         onEnded()
+    }
+
+    /** The player can't play the video: it is over, without being marked. A playlist's player skips such a video itself. */
+    fun failed() {
+        if (!isPlaylist) {
+            tracking = false
+            onEnded()
+        }
     }
 
     /**

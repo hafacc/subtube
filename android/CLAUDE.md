@@ -38,7 +38,9 @@ every client shares is in `../shared/`.
   - `SyncStore.kt` — own file in memory + local storage (written off the
     caller's thread by one writer, one call at a time in the order the edits
     were made; `awaitWrites` is for tests), debounced upload,
-    re-downloads only changed files, ignores non-`device-<id>.json` names,
+    re-downloads only changed files (its own too: `ownModifiedTime` is
+    Drive's time for it as last downloaded or uploaded; `load(listing)`
+    takes a folder listing the caller already has), ignores non-`device-<id>.json` names,
     never overwrites an own file it can't read. `setWatched` with several ids
     and `setFilters` are one edit, so one upload. A watched entry is written
     by `markedEntry` (a mark keeps the entry's `position`, an unmark drops
@@ -85,7 +87,15 @@ every client shares is in `../shared/`.
     when missing or over a day old; a failed lookup leaves the id as the
     name, and an id YouTube no longer knows is remembered like a found one,
     so it isn't asked for at every load),
-    per-channel fetch. `ChannelItems` is a channel's entries with their mode
+    per-channel fetch, all on `Dispatchers.Default` (`compute`) whatever
+    thread asks: `load` calls `onProgress` and `onChannels` there, and the
+    view model posts what they change to the main thread (`duringLoad`).
+    `YouTubeClient` decodes its answers there too, and `SyncStore.load`
+    reads and merges the device files there. A fetch given the videos already held (`held`, by
+    id; the view model gives every load and single fetch its items) asks
+    `videos.list` only for the ids not among them, or held with no length or
+    as live or upcoming; the others keep the length, kind and category held.
+    `ChannelItems` is a channel's entries with their mode
     and whether its Shorts list was read. The Shorts list is requested only
     when `needsShorts(filter)` (uploads, Shorts on Hide or Only);
     `completeItems` returns what is held when it `covers` the filter, asks
@@ -98,7 +108,9 @@ every client shares is in `../shared/`.
     the load bar's fraction: `LOAD_PROGRESS_START` (0.05) while the
     subscription list is read (`total` null), the rest shared out by channel.
     `keptAfterLoad`: after a full load a loaded channel
-    keeps nothing of its other kind (uploads/playlists).
+    keeps nothing of its other kind (uploads/playlists), and a channel that
+    is off or no longer listed keeps nothing at all unless its page is open
+    (`lapsed`), so turning it on or opening its page fetches it.
     `Prefetch.kt` — `Prefetch` fetches the channels `fetchOnly` names, 6 at a
     time, before the feed opens; a later `fetchOnly` keeps what is fetched or
     being fetched for channels still named (adding only the Shorts list when
@@ -168,7 +180,9 @@ every client shares is in `../shared/`.
     id, kept on `Video.categoryId`; `topicLabel` is null for any other id,
     which gets no chip and matches nothing), the topic chips' order
     (`chipRow`), the filter sheet's (`editorTopics`), what the time and topic
-    chips keep (`chipFiltered`, `TimeChip`), and setup's starting point
+    chips keep (`chipFiltered`, `TimeChip`; `published` lets a caller hand
+    over each entry's time already read, as the view model does from
+    `publishedTimes`), and setup's starting point
     (`startMarks`, `StartFrom`).
   - `Groups.kt` — groups of channels (`shared/fixtures/groups.json`): a
     filter's `groups` are names (`groupName`: trimmed of the listed white
@@ -219,11 +233,17 @@ every client shares is in `../shared/`.
     that ended, in the order shown.
   - `Playback.kt` — `Playback`: one entry in one player, with no Android:
     saves a video's position (`tick` every 5 s on the device; with an upload
-    on pause, on leaving and, at once, when the app leaves the screen), marks
-    it at the player's reported end and calls `onEnded`. Nothing is saved for
+    on pause, on leaving and, at once, when the app leaves the screen; a
+    second already saved is not saved again, so a paused player never makes
+    its position newer than another device's), marks
+    it at the player's reported end and calls `onEnded`, which `failed` (the
+    player can't play the video) calls without marking. Nothing is saved for
     a live broadcast or a playlist; a playlist is marked when its last video
     ends.
 - `:app` — `cc.hafa.subtube`, minSdk 26, compile/target 37.
+  - `SubtubeApp.kt` — the app-wide clients over one `OkHttpClient`, whose
+    dispatcher allows 10 requests a host (OkHttp's 5 is under the 6
+    channels fetched at once, and Drive shares googleapis.com).
   - `MainActivity.kt` — edge-to-edge, Navigation 3 `NavDisplay` over
     `SubtubeViewModel.backStack` (predictive back comes from Navigation 3).
     The manifest's `configChanges` names every change Compose follows by
@@ -241,7 +261,9 @@ every client shares is in `../shared/`.
     edits only re-filter; a
     channel is fetched on its own only when its filter needs something not
     fetched (`isMissing`: its mode's entries, or the Shorts list, which is
-    then the only request), at most 6 at once. `watched` and `bars` are read
+    then the only request), at most 6 at once. Each channel's filter is
+    compiled once per change of it (`compiledFilters`), for the feed, the
+    channel list's counts and its chips alike. `watched` and `bars` are read
     from the store's entries with each video's length. A card that becomes
     watched or unwatched (`staying`) stays in the feed and on its channel's
     page until a full load, a filter edit, a change of the watched, time,
@@ -320,22 +342,28 @@ every client shares is in `../shared/`.
     fetched of those channels from before the starting point and takes them
     off the list; a channel that failed or was skipped waits for a later
     load, and one turned on later never waited.
-    "Open my feed" starts the one load, which takes the prefetch.
+    "Open my feed" starts the one load, which takes the prefetch and, when
+    the channel step was loaded, its subscriptions, so neither they nor the
+    Drive folder, which that step lists once, are read again.
     After sign-in, first run lists the Drive app folder before "Choose
     channels"; another device's `device-*.json` there (`isAlreadySetUp`; this
     device's own doesn't count, since setup writes it before it is through)
     ends first run and opens the feed, and a failed listing shows the step's
-    error. "Setup done" is kept per account (`AccountPrefs.isSetUpDone`):
+    error with "Refresh" beside it (`retrySetUpChannels`), or "Sign in" when
+    only that helps, as Apple's does. "Setup done" is kept per account (`AccountPrefs.isSetUpDone`):
     signing out leaves the marks, and signing in as an account without one
     runs first run from "Choose channels", wherever the sign-in was started.
-    "Sign out" uploads what is unsent and forgets the account and its token
-    on this device; it does not revoke Google's grant, so other devices stay
+    "Sign out" uploads what is unsent (`saveUnsent`; nothing when all of it
+    is in Drive), its button off and showing a spinner meanwhile
+    (`signingOut`), and forgets the account and its token on this device; it does not revoke Google's grant, so other devices stay
     signed in, and a sign-in from signed out asks Google for its account
     chooser. Signing out cancels a running load.
     Settings' "Delete profile" calls the store, revokes Google's grant, then
     signs out to the first setup screen; a profile deleted from another device restarts first run at
-    the channel step, still signed in. `sessionEpoch` keeps a load begun on a
-    replaced store from changing anything.
+    the channel step, still signed in. `sessionEpoch` keeps a load or a single
+    channel's fetch begun on a replaced store from changing anything, and a
+    single channel's fetch that a full load overtook (`loadsShown`) is
+    dropped and made again if the channel still lacks something.
     `orderedChannels` is the rows of the channels tab: the channels its group, time
     and topic chips keep (`chipChannels`; every channel when none is
     chosen), by the `channelSort` setting (setup's "Choose channels" list
@@ -373,7 +401,8 @@ every client shares is in `../shared/`.
     the filter sheet, which has no list of its own.
   - `ui/*Screen.kt`, `ui/FilterSheet.kt` — one file per screen. The filter
     sheet hides Shorts, Live, the minimum length and Topics while Show is
-    Playlists; its pattern is edited as phrases (`PhraseField`: Done or a
+    Playlists; the minimum length is saved 0.4 s after the last digit typed,
+    or when the sheet closes; its pattern is edited as phrases (`PhraseField`: Done or a
     comma makes a chip, pressing a chip removes it, Backspace in the empty
     field removes the last, noticed through an invisible first character),
     and "Topics" lists all fifteen as toggles. Every single-choice row
@@ -478,7 +507,10 @@ every client shares is in `../shared/`.
     ON_START: the position is saved at once and the video pauses, and stays
     paused on return). A page that reports it started playing while covered
     or stopped is paused at once, so a page still loading when the app
-    leaves cannot play in the background. It drives one `Playback` per
+    leaves cannot play in the background. A video the player reports it
+    can't play (the IFrame API's `onError`, an "error" message) is over like
+    one that ended, without being marked (`Playback.failed`); a playlist's
+    player skips such a video itself. It drives one `Playback` per
     entry, saves on leaving, and shows the WebView's full-screen custom view
     over the activity's window, turned to landscape unless the video is a
     Short. When the IFrame API doesn't load, the web view is hidden and the

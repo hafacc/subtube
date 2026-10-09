@@ -65,6 +65,21 @@ export interface ErrorResponse {
   error: string;
   /** Set when the user closed Google's page or refused: nothing went wrong. */
   cancelled?: boolean;
+  /**
+   * On a token answer, whether only an interactive sign-in can get a token;
+   * false when the attempt itself failed, as without a network. Older
+   * extensions leave it out.
+   */
+  signInRequired?: boolean;
+}
+
+// Google's answers to `prompt=none` when it has a page to show, and Chrome's when that page wants a click
+const NEEDS_USER =
+  /^(interaction_required|login_required|consent_required|account_selection_required|access_denied)$|user interaction required/i;
+
+/** Whether a silent sign-in that failed with `reason` can only succeed with the user there. */
+export function silentFailureNeedsUser(reason: string): boolean {
+  return NEEDS_USER.test(reason);
 }
 
 /** The result of a {@link TokenRequest}. */

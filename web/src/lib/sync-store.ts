@@ -36,6 +36,8 @@ import { GoogleRequestError, TokenExpiredError } from "./youtube";
 const DEVICE_KEY = "subtube.device";
 /** A burst of edits goes up as one upload. */
 const SAVE_DELAY_MS = 2000;
+/** A playing video's positions are written to local storage this far apart at most. */
+const LOCAL_WRITE_DELAY_MS = 30_000;
 // what the uploaded mark held before it held the file's id
 const UPLOADED_WITHOUT_ID = "1";
 
@@ -52,6 +54,15 @@ function deviceId(): string {
       unkeptDeviceId = made;
     }
     return made;
+  }
+}
+
+/** A copy of this device's file as local storage held it; null when it can't be read. */
+function parseStored(text: string): DeviceFile | null {
+  try {
+    return parseDeviceFile(JSON.parse(text));
+  } catch {
+    return null;
   }
 }
 
@@ -93,6 +104,8 @@ export class SyncStore {
   private readonly lockName: string;
   private own: DeviceFile;
   private ownFileId: string | null = null;
+  // Drive's modified time of this device's file as this store last uploaded it; null when it hasn't
+  private ownModifiedTime: string | null = null;
   // whether ownFileId is known; saving before then would create a second file
   private listed = false;
   // how many files this store has created: a listing asked for before a create ended can't be trusted
@@ -104,6 +117,8 @@ export class SyncStore {
   >();
   private merged: DeviceFile;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  // set while a played position waits to be written to local storage
+  private localTimer: ReturnType<typeof setTimeout> | null = null;
   private saving: Promise<void> | null = null;
   private closed = false;
   // edits made here, counted, and how many of them Drive has: behind means unsent
@@ -153,9 +168,8 @@ export class SyncStore {
     return parseDeviceFile(readJson<unknown>(this.localKey));
   }
 
-  /** Take in what another tab kept since this one last looked; says whether that changed anything here. */
-  private absorbStored(): boolean {
-    const stored = this.readStored();
+  /** Take in another tab's copy of this device's file; says whether that changed anything here. */
+  private absorb(stored: DeviceFile | null): boolean {
     const merged = stored ? mergeOwnCopies(this.own, stored) : this.own;
     if (sameOwnEntries(merged, this.own)) {
       return false;
@@ -166,10 +180,30 @@ export class SyncStore {
     }
   }
 
+  /** Take in what local storage holds, before a load or an upload. */
+  private absorbStored(): boolean {
+    return this.absorb(this.readStored());
+  }
+
   private writeLocal(): void {
-    this.absorbStored();
+    this.cancelLocalWrite();
     // when storage refuses, the upload still carries it
     writeJson(this.localKey, this.own);
+  }
+
+  /** Write to local storage within {@link LOCAL_WRITE_DELAY_MS}, with whatever else changes until then. */
+  private writeLocalLater(): void {
+    this.localTimer ??= setTimeout(
+      () => this.writeLocal(),
+      LOCAL_WRITE_DELAY_MS,
+    );
+  }
+
+  private cancelLocalWrite(): void {
+    if (this.localTimer) {
+      clearTimeout(this.localTimer);
+      this.localTimer = null;
+    }
   }
 
   /** What the uploaded mark holds: the file's id, "1" from before ids were kept, or null. */
@@ -184,11 +218,14 @@ export class SyncStore {
 
   /** Stop uploading and forget what this store holds in memory. */
   private forget(): void {
+    // nothing of the forgotten profile may be written back
+    this.cancelLocalWrite();
     this.close();
     this.own = emptyDeviceFile();
     this.others.clear();
     this.merged = this.own;
     this.ownFileId = null;
+    this.ownModifiedTime = null;
     this.listed = false;
   }
 
@@ -201,8 +238,8 @@ export class SyncStore {
 
   /**
    * Another tab changed local storage (the window's `storage` event): take
-   * in the edits it kept, or, when it removed this account's copy, forget
-   * the profile here too, as that tab deleted it.
+   * in the edits it kept, which `newValue` holds, or, when it removed this
+   * account's copy, forget the profile here too, as that tab deleted it.
    */
   storageChanged(key: string | null, newValue: string | null): void {
     if (key !== this.localKey || this.closed) {
@@ -211,8 +248,12 @@ export class SyncStore {
     if (newValue === null) {
       this.forget();
       this.onDeleted();
-    } else if (this.absorbStored()) {
+    } else if (this.absorb(parseStored(newValue))) {
       this.remerge();
+      if (readText(this.localKey) !== newValue) {
+        // this tab wrote before it heard of the other's write, so storage lacks the other's edits
+        this.writeLocal();
+      }
     }
   }
 
@@ -226,7 +267,7 @@ export class SyncStore {
     this.merged = mergeDeviceFiles(sources);
   }
 
-  /** Read every device's file, downloading only the ones that changed. */
+  /** Read every device's file, downloading only the ones that changed since this store read or wrote them. */
   async load(): Promise<void> {
     await this.withToken((token) => this.loadWith(token));
   }
@@ -288,8 +329,18 @@ export class SyncStore {
     const [keptId] = ownIds;
     let remote: DeviceFile | null = null;
     const merged: string[] = [];
+    // this store's last upload is what Drive still has: nothing to download
+    const unchanged =
+      keptId !== undefined &&
+      keptId === this.ownFileId &&
+      this.ownModifiedTime !== null &&
+      files.find(({ id }) => id === keptId)?.modifiedTime ===
+        this.ownModifiedTime;
     await Promise.all([
       ...ownIds.map(async (fileId) => {
+        if (unchanged && fileId === keptId) {
+          return;
+        }
         const copy = parseDeviceFile(await downloadJson(fileId, token));
         if (fileId === keptId) {
           remote = copy;
@@ -324,7 +375,7 @@ export class SyncStore {
       }
     }
     this.ownFileId = keptId ?? null;
-    this.ownUnreadable = keptId !== undefined && remote === null;
+    this.ownUnreadable = keptId !== undefined && remote === null && !unchanged;
     if (keptId !== undefined) {
       this.markUploaded(keptId);
     }
@@ -336,7 +387,9 @@ export class SyncStore {
     this.writeLocal();
     this.remerge();
     // edits Drive's copy lacks, e.g. kept from before a reload or made in another tab
-    const unsent = !sameOwnEntries(this.own, remote ?? emptyDeviceFile());
+    const unsent = unchanged
+      ? this.sentEdits !== this.edits
+      : !sameOwnEntries(this.own, remote ?? emptyDeviceFile());
     if (unsent && this.sentEdits === this.edits) {
       this.edits += 1;
     }
@@ -418,8 +471,9 @@ export class SyncStore {
 
   /**
    * Save how far a video has been played; `ended` when its player reported
-   * the end. It is kept on this device at once and goes to Drive with the next
-   * upload, which this starts only when `upload` is set.
+   * the end. It goes to Drive with the next upload, which this starts only
+   * when `upload` is set; without, local storage gets it within
+   * `LOCAL_WRITE_DELAY_MS`, or at the next {@link flush} or {@link close}.
    */
   setProgress(
     id: string,
@@ -427,17 +481,27 @@ export class SyncStore {
     ended: boolean,
     upload: boolean,
   ): void {
-    this.own.watched[id] = playedEntry(
+    const entry = playedEntry(
       this.own.watched[id],
       Date.now(),
       position,
       ended,
     );
+    this.own.watched[id] = entry;
     this.edits += 1;
-    this.writeLocal();
-    this.remerge();
+    const held = this.merged.watched[id];
+    if (held === entry) {
+      // before the first load the merged file is this device's own
+    } else if (held === undefined || held.at < entry.at) {
+      this.merged.watched[id] = entry;
+    } else {
+      this.remerge();
+    }
     if (upload) {
+      this.writeLocal();
       this.scheduleSave();
+    } else {
+      this.writeLocalLater();
     }
   }
 
@@ -493,6 +557,9 @@ export class SyncStore {
    * yet uploaded stay in local storage and go up at this account's next load.
    */
   close(): void {
+    if (this.localTimer) {
+      this.writeLocal();
+    }
     this.closed = true;
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
@@ -501,10 +568,14 @@ export class SyncStore {
   }
 
   /**
-   * Upload now when anything is unsent, e.g. as the page is hidden; this is
-   * also what retries an upload that failed.
+   * Upload now when anything is unsent, e.g. as the page is hidden, first
+   * writing to local storage what waited to be; this is also what retries an
+   * upload that failed.
    */
   flush(): void {
+    if (this.localTimer) {
+      this.writeLocal();
+    }
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
@@ -546,10 +617,12 @@ export class SyncStore {
     try {
       await this.withToken(async (token) => {
         if (this.ownFileId) {
-          await updateJson(this.ownFileId, content, token);
+          const updated = await updateJson(this.ownFileId, content, token);
+          this.ownModifiedTime = updated.modifiedTime ?? null;
         } else {
           const created = await createJson(this.ownName, content, token);
           this.ownFileId = created.id;
+          this.ownModifiedTime = created.modifiedTime ?? null;
           this.creates += 1;
         }
       });
@@ -560,6 +633,7 @@ export class SyncStore {
         // the file went since it was listed: the load says whether the profile did
         this.listed = false;
         this.ownFileId = null;
+        this.ownModifiedTime = null;
         return this.upload(true);
       } else {
         throw caught;
@@ -571,7 +645,7 @@ export class SyncStore {
     }
     this.lastSynced = Date.now();
     this.remerge();
-    writeJson(this.localKey, this.own);
+    this.writeLocal();
   }
 
   /**

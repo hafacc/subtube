@@ -93,10 +93,15 @@ fun SettingsScreen(viewModel: SubtubeViewModel) {
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = viewModel::signOut,
+                    enabled = !viewModel.signingOut,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.brand.accent),
                     modifier = Modifier.heightIn(min = 48.dp),
                 ) {
-                    Icon(SubtubeIcons.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                    if (viewModel.signingOut) {
+                        Spinner(size = 18.dp)
+                    } else {
+                        Icon(SubtubeIcons.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
                     Text(stringResource(R.string.sign_out), modifier = Modifier.padding(start = 8.dp))
                 }
                 Text(

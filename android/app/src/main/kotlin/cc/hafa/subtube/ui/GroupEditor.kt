@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,7 +60,8 @@ import kotlinx.coroutines.launch
 fun GroupEditor(viewModel: SubtubeViewModel, group: String?, onClose: () -> Unit) {
     val context = LocalContext.current
     val focus = LocalFocusManager.current
-    val channels = viewModel.channels.values.sortedWith(channelsByName)
+    val listed = viewModel.channels
+    val channels = remember(listed) { listed.values.sortedWith(channelsByName) }
     var name by rememberSaveable(group) { mutableStateOf(group.orEmpty()) }
     var members by rememberSaveable(group, stateSaver = listSaver(save = { ids: Set<String> -> ids.toList() }, restore = { ids -> ids.toSet() })) {
         mutableStateOf(if (group == null) emptySet() else channels.filter { channel -> group in channel.groups }.mapTo(HashSet(), ChannelFilter::channelId))
@@ -94,7 +96,7 @@ fun GroupEditor(viewModel: SubtubeViewModel, group: String?, onClose: () -> Unit
             )
             SectionLabel(stringResource(R.string.channels))
             SearchField(query, { text -> query = text }, Modifier.fillMaxWidth())
-            val shown = channels.filter { channel -> matchesSearch(channel.title, query) }
+            val shown = remember(channels, query) { channels.filter { channel -> matchesSearch(channel.title, query) } }
             LazyColumn(Modifier.weight(1f)) {
                 items(shown, key = ChannelFilter::channelId) { channel ->
                     ChannelRow(

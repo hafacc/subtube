@@ -125,7 +125,7 @@
             placeholder="0"
             class="text-input"
             value={filter.minDurationSeconds || ""}
-            oninput={(event) =>
+            onchange={(event) =>
               update({
                 minDurationSeconds: Math.max(
                   0,

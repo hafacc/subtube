@@ -86,7 +86,13 @@ export function extensionPlatform(extensionId: string): Platform {
         interactive: false,
         ...options,
       });
-      return "error" in response ? null : response;
+      if (!("error" in response)) {
+        return response;
+      } else if (response.signInRequired === false) {
+        throw new Error(response.error);
+      } else {
+        return null;
+      }
     },
     signOut: async () => {
       await send(extensionId, { type: "signOut" });

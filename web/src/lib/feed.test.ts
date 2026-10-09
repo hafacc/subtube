@@ -1,4 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "bun:test";
+import { expectAccount, forgetToken } from "./auth";
+import { UNREACHABLE_MESSAGE } from "./errors";
 import {
   type ChannelItems,
   completeItems,
@@ -9,6 +18,7 @@ import {
   Prefetch,
 } from "./feed.svelte";
 import { feedItemId } from "./feed-item";
+import { recheckPlatform } from "./platform";
 import type { Router } from "./router.svelte";
 import type { Session } from "./session.svelte";
 import { defaultFilter } from "./sync-merge";
@@ -126,11 +136,22 @@ function loaded(
     video("a3", 3),
     video("a7", 7),
   ];
-  feed.watched = new Set(watched);
+  markOnly(feed, watched);
   return { feed, saves, synced, entries };
 }
 
+/** Make exactly these ids the watched ones. */
+function markOnly(feed: FeedController, ids: string[]): void {
+  feed.watched.clear();
+  for (const id of ids) {
+    feed.watched.add(id);
+  }
+}
+
 const shown = (feed: FeedController): string[] => feed.feed.map(feedItemId);
+
+const byId = (left: FeedItem, right: FeedItem): number =>
+  feedItemId(left).localeCompare(feedItemId(right));
 
 describe("FeedController watched marks", () => {
   test("unmarking one hidden video brings it back in its sorted place", () => {
@@ -138,6 +159,15 @@ describe("FeedController watched marks", () => {
     expect(shown(feed)).toEqual(["a7", "b5", "a1"]);
     feed.setWatched("a3", false);
     expect(shown(feed)).toEqual(["a7", "b5", "a3", "a1"]);
+  });
+
+  test("one id's mark alone moves the counts", () => {
+    const { feed } = loaded([], null);
+    expect(feed.unwatchedCount).toBe(4);
+    feed.watched.add("a3");
+    expect(feed.unwatchedCount).toBe(3);
+    feed.watched.delete("a3");
+    expect(feed.unwatchedCount).toBe(4);
   });
 
   test("a mark shows a full bar, and unmarking takes it away", () => {
@@ -400,7 +430,7 @@ describe("FeedController chips", () => {
   test("hidden watched items don't count, and a selected chip with none stays", () => {
     const feed = withTopics();
     feed.toggleTopicChip("27");
-    feed.watched = new Set(["a7"]);
+    markOnly(feed, ["a7"]);
     expect(feed.topicChips).toEqual(["10", "20", "27"]);
     expect(shown(feed)).toEqual([]);
     expect(feed.emptiedBySelection).toBe(true);
@@ -408,7 +438,7 @@ describe("FeedController chips", () => {
 
   test("an empty list is only caught up with unwatched and no chip selected", () => {
     const feed = withTopics();
-    feed.watched = new Set(["a1", "b5", "a3", "a7"]);
+    markOnly(feed, ["a1", "b5", "a3", "a7"]);
     expect(shown(feed)).toEqual([]);
     expect(feed.emptiedBySelection).toBe(false);
     feed.setSetting("timeChip", "week");
@@ -464,7 +494,7 @@ describe("FeedController chips", () => {
   test("the channel counts ignore the chips", () => {
     const feed = withTopics();
     feed.toggleTopicChip("27");
-    feed.watched = new Set(["a1"]);
+    markOnly(feed, ["a1"]);
     expect(feed.unwatchedByChannel).toEqual(
       new Map([
         ["UCa", 2],
@@ -888,5 +918,307 @@ describe("FeedController with a video it hasn't loaded", () => {
     const { feed } = loaded([], null);
     feed.recordProgress("elsewhere", 595, 600, false, "later");
     expect(feed.watched.has("elsewhere")).toBe(true);
+  });
+});
+
+/** The extension and YouTube, faked for the tests of whole loads. */
+interface FakeGoogle {
+  /** what the extension answers a token request with; undefined is no answer */
+  token: () => unknown;
+  /** each subscribed channel's uploads, as video ids, newest first */
+  uploads: Record<string, string[]>;
+  /** the videos that are live now */
+  live: Set<string>;
+  /** whether YouTube refuses a request's token */
+  refuses: (request: string, token: string) => boolean;
+  /** whether YouTube answers a request with a server error */
+  fails: (request: string) => boolean;
+  /** every YouTube request made, as "list ids" */
+  requests: string[];
+}
+
+describe("FeedController loads", () => {
+  const realFetch = globalThis.fetch;
+  const realError = console.error;
+  let google: FakeGoogle;
+
+  beforeAll(async () => {
+    (globalThis as { chrome?: unknown }).chrome = {
+      runtime: {
+        sendMessage(
+          _extensionId: string,
+          message: { type: string },
+          callback: (response: unknown) => void,
+        ) {
+          callback(
+            message.type === "token" ? google.token() : { version: "1" },
+          );
+        },
+      },
+    };
+    await recheckPlatform();
+  });
+
+  afterAll(() => {
+    globalThis.fetch = realFetch;
+    console.error = realError;
+    delete (globalThis as { chrome?: unknown }).chrome;
+  });
+
+  beforeEach(() => {
+    let minted = 0;
+    google = {
+      token: () => {
+        minted += 1;
+        return { accessToken: `token-${minted}`, expiresIn: 3600 };
+      },
+      uploads: { UCa: ["a2", "a1"], UCb: ["b1"] },
+      live: new Set(),
+      refuses: () => false,
+      fails: () => false,
+      requests: [],
+    };
+    forgetToken();
+    expectAccount(null);
+    console.error = () => undefined;
+    globalThis.fetch = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url = new URL(String(input));
+      const list = url.pathname.split("/").at(-1) ?? "";
+      const ids =
+        url.searchParams.get("playlistId") ?? url.searchParams.get("id") ?? "";
+      const request = ids ? `${list} ${ids}` : list;
+      const token = new Headers(init?.headers).get("Authorization") ?? "";
+      google.requests.push(request);
+      if (google.refuses(request, token.replace("Bearer ", ""))) {
+        return new Response("{}", { status: 401 });
+      } else if (google.fails(request)) {
+        return new Response("{}", { status: 500 });
+      } else if (list === "subscriptions") {
+        return Response.json({
+          items: Object.keys(google.uploads).map((channelId) => ({
+            snippet: {
+              title: channelId,
+              resourceId: { channelId },
+              thumbnails: {},
+            },
+          })),
+        });
+      } else if (list === "playlistItems") {
+        const videoIds = google.uploads[`UC${ids.slice(2)}`] ?? [];
+        return Response.json({
+          items: videoIds.map((videoId, index) => ({
+            snippet: {
+              title: videoId,
+              description: "",
+              publishedAt: `2026-01-${String(20 - index).padStart(2, "0")}T00:00:00Z`,
+              thumbnails: {},
+            },
+            contentDetails: { videoId },
+          })),
+        });
+      } else {
+        return Response.json({
+          items: ids.split(",").map((id) => ({
+            id,
+            snippet: {
+              liveBroadcastContent: google.live.has(id) ? "live" : "none",
+            },
+            contentDetails: { duration: google.live.has(id) ? "P0D" : "PT10M" },
+          })),
+        });
+      }
+    }) as typeof fetch;
+  });
+
+  /** A controller over the faked account, on the feed (null) or a channel's page, and how often it called the token lost. */
+  function controller(page: string | null = null): {
+    feed: FeedController;
+    lost: () => number;
+  } {
+    let lost = 0;
+    const store = {
+      load: async () => undefined,
+      followedIds: () => [],
+      channels: (subscribed: { channelId: string; title: string }[]) =>
+        new Map(
+          subscribed.map((info) => [
+            info.channelId,
+            { ...info, thumbnail: "", filter: defaultFilter() },
+          ]),
+        ),
+      noteLoaded: () => undefined,
+      watchedEntry: () => undefined,
+      settings: () => ({}),
+      flush: () => undefined,
+    } as unknown as SyncStore;
+    const session = {
+      account: { channelId: "UCme" },
+      ready: true,
+      tokenLost: () => {
+        lost += 1;
+      },
+    } as unknown as Session;
+    const router = {
+      route: { channel: page, item: null },
+    } as unknown as Router;
+    return {
+      feed: new FeedController(session, store, router),
+      lost: () => lost,
+    };
+  }
+
+  /** Start the controller on a faked page; `fire` runs the listeners of an event and waits for what they began. */
+  function started(feed: FeedController): {
+    fire: (type: string) => Promise<void>;
+    stop: () => void;
+  } {
+    const listeners = new Map<string, () => void>();
+    const target = {
+      visibilityState: "visible",
+      addEventListener: (type: string, listener: () => void) =>
+        void listeners.set(type, listener),
+      removeEventListener: (type: string) => void listeners.delete(type),
+    };
+    const page = globalThis as { document?: unknown; window?: unknown };
+    page.document = target;
+    page.window = target;
+    const stop = feed.start();
+    return {
+      fire: async (type) => {
+        listeners.get(type)?.();
+        // a load is under way when the listener started one
+        while (feed.loading) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      },
+      stop: () => {
+        stop();
+        delete page.document;
+        delete page.window;
+      },
+    };
+  }
+
+  test("a failed load is tried again on returning, a load that worked is not", async () => {
+    const { feed } = controller();
+    const { fire, stop } = started(feed);
+    google.fails = (request) => request === "subscriptions";
+    await feed.load();
+    expect(feed.error).not.toBeNull();
+    google.fails = () => false;
+    await fire("visibilitychange");
+    expect(feed.error).toBeNull();
+    expect(shown(feed)).toEqual(["a2", "b1", "a1"]);
+    const requests = google.requests.length;
+    await fire("visibilitychange");
+    expect(google.requests.length).toBe(requests);
+    stop();
+  });
+
+  test("coming back online loads again only while an error shows", async () => {
+    const { feed } = controller();
+    const { fire, stop } = started(feed);
+    google.fails = (request) => request === "subscriptions";
+    await feed.load();
+    google.fails = () => false;
+    await fire("online");
+    expect(feed.error).toBeNull();
+    expect(shown(feed)).toEqual(["a2", "b1", "a1"]);
+    const requests = google.requests.length;
+    await fire("online");
+    expect(google.requests.length).toBe(requests);
+    stop();
+  });
+
+  test("a load shows every channel's uploads", async () => {
+    const { feed } = controller();
+    await feed.load();
+    expect(shown(feed)).toEqual(["a2", "b1", "a1"]);
+    expect(feed.error).toBeNull();
+  });
+
+  test("a token refused mid-load keeps the channels already fetched", async () => {
+    const { feed } = controller();
+    google.refuses = (request, token) =>
+      request === "playlistItems UUb" && token === "token-1";
+    await feed.load();
+    expect(shown(feed)).toEqual(["a2", "b1", "a1"]);
+    const count = (request: string) =>
+      google.requests.filter((made) => made === request).length;
+    expect(count("playlistItems UUa")).toBe(1);
+    expect(count("videos a2,a1")).toBe(1);
+    expect(count("playlistItems UUb")).toBe(2);
+  });
+
+  test("the page of a channel the feed doesn't load waits for the first load", async () => {
+    const { feed } = controller("UCz");
+    await feed.ensureChannelItems();
+    expect(google.requests).toEqual([]);
+    const load = feed.load();
+    await feed.ensureChannelItems();
+    await load;
+    while (feed.channelLoading) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(
+      google.requests.filter((made) => made === "playlistItems UUz"),
+    ).toHaveLength(1);
+    expect(google.requests.indexOf("playlistItems UUz")).toBeGreaterThan(
+      google.requests.indexOf("playlistItems UUb"),
+    );
+  });
+
+  test("a later load asks for the details of new and live videos only", async () => {
+    const { feed } = controller();
+    google.live.add("b1");
+    await feed.load();
+    const first = feed.items;
+    google.requests.length = 0;
+    await feed.load();
+    expect(google.requests.filter((made) => made.startsWith("videos"))).toEqual(
+      ["videos b1"],
+    );
+    expect(feed.items.toSorted(byId)).toEqual(first.toSorted(byId));
+
+    google.uploads.UCa = ["a3", "a2", "a1"];
+    google.live.clear();
+    google.requests.length = 0;
+    await feed.load();
+    expect(
+      google.requests.filter((made) => made.startsWith("videos")).toSorted(),
+    ).toEqual(["videos a3", "videos b1"]);
+    expect(
+      feed.items.map((item) => item.kind === "video" && item.durationSeconds),
+    ).toEqual([600, 600, 600, 600]);
+  });
+
+  test("an extension that doesn't answer is an error, not a lost session", async () => {
+    const { feed, lost } = controller();
+    google.token = () => undefined;
+    await feed.load();
+    expect(lost()).toBe(0);
+    expect(feed.error).toBe("The SubTube extension didn't answer.");
+  });
+
+  test("no token without a sign-in is a lost session", async () => {
+    const { feed, lost } = controller();
+    google.token = () => ({ error: "interaction required" });
+    await feed.load();
+    expect(lost()).toBe(1);
+    expect(feed.error).toBeNull();
+  });
+
+  test("a silent sign-in that failed by itself is an error, not a lost session", async () => {
+    const { feed, lost } = controller();
+    google.token = () => ({
+      error: "Authorization page could not be loaded.",
+      signInRequired: false,
+    });
+    await feed.load();
+    expect(lost()).toBe(0);
+    expect(feed.error).toBe(UNREACHABLE_MESSAGE);
   });
 });

@@ -17,7 +17,7 @@ export interface SilentTokenOptions {
 export interface Platform {
   /** Interactive sign-in; rejects with `SignInCancelledError` when the user calls it off. */
   signIn(): Promise<Token>;
-  /** A token without any UI, or null when only {@link signIn} can get one. */
+  /** A token without any UI, or null when only {@link signIn} can get one; rejects when the attempt itself failed. */
   silentToken(options?: SilentTokenOptions): Promise<Token | null>;
   /** Forget whatever this platform stored for the grant; the grant itself stays. */
   signOut(): Promise<void>;
