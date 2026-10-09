@@ -13,6 +13,8 @@ interface Fake {
   failNext: number[];
   /** runs before each listing is answered */
   beforeListing: () => void;
+  /** the open tabs, which each hear of a write to local storage as the `storage` event tells them */
+  tabs: SyncStore[];
 }
 
 let fake: Fake;
@@ -43,14 +45,14 @@ function answer(input: string | URL | Request, init?: RequestInit): Response {
     const parts = String(init?.body).split("\r\n");
     const id = `file${fake.drive.size + 1}-${fake.requests.length}`;
     fake.drive.set(id, { name: JSON.parse(parts[3]).name, body: parts[7] });
-    return json({ id });
+    return json({ id, modifiedTime: parts[7] });
   } else {
     const file = fake.drive.get(fileId ?? "");
     if (!file) {
       return json({}, 404);
     } else if (method === "PATCH") {
       file.body = String(init?.body);
-      return json({ id: fileId });
+      return json({ id: fileId, modifiedTime: file.body });
     } else if (method === "DELETE") {
       fake.drive.delete(fileId ?? "");
       return new Response(null, { status: 204 });
@@ -71,11 +73,18 @@ beforeEach(() => {
     requests: [],
     failNext: [],
     beforeListing: () => undefined,
+    tabs: [],
   };
   (globalThis as { localStorage?: unknown }).localStorage = {
     getItem: (key: string) => fake.kept.get(key) ?? null,
-    setItem: (key: string, value: string) => void fake.kept.set(key, value),
-    removeItem: (key: string) => void fake.kept.delete(key),
+    setItem: (key: string, value: string) => {
+      fake.kept.set(key, value);
+      fake.tabs.forEach((store) => void store.storageChanged(key, value));
+    },
+    removeItem: (key: string) => {
+      fake.kept.delete(key);
+      fake.tabs.forEach((store) => void store.storageChanged(key, null));
+    },
   };
   globalThis.fetch = (async (
     input: string | URL | Request,
@@ -89,12 +98,14 @@ afterEach(() => {
 });
 
 function tab(onDeleted: () => void = () => undefined): SyncStore {
-  return new SyncStore(
+  const store = new SyncStore(
     "acct",
     async () => "token",
     onDeleted,
     async () => "new",
   );
+  fake.tabs.push(store);
+  return store;
 }
 
 /** The watched ids in each of the folder's files. */
@@ -156,6 +167,84 @@ describe("two tabs of one browser", () => {
       fake.kept.get("subtube.sync.acct") ?? null,
     );
     expect(right.watchedEntry("X")?.watched).toBe(true);
+    left.close();
+    right.close();
+  });
+
+  test("a write that crossed another tab's keeps both tabs' edits in local storage", () => {
+    const left = tab();
+    const right = tab();
+    // each writes before it hears of the other
+    fake.tabs = [];
+    left.setWatched("X", true);
+    const fromLeft = fake.kept.get("subtube.sync.acct") ?? null;
+    right.setWatched("Y", true);
+    right.storageChanged("subtube.sync.acct", fromLeft);
+    expect(
+      Object.keys(
+        JSON.parse(fake.kept.get("subtube.sync.acct") ?? "{}").watched,
+      ).sort(),
+    ).toEqual(["X", "Y"]);
+    left.close();
+    right.close();
+  });
+
+  test("a playing video's position reaches local storage late, or when the tab is hidden or closed", async () => {
+    const store = tab();
+    await store.load();
+    const kept = () =>
+      JSON.parse(fake.kept.get("subtube.sync.acct") ?? "{}").watched.X
+        ?.position;
+    store.setProgress("X", 30, false, false);
+    expect(store.watchedEntry("X")?.position).toBe(30);
+    expect(kept()).toBeUndefined();
+    store.flush();
+    expect(kept()).toBe(30);
+    store.setProgress("X", 35, false, false);
+    expect(kept()).toBe(30);
+    store.setProgress("X", 40, false, true);
+    expect(kept()).toBe(40);
+    store.setProgress("X", 45, false, false);
+    store.close();
+    expect(kept()).toBe(45);
+  });
+
+  test("a position saved here doesn't hide a later one from another device", async () => {
+    const other = "device-other.json";
+    fake.drive.set("other", {
+      name: other,
+      body: JSON.stringify({
+        version: 1,
+        channels: {},
+        watched: { X: { at: Date.now() + 60_000, watched: true } },
+      }),
+    });
+    const store = tab();
+    await store.load();
+    store.setProgress("X", 30, false, false);
+    expect(store.watchedEntry("X")?.watched).toBe(true);
+    store.close();
+  });
+
+  test("a load downloads this device's file only when it isn't this store's last upload", async () => {
+    const left = tab();
+    await left.load();
+    left.setWatched("X", true);
+    await left.save();
+    const [fileId] = fake.drive.keys();
+    const downloads = () =>
+      fake.requests.filter((request) => request === `GET ${fileId}`).length;
+    await left.load();
+    expect(downloads()).toBe(0);
+
+    const right = tab();
+    await right.load();
+    expect(downloads()).toBe(1);
+    right.setWatched("Y", true);
+    await right.save();
+    await left.load();
+    expect(downloads()).toBe(2);
+    expect(left.watchedEntry("Y")?.watched).toBe(true);
     left.close();
     right.close();
   });

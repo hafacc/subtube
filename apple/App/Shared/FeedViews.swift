@@ -18,10 +18,8 @@ import SwiftUI
 /// control: the player's own saves would undo the mark.
 struct ItemCard: View {
   let item: FeedItem
-  let watched: Bool
-  /// How full its progress bar is, from 0 to 1; nil for no bar.
-  let progress: Double?
-  /// Plays and marks the item, and has the player.
+  /// Plays and marks the item, says how far it was watched, and has the
+  /// player.
   let feed: FeedModel
   let onOpenChannel: () -> Void
   /// Phones draw bigger cards.
@@ -43,6 +41,16 @@ struct ItemCard: View {
   #else
     private static let barAsHovered = false
   #endif
+
+  // read here, not handed in by the list, so a mark or a saved position redraws cards and not the list
+  private var watched: Bool {
+    feed.watched.contains(item.id)
+  }
+
+  /// How full the progress bar is, from 0 to 1; nil for no bar.
+  private var progress: Double? {
+    feed.bars[item.id]
+  }
 
   /// The session playing this item, in any place.
   private var session: PlayerSession? {
@@ -151,7 +159,7 @@ struct ItemCard: View {
               Text(item.channelTitle).lineLimit(1).truncationMode(.tail)
             }
             .buttonStyle(.plain)
-            if let date = item.publishedDate {
+            if let date = feed.publishedDate(item) {
               Text(verbatim: "·").accessibilityHidden(true)
               Text(date.shortFeedDate).lineLimit(1).fixedSize()
             }
@@ -173,7 +181,7 @@ struct ItemCard: View {
           }
           .buttonStyle(.plain)
           Spacer(minLength: 0)
-          if let date = item.publishedDate {
+          if let date = feed.publishedDate(item) {
             Text(date.shortFeedDate).lineLimit(1).fixedSize()
           }
         }
@@ -328,14 +336,21 @@ private struct ProgressBar: View {
 
 /// The thin Sunflower bar along the top of the feed while a full load runs.
 ///
-/// It moves on with `progress`, and when that goes back to nil it runs to
-/// the end and fades out. Under reduced motion it jumps instead of moving.
+/// It moves on with the feed's `loadProgress`, and when that goes back to
+/// nil it runs to the end and fades out. Under reduced motion it jumps
+/// instead of moving.
 struct LoadProgressBar: View {
-  /// How far the load is, from 0 to 1; nil when none runs.
-  let progress: Double?
+  let feed: FeedModel
+  /// Whether the bar stays away while a card holds the player.
+  var hiddenOverPlayingCard = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var shown = 0.0
   @State private var visible = false
+
+  /// How far the load is, from 0 to 1; nil when none runs or the bar stays away.
+  private var progress: Double? {
+    hiddenOverPlayingCard && feed.player?.place == .card ? nil : feed.loadProgress
+  }
 
   var body: some View {
     GeometryReader { proxy in
@@ -503,7 +518,8 @@ struct FeedEmptyState: View {
   }
 }
 
-/// A channel as the iOS lists show it: avatar, name, what its filter does.
+/// A channel as the iOS lists show it: avatar, name, what its filter does;
+/// dimmed for a channel that is off.
 struct ChannelRowLabel: View {
   let channel: ChannelFilter
   let feed: FeedModel
@@ -520,6 +536,7 @@ struct ChannelRowLabel: View {
       }
       Spacer(minLength: 0)
     }
+    .opacity(channel.enabled ? 1 : offChannelOpacity)
   }
 }
 
@@ -549,7 +566,8 @@ struct UnwatchedBadge: View {
   }
 }
 
-/// How strongly a channel that is off shows in a list.
+/// How strongly the picture and text of a channel that is off show in a
+/// list; the row's switch is never dimmed.
 let offChannelOpacity = 0.45
 
 /// The channels whose name has the text typed in a "Search channels"

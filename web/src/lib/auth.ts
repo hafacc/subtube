@@ -112,20 +112,24 @@ export async function revokeAccess(): Promise<void> {
 }
 
 /**
- * Run a Google request with a token; when Google refuses the token, renew it
- * silently and run the request once more.
+ * Run a Google request with a token; when Google refuses the token, run the
+ * request once more with a newer one: the one another request has renewed
+ * meanwhile, or else one renewed silently now.
  */
 export async function withToken<Result>(
   request: (token: string) => Promise<Result>,
 ): Promise<Result> {
+  const used = await getValidToken();
   try {
-    return await request(await getValidToken());
+    return await request(used);
   } catch (caught) {
-    if (caught instanceof TokenExpiredError) {
+    if (!(caught instanceof TokenExpiredError)) {
+      throw caught;
+    } else if (accessToken !== null && accessToken !== used && tokenIsFresh()) {
+      return request(accessToken);
+    } else {
       forgetToken();
       return request(await silentRefresh(true));
-    } else {
-      throw caught;
     }
   }
 }

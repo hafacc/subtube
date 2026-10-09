@@ -1,6 +1,7 @@
 package cc.hafa.subtube.core
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
@@ -32,11 +33,20 @@ typealias ChannelKind = Pair<String, ContentMode>
  * Which of the [held] channel kinds stay when a full load brings [loaded].
  * A loaded channel's other kind is dropped, unless it is the kind the channel
  * shows now ([current]): it was switched while the load ran and fetched on its
- * own. Channels the load didn't bring keep everything.
+ * own. A channel no load brings ([lapsed]: off or no longer listed, and not
+ * the one whose page is open) keeps nothing, so it is fetched afresh when it
+ * is next wanted. Any other channel the load didn't bring keeps everything.
  */
-fun keptAfterLoad(held: Set<ChannelKind>, loaded: Set<ChannelKind>, current: Set<ChannelKind>): Set<ChannelKind> {
+fun keptAfterLoad(
+    held: Set<ChannelKind>,
+    loaded: Set<ChannelKind>,
+    current: Set<ChannelKind>,
+    lapsed: Set<String> = emptySet(),
+): Set<ChannelKind> {
     val loadedIds = loaded.mapTo(HashSet()) { (channelId, _) -> channelId }
-    return held.filterTo(HashSet()) { kind -> kind.first !in loadedIds || (kind !in loaded && kind in current) }
+    return held.filterTo(HashSet()) { kind ->
+        if (kind.first in loadedIds) kind !in loaded && kind in current else kind.first !in lapsed
+    }
 }
 
 /** Run [worker] over [items] with at most [limit] running at once, keeping the input order. */
@@ -244,19 +254,25 @@ class ChannelIdentityCache(
     }
 }
 
-/** Loads the feed: subscriptions and synced filters, then every enabled channel's items. */
+/**
+ * Loads the feed: subscriptions and synced filters, then every enabled
+ * channel's items. Everything runs on [compute], whatever thread asks.
+ */
 class FeedLoader(
     private val youtube: YouTubeClient,
     private val store: SyncStore,
     private val identities: ChannelIdentityCache,
     /** Asks `/shorts/{id}` directly, for when a channel's Shorts list isn't served. */
     private val probe: (suspend (String) -> Boolean?)?,
+    /** Where answers are read and entries built, so a caller on the main thread isn't held up. */
+    private val compute: CoroutineDispatcher = Dispatchers.Default,
 ) {
     /**
      * A channel's newest entries: uploads or playlists, as its filter says. The
-     * Shorts list is read only when the filter [needsShorts].
+     * Shorts list is read only when the filter [needsShorts]. The videos
+     * already [held], by id, are not asked for again ([YouTubeClient.fetchUploads]).
      */
-    suspend fun fetchChannel(channel: ChannelFilter, token: String): ChannelItems =
+    suspend fun fetchChannel(channel: ChannelFilter, token: String, held: Map<String, Video> = emptyMap()): ChannelItems = withContext(compute) {
         if (channel.contentMode == ContentMode.PLAYLISTS) {
             ChannelItems(ContentMode.PLAYLISTS, shorts = false, youtube.fetchPlaylists(channel.channelId, channel.title, token))
         } else {
@@ -264,22 +280,25 @@ class FeedLoader(
             ChannelItems(
                 ContentMode.VIDEOS,
                 shorts,
-                youtube.fetchUploads(channel.channelId, channel.title, token, UPLOADS_PER_CHANNEL, probe, judgeShorts = shorts),
+                youtube.fetchUploads(channel.channelId, channel.title, token, UPLOADS_PER_CHANNEL, probe, judgeShorts = shorts, held = held),
             )
         }
+    }
 
     /** Uploads fetched without their channel's Shorts list, now with it: one request, or none when no video could be a Short. */
-    suspend fun addShortsMarks(channel: ChannelFilter, fetched: ChannelItems, token: String): ChannelItems = ChannelItems(
-        ContentMode.VIDEOS,
-        shorts = true,
-        youtube.markShorts(fetched.items.filterIsInstance<Video>(), channel.channelId, token, UPLOADS_PER_CHANNEL, probe),
-    )
+    suspend fun addShortsMarks(channel: ChannelFilter, fetched: ChannelItems, token: String): ChannelItems = withContext(compute) {
+        ChannelItems(
+            ContentMode.VIDEOS,
+            shorts = true,
+            youtube.markShorts(fetched.items.filterIsInstance<Video>(), channel.channelId, token, UPLOADS_PER_CHANNEL, probe),
+        )
+    }
 
-    /** What [channel]'s filter needs, building on what is already fetched for it ([have]); see [completeItems]. */
-    suspend fun complete(channel: ChannelFilter, have: ChannelItems?, token: String): ChannelItems = completeItems(
+    /** What [channel]'s filter needs, building on what is already fetched for it ([have]); see [completeItems] and, for [held], [fetchChannel]. */
+    suspend fun complete(channel: ChannelFilter, have: ChannelItems?, token: String, held: Map<String, Video> = emptyMap()): ChannelItems = completeItems(
         channel,
         have,
-        fetchAll = { wanted -> fetchChannel(wanted, token) },
+        fetchAll = { wanted -> fetchChannel(wanted, token, held) },
         addShorts = { wanted, fetched -> addShortsMarks(wanted, fetched, token) },
     )
 
@@ -290,18 +309,24 @@ class FeedLoader(
      * refuses a request no more are sent ([fetchChannels]). The load builds on
      * what [prefetched] fetched, or is still fetching, for a channel that is on
      * instead of fetching it again. [onProgress] gets how many of the channels
-     * to fetch are through, from none on.
+     * to fetch are through, from none on. [held] is the videos of the last
+     * load, by id ([fetchChannel]). [subscribed] is the subscriptions when
+     * they and the store have only just been read, as first run does, so
+     * neither is read again. [onProgress] and [onChannels] are called
+     * on [compute], not on the caller's thread.
      */
     suspend fun load(
         token: String,
         prefetched: Prefetch? = null,
+        held: Map<String, Video> = emptyMap(),
+        subscribed: List<Subscription>? = null,
         onProgress: (finished: Int, total: Int) -> Unit = { _, _ -> },
         onChannels: (List<Subscription>, Map<String, ChannelFilter>) -> Unit,
-    ): FeedData {
-        val subscriptions = coroutineScope {
-            val subscribed = async { youtube.fetchSubscriptions(token) }
+    ): FeedData = withContext(compute) {
+        val subscriptions = subscribed ?: coroutineScope {
+            val fetched = async { youtube.fetchSubscriptions(token) }
             store.load()
-            subscribed.await()
+            fetched.await()
         }
         onChannels(subscriptions, store.channels(subscriptions, identities.all()))
         // a failed lookup leaves the channel under its id until a later load
@@ -332,8 +357,8 @@ class FeedLoader(
         val enabled = channels.values.filter(ChannelFilter::enabled)
         onProgress(0, enabled.size)
         val loaded = fetchChannels(enabled, onFinished = { finished -> onProgress(finished, enabled.size) }) { channel ->
-            complete(channel, prefetched?.items(channel.channelId), token)
+            complete(channel, prefetched?.items(channel.channelId), token, held)
         }
-        return FeedData(subscriptions, channels, loaded.fetched, loaded.failed, loaded.dailyLimit)
+        FeedData(subscriptions, channels, loaded.fetched, loaded.failed, loaded.dailyLimit)
     }
 }

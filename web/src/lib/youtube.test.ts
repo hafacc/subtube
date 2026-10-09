@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
+  channelPicture,
   DailyLimitError,
   fetchShortIds,
   fetchUploads,
@@ -13,6 +14,16 @@ import {
 describe("uploadsPlaylistId", () => {
   test("swaps the UC channel prefix for UU", () => {
     expect(uploadsPlaylistId("UCabcdef12345")).toBe("UUabcdef12345");
+  });
+});
+
+describe("channelPicture", () => {
+  test("prefers the small picture, then the medium one, then none", () => {
+    const small = { url: "small" };
+    const medium = { url: "medium" };
+    expect(channelPicture({ default: small, medium })).toBe("small");
+    expect(channelPicture({ medium })).toBe("medium");
+    expect(channelPicture({})).toBe("");
   });
 });
 

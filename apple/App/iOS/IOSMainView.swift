@@ -85,7 +85,7 @@ struct PlatformMainView: View {
           tabBottomInset = $0
         }
       }
-      Tab(Strings.channels, systemImage: "slider.horizontal.3", value: MainTab.channels) {
+      Tab(Strings.channels, systemImage: "play.square.stack", value: MainTab.channels) {
         IOSChannelsTab(app: app, feed: feed, path: $channelsPath, onGroup: { groupTarget = $0 })
       }
       Tab(Strings.settings, systemImage: "gearshape", value: MainTab.settings) {
@@ -253,7 +253,7 @@ private struct IOSFeedList: View {
       list
         .overlay(alignment: .top) {
           // not while a card plays: scrolled to the top edge, the bar would lie over the video
-          LoadProgressBar(progress: feed.player?.place == .card ? nil : feed.loadProgress)
+          LoadProgressBar(feed: feed, hiddenOverPlayingCard: true)
         }
         .onAppear {
           // "Expand" onto a page pushed again: its list wasn't there to see `cardScrolls` change
@@ -291,26 +291,9 @@ private struct IOSFeedList: View {
           .listRowSeparator(.hidden)
       }
       ForEach(feed.shown) { item in
-        ItemCard(
-          item: item,
-          watched: feed.watched.contains(item.id),
-          progress: feed.bars[item.id],
-          feed: feed,
-          onOpenChannel: { openChannel(item.channelId) },
-          large: true
-        )
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 11, leading: 16, bottom: 11, trailing: 16))
-        // never the card that holds the player: nothing is drawn over the video
-        .loadingDimmed(
-          feed.loading && !(feed.player?.item.id == item.id && feed.player?.place == .card))
-        // not while a load runs: the bar's button is off then too
-        .watchedSwipe(
-          watched: feed.watched.contains(item.id),
-          offered: feed.player?.item.id != item.id && !feed.loading
-        ) {
-          feed.toggleWatched(item.id)
-        }
+        IOSFeedRow(item: item, feed: feed, onOpenChannel: { openChannel(item.channelId) })
+          .listRowSeparator(.hidden)
+          .listRowInsets(EdgeInsets(top: 11, leading: 16, bottom: 11, trailing: 16))
       }
       FeedEmptyState(feed: feed)
         .listRowSeparator(.hidden)
@@ -326,6 +309,28 @@ private struct IOSFeedList: View {
     // in its own task: the list cancels this one when it goes away
     .refreshable { await Task { await feed.load() }.value }
     .startsAtEndWhenAsked(Self.endID)
+  }
+}
+
+/// One card of the feed's list, greyed during a load and with the swipe that
+/// marks it. What changes with a load, a mark or the player is read here, so
+/// it redraws the row and not the list.
+private struct IOSFeedRow: View {
+  let item: FeedItem
+  let feed: FeedModel
+  let onOpenChannel: () -> Void
+
+  var body: some View {
+    let hasPlayer = feed.player?.item.id == item.id
+    ItemCard(item: item, feed: feed, onOpenChannel: onOpenChannel, large: true)
+      // never the card that holds the player: nothing is drawn over the video
+      .loadingDimmed(feed.loading && !(hasPlayer && feed.player?.place == .card))
+      // not while a load runs: the bar's button is off then too
+      .watchedSwipe(
+        watched: feed.watched.contains(item.id), offered: !hasPlayer && !feed.loading
+      ) {
+        feed.toggleWatched(item.id)
+      }
   }
 }
 
@@ -395,7 +400,6 @@ private struct IOSChannelsTab: View {
               .foregroundStyle(.secondary)
             ChannelSwitch(title: channel.title, isOn: feed.binding(channel, \.enabled))
           }
-          .opacity(channel.enabled ? 1 : offChannelOpacity)
         }
         YouTubeAttribution()
           .frame(maxWidth: .infinity)

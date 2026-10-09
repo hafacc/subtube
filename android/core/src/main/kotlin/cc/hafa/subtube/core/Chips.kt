@@ -56,17 +56,21 @@ enum class StartFrom(
     ALL("all", null),
 }
 
+/** [publishedAt], an RFC 3339 UTC time, in ms since the epoch; null when it can't be read. */
+fun publishedMillis(publishedAt: String): Long? =
+    try {
+        Instant.parse(publishedAt).toEpochMilli()
+    } catch (_: DateTimeParseException) {
+        null
+    }
+
 /**
  * Whether [publishedAt], an RFC 3339 UTC time, is no more than [spanMs] before
  * [now] (ms since the epoch); the boundary is inside. A time that can't be
  * read is outside, as on the web.
  */
 fun publishedWithin(publishedAt: String, spanMs: Long, now: Long): Boolean {
-    val published = try {
-        Instant.parse(publishedAt).toEpochMilli()
-    } catch (_: DateTimeParseException) {
-        null
-    }
+    val published = publishedMillis(publishedAt)
     return published != null && now - published <= spanMs
 }
 
@@ -99,13 +103,21 @@ fun editorTopics(items: Collection<FeedItem>): List<String> =
 
 /**
  * The entries the chips keep, in the order given: inside [timeChip]'s span
- * before [now], and in a topic of [selected] when it holds any.
+ * before [now], and in a topic of [selected] when it holds any. [published]
+ * gives an entry's time as [publishedMillis] does, for a caller that keeps
+ * them read.
  */
-fun chipFiltered(items: Collection<FeedItem>, timeChip: TimeChip, selected: Collection<String>, now: Long): List<FeedItem> {
+fun chipFiltered(
+    items: Collection<FeedItem>,
+    timeChip: TimeChip,
+    selected: Collection<String>,
+    now: Long,
+    published: (FeedItem) -> Long? = { item -> publishedMillis(item.publishedAt) },
+): List<FeedItem> {
     val wanted = knownTopics(selected)
-    val spanMs = timeChip.spanMs
+    val earliest = timeChip.spanMs?.let { spanMs -> now - spanMs }
     return items.filter { item ->
-        (spanMs == null || publishedWithin(item.publishedAt, spanMs, now)) &&
+        (earliest == null || published(item)?.let { time -> time >= earliest } == true) &&
             (wanted.isEmpty() || itemTopic(item) in wanted)
     }
 }

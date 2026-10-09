@@ -72,9 +72,7 @@ struct Avatar: View {
   }
 
   var body: some View {
-    AsyncImage(url: URL(string: url)) { image in
-      image.resizable().aspectRatio(contentMode: .fill)
-    } placeholder: {
+    RemoteImage(url: URL(string: url)) {
       Text(initial)
         .font(.system(size: size * 0.55, weight: .semibold))
         .foregroundStyle(.secondary)
@@ -97,11 +95,7 @@ struct Thumbnail: View {
       .aspectRatio(16 / 9, contentMode: .fit)
       .overlay {
         if !url.isEmpty {
-          AsyncImage(url: URL(string: url)) { image in
-            image.resizable().aspectRatio(contentMode: .fill)
-          } placeholder: {
-            Color.clear
-          }
+          RemoteImage(url: URL(string: url)) {}
         }
       }
       .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -133,8 +127,9 @@ private struct Shimmer: ViewModifier {
   }
 
   func body(content: Content) -> some View {
-    if active && !reduceMotion {
-      content.overlay {
+    // one overlay whether or not it sweeps: a change of branch would rebuild the content
+    content.overlay {
+      if active && !reduceMotion {
         // the phase comes from the clock, so every shimmering view sweeps together
         TimelineView(.animation) { context in
           GeometryReader { proxy in
@@ -160,8 +155,6 @@ private struct Shimmer: ViewModifier {
         .allowsHitTesting(false)
         .accessibilityHidden(true)
       }
-    } else {
-      content
     }
   }
 }

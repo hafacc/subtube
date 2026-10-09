@@ -43,8 +43,34 @@ class PlaybackTest {
         playback.tick()
         playback.stateChanged(PlayerState.PAUSED, 7.5, 600.0)
         playback.tick()
+        playback.stateChanged(PlayerState.PLAYING, 7.5, 600.0)
+        playback.positionChanged(9.0, 600.0)
         playback.save(ProgressUpload.NOW)
-        assertEquals(listOf("v1 5/600 later", "v1 7/600 soon", "v1 7/600 now"), feed.saved)
+        assertEquals(listOf("v1 5/600 later", "v1 7/600 soon", "v1 9/600 now"), feed.saved)
+    }
+
+    @Test
+    fun aPausedVideoIsNotSavedAgainOnLeaving() {
+        val feed = RecordingFeed(video())
+        val playback = of(feed)
+        playback.stateChanged(PlayerState.PLAYING, 0.0, 600.0)
+        playback.stateChanged(PlayerState.PAUSED, 7.5, 600.0)
+        playback.save(ProgressUpload.NOW)
+        playback.save(ProgressUpload.SOON)
+        assertEquals(listOf("v1 7/600 soon"), feed.saved)
+    }
+
+    @Test
+    fun aSecondSavedOnThisDeviceOnlyIsSavedAgainForAnUpload() {
+        val feed = RecordingFeed(video())
+        val playback = of(feed)
+        playback.stateChanged(PlayerState.PLAYING, 0.0, 600.0)
+        playback.positionChanged(5.0, 600.0)
+        playback.tick()
+        playback.tick()
+        playback.save(ProgressUpload.NOW)
+        playback.save(ProgressUpload.NOW)
+        assertEquals(listOf("v1 5/600 later", "v1 5/600 now"), feed.saved)
     }
 
     @Test
@@ -67,6 +93,24 @@ class PlaybackTest {
         playback.stateChanged(PlayerState.PLAYING, 30.0, 600.0)
         playback.save(ProgressUpload.SOON)
         assertEquals("v1 30/600 soon", feed.saved.last())
+    }
+
+    @Test
+    fun aVideoThePlayerCannotPlayIsOverWithoutBeingMarked() {
+        val feed = RecordingFeed(video())
+        val playback = of(feed)
+        playback.failed()
+        playback.save(ProgressUpload.SOON)
+        assertEquals(emptyList(), feed.saved)
+        assertEquals(1, ended)
+    }
+
+    @Test
+    fun aPlaylistGoesOnPastAVideoThePlayerCannotPlay() {
+        val feed = RecordingFeed(playlist())
+        of(feed, isPlaylist = true).failed()
+        assertEquals(emptyList(), feed.saved)
+        assertEquals(0, ended)
     }
 
     @Test

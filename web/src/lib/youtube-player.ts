@@ -52,6 +52,7 @@ export interface YouTubeNamespace {
       events?: {
         onReady?: (event: { target: YouTubePlayer }) => void;
         onStateChange?: (event: PlayerStateChangeEvent) => void;
+        onError?: (event: { data: number; target: YouTubePlayer }) => void;
       };
     },
   ) => YouTubePlayer;

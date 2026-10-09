@@ -65,6 +65,27 @@ describe("orderChannels", () => {
   const order = (channels: Channel[]): string[] =>
     orderChannels(channels, items).map(({ channelId }) => channelId);
 
+  test("orders by name whatever the case, as the comparison alone does", () => {
+    const named = ["beta", "Alpha", "alpha", "Gamma"].map((title, index) => ({
+      ...channel(`UC${index}`),
+      title,
+    }));
+    const expected = named
+      .map((entry) => ({
+        id: entry.channelId,
+        title: entry.title,
+        enabled: true,
+      }))
+      .toSorted((left, right) => compareChannelOrder(left, right, "name"))
+      .map(({ id }) => id);
+    expect(expected).toEqual(["UC1", "UC2", "UC0", "UC3"]);
+    expect(
+      orderChannels(named.toReversed(), [], "name").map(
+        ({ channelId }) => channelId,
+      ),
+    ).toEqual(expected);
+  });
+
   test("orders by each channel's newest item, off channels last", () => {
     expect(
       order([

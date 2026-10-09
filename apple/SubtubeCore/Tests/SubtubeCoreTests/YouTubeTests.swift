@@ -225,6 +225,111 @@ private actor ProbeCount {
   }
 }
 
+/// Answers an uploads list of some video ids, and `videos.list` for the ids
+/// asked, which it records.
+private final class UploadsStub: URLProtocol, @unchecked Sendable {
+  nonisolated(unsafe) private static var listed: [String] = []
+  nonisolated(unsafe) private static var asked: [[String]] = []
+  private static let lock = NSLock()
+
+  /// A session whose uploads list holds `videoIds`.
+  static func session(listing videoIds: [String]) -> URLSession {
+    lock.withLock {
+      listed = videoIds
+      asked = []
+    }
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [UploadsStub.self]
+    return URLSession(configuration: configuration)
+  }
+
+  /// The ids of each `videos.list` request, in the order made.
+  static var requests: [[String]] { lock.withLock { asked } }
+
+  override class func canInit(with request: URLRequest) -> Bool { true }
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+  override func stopLoading() {}
+
+  override func startLoading() {
+    let url = request.url!
+    let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+    let body: String
+    if url.lastPathComponent == "videos" {
+      let ids = (query.first { $0.name == "id" }?.value ?? "").split(separator: ",").map(String.init)
+      Self.lock.withLock { Self.asked.append(ids) }
+      let items = ids.map {
+        #"{"id": "\#($0)", "snippet": {"liveBroadcastContent": "none", "categoryId": "27"},"#
+          + #" "contentDetails": {"duration": "PT5M"}}"#
+      }
+      body = #"{"items": [\#(items.joined(separator: ","))]}"#
+    } else {
+      let items = Self.lock.withLock { Self.listed }.map {
+        #"{"snippet": {"title": "Title", "description": "", "publishedAt": "2026-01-01T00:00:00Z","#
+          + #" "thumbnails": {}}, "contentDetails": {"videoId": "\#($0)"}}"#
+      }
+      body = #"{"items": [\#(items.joined(separator: ","))]}"#
+    }
+    let response = HTTPURLResponse(
+      url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+    client?.urlProtocol(self, didLoad: Data(body.utf8))
+    client?.urlProtocolDidFinishLoading(self)
+  }
+}
+
+@Suite(.serialized) struct KnownDetailsTests {
+  private let channelId = "UC7-E5xhZBZdW-8d7V80mzfg"
+
+  @Test func onlyAVideoThatCanNoLongerChangeIsSettled() {
+    #expect(
+      settledDetails(makeVideo("plain") { $0.categoryId = "10" })
+        == VideoDetails(durationSeconds: 600, liveStatus: .normal, categoryId: "10"))
+    #expect(settledDetails(makeVideo("ended") { $0.liveStatus = .vod })?.liveStatus == .vod)
+    #expect(settledDetails(makeVideo("unsaid") { $0.liveStatus = nil })?.liveStatus == .normal)
+    #expect(settledDetails(makeVideo("live") { $0.liveStatus = .live }) == nil)
+    #expect(settledDetails(makeVideo("upcoming") { $0.liveStatus = .upcoming }) == nil)
+    #expect(settledDetails(makeVideo("empty", durationSeconds: 0)) == nil)
+    #expect(settledDetails(makeVideo("none", durationSeconds: nil)) == nil)
+  }
+
+  @Test func aKnownVideoIsNotAskedForAndReadsAsKnown() async throws {
+    let client = YouTubeClient(
+      accessToken: "token", session: UploadsStub.session(listing: ["held", "new"]))
+    let known = [
+      "held": VideoDetails(durationSeconds: 1200, liveStatus: .vod, categoryId: "10")
+    ]
+    let videos = try await client.uploads(
+      channelId: channelId, channelTitle: "Channel", judgeShorts: false, known: known)
+    #expect(UploadsStub.requests == [["new"]])
+    #expect(videos.map(\.videoId) == ["held", "new"])
+    #expect(videos.map(\.durationSeconds) == [1200, 300])
+    #expect(videos.map(\.liveStatus) == [.vod, .normal])
+    #expect(videos.map(\.categoryId) == ["10", "27"])
+    #expect(videos.map(\.isShort) == [false, false])
+  }
+
+  @Test func withEveryVideoKnownNothingIsAsked() async throws {
+    let client = YouTubeClient(
+      accessToken: "token", session: UploadsStub.session(listing: ["held"]))
+    let known = [
+      "held": VideoDetails(durationSeconds: 1200, liveStatus: .normal, categoryId: nil)
+    ]
+    let videos = try await client.uploads(
+      channelId: channelId, channelTitle: "Channel", judgeShorts: false, known: known)
+    #expect(UploadsStub.requests.isEmpty)
+    #expect(videos.map(\.durationSeconds) == [1200])
+  }
+
+  @Test func withNothingKnownEveryVideoIsAskedFor() async throws {
+    let client = YouTubeClient(
+      accessToken: "token", session: UploadsStub.session(listing: ["first", "second"]))
+    let videos = try await client.uploads(
+      channelId: channelId, channelTitle: "Channel", judgeShorts: false)
+    #expect(UploadsStub.requests == [["first", "second"]])
+    #expect(videos.map(\.durationSeconds) == [300, 300])
+  }
+}
+
 @Suite struct SignInTests {
   @Test func theChallengeIsTheVerifiersHash() {
     // RFC 7636, appendix B

@@ -28,6 +28,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,10 +57,14 @@ import cc.hafa.subtube.core.editorTopics
 import cc.hafa.subtube.core.patternToPhrases
 import cc.hafa.subtube.core.phrasesToPattern
 import cc.hafa.subtube.core.topicLabel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** What ends a typed phrase, besides the keyboard's Done. */
 private const val PHRASE_END = ','
+
+/** How long typing in the minimum length pauses before the list is filtered by it. */
+private const val MINIMUM_PAUSE_MS = 400L
 
 /** Kept at the start of the phrase field so a Backspace in an empty field has something to delete, which is how it is noticed. */
 private const val SENTINEL = "\u200B"
@@ -76,6 +83,23 @@ fun FilterSheet(viewModel: SubtubeViewModel, channel: ChannelFilter, onDismiss: 
     val compiled = compileFilter(channel)
     var minimum by remember(channel.channelId) { mutableStateOf(channel.minDurationSeconds?.takeIf { seconds -> seconds > 0 }?.toString().orEmpty()) }
     val scope = rememberCoroutineScope()
+    val currentChannel by rememberUpdatedState(channel)
+    // typing re-filters once it pauses, and when the sheet closes, not at every digit
+    fun saveMinimum() {
+        val edited = currentChannel
+        // more digits than an Int holds is still a minimum: the largest
+        val seconds = (minimum.toIntOrNull() ?: Int.MAX_VALUE.takeIf { minimum.isNotEmpty() })?.takeIf { it > 0 }
+        if (seconds != edited.minDurationSeconds?.takeIf { it > 0 }) {
+            update(edited.copy(minDurationSeconds = seconds))
+        }
+    }
+    LaunchedEffect(minimum) {
+        delay(MINIMUM_PAUSE_MS)
+        saveMinimum()
+    }
+    DisposableEffect(channel.channelId) {
+        onDispose { saveMinimum() }
+    }
     CoversPlayer(viewModel)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -137,13 +161,7 @@ fun FilterSheet(viewModel: SubtubeViewModel, channel: ChannelFilter, onDismiss: 
                 )
                 OutlinedTextField(
                     value = minimum,
-                    onValueChange = { text ->
-                        val digits = text.filter(Char::isDigit)
-                        minimum = digits
-                        // more digits than an Int holds is still a minimum: the largest
-                        val seconds = digits.toIntOrNull() ?: Int.MAX_VALUE.takeIf { digits.isNotEmpty() }
-                        update(channel.copy(minDurationSeconds = seconds?.takeIf { it > 0 }))
-                    },
+                    onValueChange = { text -> minimum = text.filter(Char::isDigit) },
                     label = { Text(stringResource(R.string.hide_videos_under)) },
                     placeholder = { Text("0") },
                     suffix = { Text(stringResource(R.string.seconds)) },

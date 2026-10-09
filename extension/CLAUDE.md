@@ -18,7 +18,9 @@ manifest, so a store install answers the site alone.
   an interactive request always mints, with `prompt=select_account`, and a
   silent one passes the page's `loginHint` as `login_hint`. Two requests for
   the same sign-in share one window. An error answer has `cancelled` when
-  the user closed Google's page or refused. `signOut`: forget only (the
+  the user closed Google's page or refused, and `signInRequired`: false when
+  a silent attempt itself failed (no network), so the page keeps the session
+  and shows an error (`silentFailureNeedsUser` in `protocol.ts`). `signOut`: forget only (the
   grant stays); `revoke`: forget + revoke, for delete profile; `probeShort`:
   `youtube.com/shorts/{id}` with `redirect: "manual"` (200 = Short, redirect =
   not, anything else = unknown). The OAuth client id must match

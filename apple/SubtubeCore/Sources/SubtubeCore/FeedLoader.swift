@@ -95,9 +95,11 @@ public func needsShorts(_ filter: ChannelFilter) -> Bool {
 }
 
 /// A channel's newest items: uploads or playlists, as its filter says. The
-/// Shorts list is read only when the filter ``needsShorts(_:)``.
+/// Shorts list is read only when the filter ``needsShorts(_:)``, and the
+/// details of an upload in `known`, by video id, are not asked for.
 public func fetchChannelItems(
-  _ channel: ChannelFilter, client: YouTubeClient, probe: ShortsProbeFunction?
+  _ channel: ChannelFilter, client: YouTubeClient, probe: ShortsProbeFunction?,
+  known: [String: VideoDetails] = [:]
 ) async throws -> ChannelItems {
   if channel.contentMode == .playlists {
     return ChannelItems(
@@ -110,7 +112,7 @@ public func fetchChannelItems(
       mode: .videos, shorts: shorts,
       items: try await client.uploads(
         channelId: channel.channelId, channelTitle: channel.title, maxResults: uploadsPerChannel,
-        probe: probe, judgeShorts: shorts
+        probe: probe, judgeShorts: shorts, known: known
       ).map(FeedItem.video))
   }
 }
@@ -366,7 +368,8 @@ public func isCancellation(_ error: Error) -> Bool {
 
 private func loadOnce(
   token: String, store: SyncStore, probe: ShortsProbeFunction?, sink: FeedLoadSink,
-  items wantsItems: Bool, prefetched: Prefetch?, session: URLSession
+  items wantsItems: Bool, prefetched: Prefetch?, known: [String: VideoDetails],
+  session: URLSession
 ) async throws -> FeedLoadResult {
   let client = YouTubeClient(accessToken: token, session: session)
   async let subscribed = client.subscriptions()
@@ -397,7 +400,7 @@ private func loadOnce(
   ) { channel in
     try await completeItems(
       channel, have: await prefetched?.items(channel.channelId),
-      fetchAll: { try await fetchChannelItems($0, client: client, probe: probe) },
+      fetchAll: { try await fetchChannelItems($0, client: client, probe: probe, known: known) },
       addShorts: {
         try await addShortsMarks(channelId: $0.channelId, to: $1, client: client, probe: probe)
       })
@@ -411,8 +414,10 @@ private func loadOnce(
 /// Load the feed: the subscriptions and the synced filters in parallel, then
 /// every enabled channel's items, a few channels at a time; `items: false`
 /// stops at the channels. What `prefetched` has for a channel is built on
-/// instead of fetched again. A token that dies mid-load is renewed once and
-/// the load retried; YouTube's daily limit is never retried.
+/// instead of fetched again, and the details of a video in `known`, by video
+/// id (``settledDetails(_:)`` of the videos already held), are not asked for.
+/// A token that dies mid-load is renewed once and the load retried;
+/// YouTube's daily limit is never retried.
 public func loadFeed(
   tokens: any AccessTokenSource,
   store: SyncStore,
@@ -420,15 +425,16 @@ public func loadFeed(
   sink: FeedLoadSink,
   items: Bool = true,
   prefetched: Prefetch? = nil,
+  known: [String: VideoDetails] = [:],
   session: URLSession = .shared
 ) async throws -> FeedLoadResult {
   do {
     return try await loadOnce(
       token: try await tokens.validToken(), store: store, probe: probe, sink: sink, items: items,
-      prefetched: prefetched, session: session)
+      prefetched: prefetched, known: known, session: session)
   } catch GoogleAPIError.tokenExpired {
     return try await loadOnce(
       token: try await tokens.refreshedToken(), store: store, probe: probe, sink: sink,
-      items: items, prefetched: prefetched, session: session)
+      items: items, prefetched: prefetched, known: known, session: session)
   }
 }

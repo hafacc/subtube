@@ -444,14 +444,16 @@ private struct NuxChannels: View {
         LazyVStack(spacing: 0) {
           ForEach(matching, id: \.channelId) { channel in
             HStack(spacing: 10) {
-              Avatar(url: channel.thumbnail, title: channel.title, size: 28)
-              Text(channel.title)
+              HStack(spacing: 10) {
+                Avatar(url: channel.thumbnail, title: channel.title, size: 28)
+                Text(channel.title)
+              }
+              .opacity(channel.enabled ? 1 : offChannelOpacity)
               Spacer()
               ChannelSwitch(title: channel.title, isOn: isOn(channel))
             }
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
-            .opacity(channel.enabled ? 1 : offChannelOpacity)
             Divider()
           }
         }
@@ -467,7 +469,6 @@ private struct NuxChannels: View {
             ChannelSwitch(title: channel.title, isOn: isOn(channel))
           }
           .padding(.vertical, 10)
-          .opacity(channel.enabled ? 1 : offChannelOpacity)
           Divider()
         }
       }

@@ -75,17 +75,26 @@ public enum StartFrom: String, Codable, Sendable, CaseIterable {
 /// An RFC 3339 time, with or without fractional seconds, in milliseconds
 /// since the epoch; nil when it isn't one.
 public func parseTimestamp(_ text: String) -> Int64? {
+  // YouTube's times have no fractional seconds, so that reading is tried first
   let date =
-    (try? Date(text, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)))
-    ?? (try? Date(text, strategy: .iso8601))
+    (try? Date(text, strategy: .iso8601))
+    ?? (try? Date(text, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)))
   return date.map { epochMilliseconds($0) }
 }
 
 /// Whether `publishedAt` is at or after `now` less the chip's span. A time
 /// that can't be read is never within a span.
 public func publishedWithin(_ publishedAt: String, _ timeChip: TimeChip, now: Int64) -> Bool {
+  isWithin(parseTimestamp(publishedAt), timeChip, now: now)
+}
+
+/// ``publishedWithin(_:_:now:)`` for a time already read, which is asked for
+/// only when the chip has a span.
+private func isWithin(_ published: @autoclosure () -> Int64?, _ timeChip: TimeChip, now: Int64)
+  -> Bool
+{
   if let span = timeChip.milliseconds {
-    if let published = parseTimestamp(publishedAt) {
+    if let published = published() {
       return now - published <= span
     } else {
       return false
@@ -94,6 +103,10 @@ public func publishedWithin(_ publishedAt: String, _ timeChip: TimeChip, now: In
     return true
   }
 }
+
+/// Reads an item's `publishedAt`, in milliseconds since the epoch; nil when
+/// it isn't a time.
+public typealias PublishedTime = (FeedItem) -> Int64?
 
 private func byCountThenLabel(_ counts: [String: Int]) -> [String] {
   counts
@@ -132,13 +145,15 @@ public func editorTopics(_ items: [FeedItem]) -> [String] {
 }
 
 /// The items the chips keep, in the order given: inside the time chip's
-/// span, and in a selected topic when any is selected.
+/// span, and in a selected topic when any is selected. `published` reads an
+/// item's time, for a caller that keeps the times it has read.
 public func chipFiltered(
-  _ items: [FeedItem], timeChip: TimeChip, topicChips: [String], now: Int64
+  _ items: [FeedItem], timeChip: TimeChip, topicChips: [String], now: Int64,
+  published: PublishedTime = { parseTimestamp($0.publishedAt) }
 ) -> [FeedItem] {
   let wanted = Set(knownTopics(topicChips))
   return items.filter { item in
-    publishedWithin(item.publishedAt, timeChip, now: now)
+    isWithin(published(item), timeChip, now: now)
       && (wanted.isEmpty || item.topic.map(wanted.contains) ?? false)
   }
 }
@@ -169,15 +184,19 @@ public func listedItems(
 /// (shared/fixtures/channel-chips.json): those with at least one of `items`
 /// that is inside the time chip's span and, when a topic is selected, in a
 /// selected topic. Nil when no span and no topic is chosen, which keeps
-/// every channel. `items` is ``listedItems(_:filters:modes:)``.
+/// every channel. `items` is ``listedItems(_:filters:modes:)``, and
+/// `published` reads an item's time.
 public func chipKeptChannels(
-  _ items: [FeedItem], timeChip: TimeChip, topicChips: [String], now: Int64
+  _ items: [FeedItem], timeChip: TimeChip, topicChips: [String], now: Int64,
+  published: PublishedTime = { parseTimestamp($0.publishedAt) }
 ) -> Set<String>? {
   if timeChip == .anyTime && knownTopics(topicChips).isEmpty {
     return nil
   } else {
     return Set(
-      chipFiltered(items, timeChip: timeChip, topicChips: topicChips, now: now).map(\.channelId))
+      chipFiltered(
+        items, timeChip: timeChip, topicChips: topicChips, now: now, published: published
+      ).map(\.channelId))
   }
 }
 

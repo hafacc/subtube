@@ -201,7 +201,19 @@ private fun ColumnScope.ChannelsStep(viewModel: SubtubeViewModel) {
             StepTitle(stringResource(R.string.choose_channels_title))
             StepBody(stringResource(R.string.choose_channels_body))
             if (error != null) {
-                Text(error.resolve(context), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        error.resolve(context),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (error.offersSignIn) {
+                        AccentTextButton(stringResource(R.string.sign_in), onClick = viewModel::signIn)
+                    } else {
+                        AccentTextButton(stringResource(R.string.refresh), onClick = viewModel::retrySetUpChannels)
+                    }
+                }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SearchField(query, { text -> query = text }, Modifier.weight(1f))

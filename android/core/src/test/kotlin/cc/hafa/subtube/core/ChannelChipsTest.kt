@@ -40,6 +40,14 @@ class ChannelChipsTest {
         assertNull(chipKeptChannels(items, TimeChip.NONE, listOf("99"), now))
         assertEquals(emptySet(), chipKeptChannels(items, TimeChip.NONE, listOf("20"), now))
         assertEquals(setOf("UCa"), chipKeptChannels(items, TimeChip.DAY, emptyList(), now))
+        var reads = 0
+        val times = items.associate { item -> item.id to publishedMillis(item.publishedAt) }
+        val kept = chipKeptChannels(items, TimeChip.DAY, emptyList(), now) { item ->
+            reads += 1
+            times[item.id]
+        }
+        assertEquals(setOf("UCa"), kept)
+        assertEquals(items.size, reads)
     }
 
     @Test

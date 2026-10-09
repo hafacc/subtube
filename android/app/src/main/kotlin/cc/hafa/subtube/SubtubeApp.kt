@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import cc.hafa.subtube.auth.GoogleAuth
 import cc.hafa.subtube.core.DriveClient
+import cc.hafa.subtube.core.FETCH_CONCURRENCY
 import cc.hafa.subtube.core.ShortsProbe
 import cc.hafa.subtube.core.YouTubeClient
 import cc.hafa.subtube.data.AccountPrefs
@@ -14,12 +15,24 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+
+/** How many requests may run at once beside the channel fetches: Drive's, which go to the same host, and a picture or two. */
+private const val REQUESTS_BESIDE_FETCHES = 4
 
 /** Holds the app-wide clients, so every screen shares one HTTP connection pool. */
 class SubtubeApp : Application(), SingletonImageLoader.Factory {
-    /** The one HTTP client, and so the one connection pool. */
-    val http: OkHttpClient by lazy { OkHttpClient() }
+    /**
+     * The one HTTP client, and so the one connection pool. OkHttp's own limit
+     * of 5 requests a host is under the [FETCH_CONCURRENCY] channels fetched
+     * at once, and Drive shares their host.
+     */
+    val http: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .dispatcher(Dispatcher().apply { maxRequestsPerHost = FETCH_CONCURRENCY + REQUESTS_BESIDE_FETCHES })
+            .build()
+    }
 
     /** The YouTube Data API. */
     val youtube: YouTubeClient by lazy { YouTubeClient(http) }

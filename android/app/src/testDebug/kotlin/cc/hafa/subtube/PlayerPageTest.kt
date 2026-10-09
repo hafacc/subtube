@@ -68,6 +68,16 @@ class PlayerPageTest {
     }
 
     @Test
+    fun aVideoThePlayerCannotPlayEndsAndNothingIsSaved() {
+        val token = load()
+        send("""{"token":"other","kind":"error","code":150}""")
+        assertEquals(0, ended)
+        send("""{"token":"$token","kind":"error","code":150}""")
+        assertEquals(1, ended)
+        assertTrue(saves.uploads.isEmpty())
+    }
+
+    @Test
     fun whatIsNotAReportIsDropped() {
         val token = load()
         send("not a report")

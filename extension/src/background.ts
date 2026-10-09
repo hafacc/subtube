@@ -4,6 +4,7 @@ import {
   isAllowedOrigin,
   type ProbeShortResponse,
   type SignOutResponse,
+  silentFailureNeedsUser,
   type TokenRequest,
   type TokenResponse,
 } from "./protocol";
@@ -147,11 +148,13 @@ async function handleToken(request: TokenRequest): Promise<TokenResponse> {
       expiresIn: Math.floor((token.expiresAt - Date.now()) / 1000),
     };
   } catch (caught) {
+    const error = caught instanceof Error ? caught.message : String(caught);
     return {
-      error: caught instanceof Error ? caught.message : String(caught),
+      error,
       ...(caught instanceof SignInError && caught.cancelled
         ? { cancelled: true }
         : {}),
+      signInRequired: interactive || silentFailureNeedsUser(error),
     };
   }
 }

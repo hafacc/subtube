@@ -21,6 +21,10 @@ private actor RenewableToken: AccessTokenSource {
 private final class FakeDrive: URLProtocol, @unchecked Sendable {
   struct State {
     var files: [String: (name: String, content: Data)] = [:]
+    /// How often each file was written; its `modifiedTime` says so.
+    var versions: [String: Int] = [:]
+    /// The ids of the files whose content was downloaded, in order.
+    var downloads: [String] = []
     var created = 0
     /// How long an upload takes to answer.
     var uploadDelay: TimeInterval = 0
@@ -86,8 +90,11 @@ private final class FakeDrive: URLProtocol, @unchecked Sendable {
     }
   }
 
+  /// Only called with the lock held.
   private static func described(_ id: String, _ name: String) -> String {
-    #"{"id": "\#(id)", "name": "\#(name)", "modifiedTime": "2026-10-05T00:00:00Z"}"#
+    let version = state.versions[id] ?? 0
+    return
+      #"{"id": "\#(id)", "name": "\#(name)", "modifiedTime": "2026-10-05T00:00:0\#(version % 10)Z"}"#
   }
 
   override func startLoading() {
@@ -104,6 +111,7 @@ private final class FakeDrive: URLProtocol, @unchecked Sendable {
         Self.state.uploads += 1
         if let file = Self.state.files[fileId] {
           Self.state.files[fileId] = (file.name, content)
+          Self.state.versions[fileId, default: 0] += 1
           return (200, Self.described(fileId, file.name), Self.state.uploadDelay)
         } else {
           return (404, "{}", 0)
@@ -125,6 +133,9 @@ private final class FakeDrive: URLProtocol, @unchecked Sendable {
       } else if let fileId {
         if let file = Self.state.files[fileId] {
           let wantsContent = query.contains { $0.name == "alt" }
+          if wantsContent {
+            Self.state.downloads.append(fileId)
+          }
           return (200, wantsContent ? String(decoding: file.content, as: UTF8.self) : #"{"id": "\#(fileId)"}"#, 0)
         } else {
           return (404, "{}", 0)
@@ -161,11 +172,16 @@ private func finishes(
 }
 
 @Suite(.serialized) struct SyncStoreTests {
-  private func store(_ session: URLSession, tokens: any AccessTokenSource = RenewableToken())
-    -> SyncStore
-  {
-    let directory = FileManager.default.temporaryDirectory
+  private func newDirectory() -> URL {
+    FileManager.default.temporaryDirectory
       .appendingPathComponent("subtube-store-\(UUID().uuidString)")
+  }
+
+  private func store(
+    _ session: URLSession, tokens: any AccessTokenSource = RenewableToken(),
+    directory: URL? = nil
+  ) -> SyncStore {
+    let directory = directory ?? newDirectory()
     return SyncStore(
       accountId: "UCme", tokens: tokens, directory: directory, deviceId: "here", session: session)
   }
@@ -258,5 +274,96 @@ private func finishes(
     try await store.save()
     #expect(await tokens.renewals == 1)
     #expect(FakeDrive.current.created == 1)
+  }
+
+  @Test func aPositionSavedWhilePlayingShowsAtOnceAndIsOnDiskWhenAsked() async throws {
+    let session = FakeDrive.reset()
+    let directory = newDirectory()
+    let store = store(session, directory: directory)
+    try await store.load()
+    await store.setWatched(["marked"], watched: true)
+    await store.setProgress("video", position: 40, ended: false, upload: false)
+    #expect(await store.watchedEntries(["video"])["video"]?.position == 40)
+    #expect(await store.watchedEntries(["marked"])["marked"]?.watched == true)
+    let before = self.store(session, directory: directory)
+    #expect(await before.watchedEntries(["video"]).isEmpty)
+    await store.persist()
+    let after = self.store(session, directory: directory)
+    #expect(await after.watchedEntries(["video"])["video"]?.position == 40)
+  }
+
+  @Test func aPositionSavedForDriveIsOnDiskAtOnce() async throws {
+    let session = FakeDrive.reset()
+    let directory = newDirectory()
+    let store = store(session, directory: directory)
+    try await store.load()
+    await store.setProgress("video", position: 40, ended: false, upload: true)
+    let reopened = self.store(session, directory: directory)
+    #expect(await reopened.watchedEntries(["video"])["video"]?.position == 40)
+  }
+
+  @Test func aPositionSavedHereDoesNotBeatANewerEntryFromAnotherDevice() async throws {
+    let later = epochMilliseconds() + 3_600_000
+    let other = DeviceFile(watched: ["video": WatchedEntry(at: later, watched: true)])
+    let content = try encodeDeviceFile(other)
+    let store = store(FakeDrive.reset { $0.files["other"] = ("device-there.json", content) })
+    try await store.load()
+    await store.setProgress("video", position: 40, ended: false, upload: false)
+    #expect(await store.watchedEntries(["video"])["video"] == other.watched["video"])
+  }
+
+  @Test func aLoadDoesNotDownloadThisDevicesFileAgainWhileItIsUnchanged() async throws {
+    let store = store(FakeDrive.reset())
+    try await store.load()
+    await store.setWatched(["first"], watched: true)
+    try await store.save()
+    try await store.load()
+    #expect(FakeDrive.current.downloads.isEmpty)
+    await store.setWatched(["second"], watched: true)
+    try await store.save()
+    try await store.load()
+    #expect(FakeDrive.current.downloads.isEmpty)
+    #expect(Set(await store.watchedEntries(["first", "second"]).keys) == ["first", "second"])
+  }
+
+  @Test func aLoadDownloadsThisDevicesFileOnceWhenItWasNotUploadedFromHere() async throws {
+    let earlier = DeviceFile(watched: ["first": WatchedEntry(at: 1, watched: true)])
+    let content = try encodeDeviceFile(earlier)
+    let store = store(FakeDrive.reset { $0.files["mine"] = ("device-here.json", content) })
+    try await store.load()
+    #expect(FakeDrive.current.downloads == ["mine"])
+    #expect(await store.watchedEntries(["first"])["first"]?.watched == true)
+    try await store.load()
+    #expect(FakeDrive.current.downloads == ["mine"])
+  }
+
+  @Test func aLoadDownloadsThisDevicesFileWhenDriveHasANewerOne() async throws {
+    let store = store(FakeDrive.reset())
+    try await store.load()
+    await store.setWatched(["first"], watched: true)
+    try await store.save()
+    let changed = DeviceFile(watched: [
+      "elsewhere": WatchedEntry(at: epochMilliseconds(), watched: true)
+    ])
+    let content = try encodeDeviceFile(changed)
+    FakeDrive.change {
+      $0.files["file1"] = ("device-here.json", content)
+      $0.versions["file1", default: 0] += 1
+    }
+    try await store.load()
+    #expect(FakeDrive.current.downloads == ["file1"])
+    #expect(await store.watchedEntries(["elsewhere"])["elsewhere"]?.watched == true)
+  }
+
+  @Test func aFlushThatIsStartedIsNotWaitedForAndStillGoesUp() async throws {
+    let store = store(FakeDrive.reset { $0.uploadDelay = 0.3 })
+    try await store.load()
+    #expect(await store.startFlush() == nil)
+    await store.setProgress("video", position: 40, ended: false, upload: true)
+    let upload = try #require(await store.startFlush())
+    #expect(FakeDrive.current.files.isEmpty)
+    try await upload.value
+    let saved = try #require(FakeDrive.current.files["file1"])
+    #expect(parseDeviceFile(saved.content)?.watched["video"]?.position == 40)
   }
 }

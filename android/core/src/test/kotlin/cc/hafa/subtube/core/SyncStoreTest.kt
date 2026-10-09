@@ -52,6 +52,12 @@ class SyncStoreTest {
     @Volatile
     private var ownFileThere = false
 
+    // the time the folder lists this device's file with; null leaves it out of the listing
+    @Volatile
+    private var ownListedAt: String? = null
+    private val ownDownloads = java.util.concurrent.atomic.AtomicInteger()
+    private val listings = java.util.concurrent.atomic.AtomicInteger()
+
     // a file id whose delete Drive refuses
     @Volatile
     private var undeletable: String? = null
@@ -63,15 +69,23 @@ class SyncStoreTest {
                 val path = request.url.encodedPath
                 return when {
                     request.headers["Authorization"] == "Bearer refused" -> MockResponse.Builder().code(401).build()
+                    request.method == "GET" && path == "/drive/v3/files/mine" && request.url.queryParameter("alt") == "media" -> {
+                        ownDownloads.incrementAndGet()
+                        MockResponse.Builder().body("""{"version":1,"channels":{},"watched":{}}""").build()
+                    }
                     request.method == "GET" && path == "/drive/v3/files/mine" && ownFileThere -> MockResponse.Builder()
                         .body("""{"id":"mine"}""")
                         .build()
-                    request.method == "GET" && path == "/drive/v3/files" -> MockResponse.Builder()
-                        .body(
-                            """{"files":[{"id":"other","name":"device-other.json","modifiedTime":"t1"},""" +
-                                """{"id":"stray","name":"notes.json","modifiedTime":"t1"}]}""",
-                        )
-                        .build()
+                    request.method == "GET" && path == "/drive/v3/files" -> {
+                        listings.incrementAndGet()
+                        val mine = ownListedAt?.let { time -> """{"id":"mine","name":"device-me.json","modifiedTime":"$time"},""" }.orEmpty()
+                        MockResponse.Builder()
+                            .body(
+                                """{"files":[$mine{"id":"other","name":"device-other.json","modifiedTime":"t1"},""" +
+                                    """{"id":"stray","name":"notes.json","modifiedTime":"t1"}]}""",
+                            )
+                            .build()
+                    }
                     request.method == "GET" && path == "/drive/v3/files/other" -> MockResponse.Builder()
                         .body(otherDevice)
                         .build()
@@ -305,6 +319,39 @@ class SyncStoreTest {
         store.save()
         val upload = assertNotNull(uploads.poll(5, TimeUnit.SECONDS))
         assertEquals("POST", upload.method)
+    }
+
+    @Test
+    fun thisDevicesFileIsDownloadedAgainOnlyWhenDriveSaysItChanged() = runBlocking {
+        val store = store(MemoryStorage())
+        ownListedAt = "t5"
+        store.load()
+        assertEquals(1, ownDownloads.get())
+        store.load()
+        assertEquals(1, ownDownloads.get())
+        ownListedAt = "t6"
+        store.load()
+        assertEquals(2, ownDownloads.get())
+    }
+
+    @Test
+    fun thisDevicesFileIsNotDownloadedAfterItsOwnUpload() = runBlocking {
+        val store = store(MemoryStorage())
+        store.setWatched("a", true)
+        assertNotNull(uploads.poll(5, TimeUnit.SECONDS))
+        store.saveUnsent()
+        ownListedAt = "t2"
+        store.load()
+        assertEquals(0, ownDownloads.get())
+        assertTrue(isWatchedEntry(store.watchedEntry("a")))
+    }
+
+    @Test
+    fun aLoadGivenTheFolderDoesNotListItAgain() = runBlocking {
+        val store = store(MemoryStorage())
+        store.load(listOf(DriveFile("other", "device-other.json", "t1")))
+        assertEquals(0, listings.get())
+        assertTrue(isWatchedEntry(store.watchedEntry("seen")))
     }
 
     @Test
