@@ -16,7 +16,6 @@ import {
   editedEntry,
   editedFilter,
   emptyDeviceFile,
-  followedIds,
   hasProfile,
   markedEntry,
   mergeDeviceFiles,
@@ -398,17 +397,9 @@ export class SyncStore {
     }
   }
 
-  /** The feed's channels: subscriptions with their filters, plus followed channels. */
-  channels(
-    subscriptions: ChannelInfo[],
-    followedInfo?: ReadonlyMap<string, ChannelInfo>,
-  ): Map<string, Channel> {
-    return channelsFor(this.merged, subscriptions, followedInfo);
-  }
-
-  /** The channels followed in subtube, by id. */
-  followedIds(): string[] {
-    return followedIds(this.merged);
+  /** The feed's channels: the subscriptions, each with its filter. */
+  channels(subscriptions: ChannelInfo[]): Map<string, Channel> {
+    return channelsFor(this.merged, subscriptions);
   }
 
   /** A video's or playlist's watched entry as last saved on any device. */

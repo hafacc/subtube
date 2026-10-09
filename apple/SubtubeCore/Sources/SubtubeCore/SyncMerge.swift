@@ -289,36 +289,11 @@ public func pruneDeviceFile(_ file: DeviceFile, now: Int64) -> DeviceFile {
   return pruned
 }
 
-/// The name and avatar of a channel, which YouTube owns.
-public struct ChannelIdentity: Codable, Sendable, Hashable {
-  /// The channel's name.
-  public var title: String
-  /// The channel's avatar URL, or empty.
-  public var thumbnail: String
-  /// When YouTube was asked; nil for one cached before this was kept.
-  public var fetchedAt: Date?
-
-  /// A name and avatar as YouTube gave them at `fetchedAt`.
-  public init(title: String, thumbnail: String, fetchedAt: Date? = nil) {
-    self.title = title
-    self.thumbnail = thumbnail
-    self.fetchedAt = fetchedAt
-  }
-}
-
-/// How long a followed channel's cached name and avatar are trusted.
-public let identityLifetime: TimeInterval = 24 * 60 * 60
-
-/// The channels the feed reads, in subscription order: every YouTube
-/// subscription with its saved filter (or the default), then the channels
-/// followed in subtube, by title. Names and avatars come from YouTube: the
-/// subscription, or `identities` for followed channels (the id until known).
-/// A filter saved for a channel since unsubscribed is kept but not listed, so
-/// subscribing again restores it.
-public func channelsFor(
-  _ merged: DeviceFile, subscriptions: [Subscription],
-  identities: [String: ChannelIdentity] = [:]
-) -> [ChannelFilter] {
+/// The channels the feed reads: every YouTube subscription, in subscription
+/// order, with its saved filter (or the default). A filter saved for a
+/// channel since unsubscribed is kept but not listed, so subscribing again
+/// restores it.
+public func channelsFor(_ merged: DeviceFile, subscriptions: [Subscription]) -> [ChannelFilter] {
   var channels: [ChannelFilter] = []
   var seen = Set<String>()
   for subscription in subscriptions where !seen.contains(subscription.channelId) {
@@ -329,44 +304,7 @@ public func channelsFor(
         thumbnail: subscription.thumbnail,
         stored: merged.channels[subscription.channelId]?.filter ?? [:]))
   }
-  let followed = merged.channels
-    .filter { !seen.contains($0.key) }
-    .map { channelId, entry in
-      let identity = identities[channelId]
-      return ChannelFilter(
-        channelId: channelId, title: identity?.title ?? channelId,
-        thumbnail: identity?.thumbnail ?? "", stored: entry.filter)
-    }
-    .filter(\.followed)
-    .sorted { left, right in
-      if sameScalars(left.title, right.title) {
-        return precedesByScalar(left.channelId, right.channelId)
-      } else {
-        return precedesIgnoringCase(left.title, right.title)
-      }
-    }
-  channels.append(contentsOf: followed)
   return channels
-}
-
-/// The followed channels whose name and avatar aren't known, or were asked
-/// more than a day before `now`.
-public func followedWithoutIdentity(
-  _ merged: DeviceFile, subscriptions: [Subscription], identities: [String: ChannelIdentity],
-  now: Date = Date()
-) -> [String] {
-  let subscribed = Set(subscriptions.map(\.channelId))
-  return channelsFor(merged, subscriptions: subscriptions)
-    .filter { channel in
-      if subscribed.contains(channel.channelId) {
-        return false
-      } else if let fetchedAt = identities[channel.channelId]?.fetchedAt {
-        return now.timeIntervalSince(fetchedAt) > identityLifetime
-      } else {
-        return true
-      }
-    }
-    .map(\.channelId)
 }
 
 /// Whether this device's file must go up: Drive has no copy of it and there

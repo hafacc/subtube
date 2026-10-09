@@ -362,25 +362,15 @@ export function sanitizeDeviceFile(file: DeviceFile): DeviceFile {
   };
 }
 
-/** The followed channels in a merged view, which YouTube's subscriptions don't name. */
-export function followedIds(merged: DeviceFile): string[] {
-  return Object.entries(merged.channels)
-    .filter(([, { filter }]) => filter.followed === true)
-    .map(([channelId]) => channelId);
-}
-
 /**
  * The channels the feed reads: every YouTube subscription with its saved filter
- * (or the default), plus the channels followed in subtube. YouTube owns a
- * channel's title and thumbnail: a subscription brings its own, and a followed
- * channel takes them from `followedInfo` (a channel missing there is listed by
- * its id). A filter saved for a channel since unsubscribed is kept, so
- * subscribing again restores it.
+ * (or the default). YouTube owns a channel's title and thumbnail. A filter
+ * saved for a channel since unsubscribed is kept, so subscribing again
+ * restores it.
  */
 export function channelsFor(
   merged: DeviceFile,
   subscriptions: ChannelInfo[],
-  followedInfo: ReadonlyMap<string, ChannelInfo> = new Map(),
 ): Map<string, Channel> {
   const channels = new Map<string, Channel>();
   for (const subscription of subscriptions) {
@@ -391,17 +381,6 @@ export function channelsFor(
       thumbnail: subscription.thumbnail,
       filter: saved ?? defaultFilter(),
     });
-  }
-  for (const [channelId, { filter }] of Object.entries(merged.channels)) {
-    if (filter.followed === true && !channels.has(channelId)) {
-      const info = followedInfo.get(channelId);
-      channels.set(channelId, {
-        channelId,
-        title: info?.title ?? channelId,
-        thumbnail: info?.thumbnail ?? "",
-        filter,
-      });
-    }
   }
   return channels;
 }

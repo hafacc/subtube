@@ -119,8 +119,6 @@ data class ChannelFilter(
     val contentMode: ContentMode? = null,
     /** YouTube category ids; with any that is a topic, only videos in one of them are kept. Null when none are saved. */
     val topics: List<String>? = null,
-    /** Added in subtube rather than subscribed to on YouTube; listed while true. */
-    val followed: Boolean? = null,
     /** The names of the groups the channel is in ([groupsFromJson]). */
     val groups: List<String> = emptyList(),
     /** The filter object as last read from Drive, so fields this version doesn't know are written back. */

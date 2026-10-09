@@ -23,7 +23,6 @@ import cc.hafa.subtube.core.ChipTitle
 import cc.hafa.subtube.core.CompiledFilter
 import cc.hafa.subtube.core.GroupEdit
 import cc.hafa.subtube.core.GroupSelections
-import cc.hafa.subtube.core.ChannelIdentityCache
 import cc.hafa.subtube.core.ChannelItems
 import cc.hafa.subtube.core.ChannelKind
 import cc.hafa.subtube.core.ChannelSort
@@ -586,7 +585,6 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     private val pageChannelId: String?
         get() = backStack.filterIsInstance<Screen.ChannelPage>().lastOrNull()?.channelId
     private var store: SyncStore? = null
-    private var identities: ChannelIdentityCache? = null
     private var loader: FeedLoader? = null
     private var loadInFlight = false
     private var loadJob: Job? = null
@@ -629,7 +627,6 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         demo = true
         syncWatcher?.cancel()
         store = null
-        identities = null
         loader = null
         sessionEpoch += 1
         clearFeed()
@@ -688,9 +685,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         )
         store = syncStore
         settings = syncStore.settings()
-        val identityCache = ChannelIdentityCache(FileSyncStorage(app), account.channelId)
-        identities = identityCache
-        loader = FeedLoader(app.youtube, syncStore, identityCache, app.shortsProbe::isShort)
+        loader = FeedLoader(app.youtube, syncStore, app.shortsProbe::isShort)
         session = Session.SignedIn(account)
         sessionEpoch += 1
         syncWatcher?.cancel()
@@ -703,7 +698,6 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
 
     /** Drop everything kept on this device for the account's profile. */
     private fun forgetProfile() {
-        identities?.clear()
         (session as? Session.SignedIn)?.let { signedIn ->
             app.prefs.setSetUpDone(signedIn.account.channelId, false)
             app.prefs.keepPendingStart(signedIn.account.channelId, null)
@@ -730,7 +724,6 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         sessionEpoch += 1
         syncWatcher?.cancel()
         store = null
-        identities = null
         loader = null
         lastSynced = null
         user = null
@@ -1088,7 +1081,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
                     return@launch
                 }
                 subscriptions = subscribed
-                channels = syncStore.channels(subscribed, identities?.all().orEmpty())
+                channels = syncStore.channels(subscribed)
                 setUpChannels = channels.values.sortedWith(channelsByName)
                 setUpChannelsLoaded = true
                 setUpEnabled = channels.mapValues { (_, filter) -> filter.enabled }
@@ -1568,7 +1561,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         loadsShown += 1
         subscriptions = data.subscriptions
         // the store also holds filter edits made while the load ran
-        channels = store?.channels(data.subscriptions, identities?.all().orEmpty()) ?: data.channels
+        channels = store?.channels(data.subscriptions) ?: data.channels
         val loaded = data.fetched.mapTo(HashSet()) { (channelId, fresh) -> channelId to fresh.mode }
         // off or no longer listed, so no load refreshes what is held for them; the open page's channel is refreshed with it
         val lapsed = fetched.mapTo(HashSet()) { (channelId, _) -> channelId }

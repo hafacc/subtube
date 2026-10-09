@@ -591,24 +591,3 @@ export async function fetchMyChannel(token: string): Promise<ChannelInfo> {
     throw new NoChannelError();
   }
 }
-
-/** Channels by id, 50 per call (1 quota unit each); ids YouTube doesn't know are left out. */
-export async function fetchChannelsById(
-  channelIds: string[],
-  token: string,
-): Promise<ChannelInfo[]> {
-  const found: ChannelInfo[] = [];
-  for (let start = 0; start < channelIds.length; start += 50) {
-    const data = await apiGet<ChannelListResponse>(
-      "/channels",
-      {
-        part: "snippet",
-        id: channelIds.slice(start, start + 50).join(","),
-        maxResults: "50",
-      },
-      token,
-    );
-    found.push(...(data.items ?? []).map(toInfo));
-  }
-  return found;
-}

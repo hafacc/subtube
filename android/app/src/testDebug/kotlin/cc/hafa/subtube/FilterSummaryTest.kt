@@ -56,7 +56,6 @@ class FilterSummaryTest {
     @Test
     fun everyPartInTheEditorsOrder() {
         val full = plain.copy(
-            followed = true,
             regex = phrasesToPattern(listOf("podcast", "live")),
             mode = FilterMode.EXCLUDE,
             searchScope = FilterScope.BOTH,
@@ -66,7 +65,7 @@ class FilterSummaryTest {
             topics = listOf("20", "1"),
         )
         assertEquals(
-            "Followed in SubTube · Hides titles or descriptions matching podcast, live · No Shorts · No live · " +
+            "Hides titles or descriptions matching podcast, live · No Shorts · No live · " +
                 "Hides videos under 90 seconds · Only Film & Animation, Gaming",
             summary(full),
         )

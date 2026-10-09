@@ -57,8 +57,8 @@ slightly blue cast (dark page `#121418`, light page white).
   services' AuthorizationClient.
 - **Sync through the user's Drive app folder**: each device writes only
   `device-<id>.json`, reads everyone's, merges newest-`at`-per-key (ties → greater
-  device id). Saved filters carry no channel identity; YouTube supplies it, and
-  channels followed in subtube are looked up with `channels.list?id=`.
+  device id). Saved filters carry no channel identity; YouTube supplies it.
+  The only channels are the user's YouTube subscriptions.
 - **Shorts from YouTube's own lists** (`UUSH` beside `UU`), not a probe; a probe
   of `/shorts/{id}` is only the fallback where a platform can make one.
 - **Filter patterns** are a small regex subset that JavaScript, ICU and Java read

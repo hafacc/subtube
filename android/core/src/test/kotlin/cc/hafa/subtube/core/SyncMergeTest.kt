@@ -124,17 +124,15 @@ class ChannelsForTest {
     }
 
     @Test
-    fun namesFollowedChannelsFromTheLookupAndLeavesUnfollowedOnesOut() {
+    fun listsOnlySubscriptionsWhateverElseIsSaved() {
         val merged = DeviceFile(
             channels = mapOf(
                 "UCgone" to entry("""{"enabled":true,"regex":"","mode":"include"}"""),
-                "UCfollow" to entry("""{"enabled":true,"regex":"","mode":"include","followed":true}"""),
+                "UCone" to entry("""{"enabled":false,"regex":"","mode":"include"}"""),
             ),
         )
-        val channels = channelsFor(merged, emptyList(), mapOf("UCfollow" to ChannelIdentity("Followed", "f.jpg")))
-        assertEquals(listOf("UCfollow"), channels.keys.toList())
-        assertEquals("Followed", channels.getValue("UCfollow").title)
-        assertEquals(listOf("UCfollow"), followedChannelIds(merged, emptyList()))
-        assertEquals(emptyList(), followedChannelIds(merged, listOf(Subscription("UCfollow", "F", ""))))
+        val channels = channelsFor(merged, listOf(subscription))
+        assertEquals(listOf("UCone"), channels.keys.toList())
+        assertEquals(false, channels.getValue("UCone").enabled)
     }
 }

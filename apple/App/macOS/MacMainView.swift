@@ -242,13 +242,10 @@ private struct MacFiltersPanel: View {
           Text(channel.title)
             .font(.title3.bold())
             .lineLimit(1)
-          Text(
-            feed.isFollowedOnly(channel.channelId)
-              ? Strings.summaryFollowed : Strings.subscribedOnYouTube
-          )
-          .font(.subheadline)
-          .foregroundStyle(Color.secondary)
-          .lineLimit(1)
+          Text(Strings.subscribedOnYouTube)
+            .font(.subheadline)
+            .foregroundStyle(Color.secondary)
+            .lineLimit(1)
         }
         Spacer(minLength: 8)
         Button(action: onClose) {

@@ -81,7 +81,6 @@ private fun demoChannel(name: String): ChannelFilter {
         "Five" -> channel.copy(minDurationSeconds = 60)
         "Six" -> channel.copy(liveFilter = LiveFilter.NORMAL)
         "Seven" -> channel.copy(enabled = false)
-        "Eight" -> channel.copy(followed = true)
         else -> channel
     }
 }
