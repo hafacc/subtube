@@ -13,6 +13,7 @@
   import { feedItemId } from "../lib/feed-item";
   import { swipeIntent, swipeOffset, swipePasses } from "../lib/swipe";
   import type { FeedItem } from "../lib/types";
+  import Avatar from "./Avatar.svelte";
   import Icon from "./Icon.svelte";
 
   let {
@@ -21,6 +22,8 @@
     progress,
     playing = false,
     holdsPlayer = false,
+    dims = true,
+    picture = null,
     onopen,
     onmark,
     onopenchannel,
@@ -35,6 +38,10 @@
     playing?: boolean;
     /** whether the player lies over the thumbnail's box, which is then left empty */
     holdsPlayer?: boolean;
+    /** whether it is dimmed while watched; not where only watched ones are listed */
+    dims?: boolean;
+    /** the channel's picture URL ("" for none), drawn beside the title in a wide window; null for no avatar, as on the channel's own page */
+    picture?: string | null;
     /** play it */
     onopen: () => void;
     /** mark it watched, or unmark it when it is */
@@ -172,6 +179,7 @@
 <div
   class="card"
   class:swiping
+  class:dimmed={dims && watched && !playing}
   data-card={feedItemId(item)}
   onpointerdown={pressed}
   onpointermove={moved}
@@ -225,6 +233,9 @@
             </span>
           {/if}
         </button>
+        <span class="play" aria-hidden="true">
+          <Icon name="play" size={20} />
+        </span>
         {#if playing}
           {@render bar()}
         {:else}
@@ -242,12 +253,26 @@
       {/if}
     </div>
     <div class="text">
-      <p class="title" id={titleId} title={item.title}>{item.title}</p>
-      <div class="byline">
-        <button type="button" class="channel" onclick={onopenchannel}>
-          {item.channelTitle}
+      {#if picture !== null && !holdsPlayer}
+        <!-- the channel's name beside it is the button a screen reader and the keyboard get -->
+        <button
+          type="button"
+          class="channel-picture"
+          tabindex="-1"
+          aria-hidden="true"
+          onclick={onopenchannel}
+        >
+          <Avatar title={item.channelTitle} thumbnail={picture} size={28} />
         </button>
-        <span class="date">{shortDate(item.publishedAt)}</span>
+      {/if}
+      <div class="words">
+        <p class="title" id={titleId} title={item.title}>{item.title}</p>
+        <div class="byline">
+          <button type="button" class="channel" onclick={onopenchannel}>
+            {item.channelTitle}
+          </button>
+          <span class="date">{shortDate(item.publishedAt)}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -377,6 +402,11 @@
       background-color 0.15s;
   }
 
+  .dimmed .thumb,
+  .dimmed .track {
+    opacity: 0.5;
+  }
+
   .mark:focus-visible .track {
     height: 7px;
     background: color-mix(in srgb, var(--text-secondary) 60%, transparent);
@@ -397,10 +427,42 @@
     transition: width 0.2s;
   }
 
+  /* the disk that shows under a pointer; it never takes the press, which is the thumbnail's */
+  .play {
+    display: none;
+  }
+
+  @media (hover: hover) and (min-width: 761px) {
+    .play {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      margin: -22px 0 0 -22px;
+      border-radius: 50%;
+      background: var(--sunflower);
+      color: var(--ink);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+    }
+
+    .card:hover .play {
+      opacity: 1;
+    }
+  }
+
   /* touch: the strip is 44px high, half over the picture and half over the text, and the card swipes sideways */
   @media (max-width: 760px) {
     .card {
       touch-action: pan-y pinch-zoom;
+    }
+
+    .channel-picture {
+      display: none;
     }
 
     .mark {
@@ -412,7 +474,8 @@
   @media (prefers-reduced-motion: reduce) {
     .track,
     .progress,
-    .behind {
+    .behind,
+    .play {
       transition: none;
     }
   }
@@ -420,9 +483,26 @@
   .text {
     display: flex;
     flex: 1;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .channel-picture {
+    flex-shrink: 0;
+    align-self: flex-start;
+    border: 0;
+    border-radius: 50%;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .words {
+    display: flex;
+    flex: 1;
     flex-direction: column;
     gap: 4px;
-    padding: 12px;
+    min-width: 0;
   }
 
   .title {
@@ -469,5 +549,10 @@
     flex-shrink: 0;
     margin-left: auto;
     white-space: nowrap;
+  }
+
+  .dimmed .title {
+    color: var(--text-secondary);
+    font-weight: 400;
   }
 </style>

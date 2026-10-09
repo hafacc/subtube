@@ -345,8 +345,9 @@ the pbxproj.
   Topics lists all fifteen as toggles for the filter's `topics`, hidden for
   playlists; its segmented groups are `SegmentedRow`: on macOS
   a label with `BrandSegments` at natural width on the right, under the label
-  when they don't fit, on iOS the system's picker. On iOS the form is a
-  grouped `Form`. On macOS it is cards (`panelCard`) on the panel's page
+  when they don't fit, on iOS the system's picker. The fields are in one
+  order on both: "Show in Feed"; Show, Shorts, Live, Hide Videos Under; the
+  phrases; Topics. On iOS the form is a grouped `Form`. On macOS it is cards (`panelCard`) on the panel's page
   background, no lines between rows: "Show in Feed" in a card alone, then
   `PanelSection`s, each a title over a card of `PanelRows` — "Videos" (Show, Shorts, Live, Hide Videos Under; only Show
   for playlists), the phrases (their chips inside the field's box, before
@@ -385,8 +386,10 @@ the pbxproj.
   end of the channel list;
   on a Mac `ItemCard` has 12 pt corners, the channel's avatar (28 pt, not on
   a channel's own page) left of a two-line title, and "Channel · date" under
-  the title; a watched card is dimmed — thumbnail at half opacity, title
-  secondary — except the card of the item the player has; under the pointer
+  the title; on every platform a watched card is dimmed — thumbnail at half
+  opacity, title lighter and secondary — except the card of the item the
+  player has, and not while the watched filter shows only watched items;
+  under the pointer
   the card lies on a rounded plate and a 44 pt Sunflower disk with an ink
   triangle is on its thumbnail, both fading over 0.15 s, not under reduced
   motion; the grid's cards are at least 300 pt wide (`feedGridColumns`);

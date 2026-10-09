@@ -545,6 +545,10 @@
                   progress={feed.bars.get(id) ?? null}
                   playing={player.isPlaying(id)}
                   holdsPlayer={player.inCard(id)}
+                  dims={feed.watchedMode !== "watched"}
+                  picture={route.channel
+                    ? null
+                    : (feed.channels.get(item.channelId)?.thumbnail ?? "")}
                   onopen={() => player.play(item)}
                   onmark={() => feed.setWatched(id, !feed.watched.has(id))}
                   onopenchannel={() => open(item.channelId)}

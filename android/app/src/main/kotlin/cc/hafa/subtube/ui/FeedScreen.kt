@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -53,9 +54,9 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import android.content.Context
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -91,6 +92,7 @@ import cc.hafa.subtube.core.FeedItem
 import cc.hafa.subtube.core.Playlist
 import cc.hafa.subtube.core.SWIPE_MARK_SHARE
 import cc.hafa.subtube.core.Video
+import cc.hafa.subtube.core.WatchedMode
 import cc.hafa.subtube.core.swipeMarks
 import kotlinx.coroutines.launch
 
@@ -102,6 +104,9 @@ private val ListSideMargin = 16.dp
 
 /** How opaque the previous feed is while a load runs. */
 private const val LOADING_ALPHA = 0.4f
+
+/** How opaque a watched card's thumbnail is. */
+private const val WATCHED_ALPHA = 0.5f
 
 /** How thick the progress bar along a thumbnail's bottom edge is. */
 private val ProgressBarHeight = 4.dp
@@ -279,6 +284,8 @@ internal fun FeedList(
                     onOpen = { viewModel.play(item) },
                     onChannel = onChannel?.let { open -> { open(item.channelId) } },
                     onMark = if (isPlaying) null else { marked -> viewModel.setWatched(item.id, marked) },
+                    playing = isPlaying,
+                    dims = viewModel.watchedMode != WatchedMode.WATCHED,
                     // the player can't follow a card that slides to a new place, so its card jumps there
                     modifier = (if (holdsPlayer) Modifier else Modifier.animateItem()).alpha(if (viewModel.loading) LOADING_ALPHA else 1f),
                     player = if (holdsPlayer) {
@@ -334,6 +341,8 @@ private fun ErrorBanner(message: String, offersSignIn: Boolean, signingIn: Boole
  * the card sideways ([SwipeToMark]) marks the entry watched or unwatched,
  * calling [onMark] with the new state, and never plays it. [player], when given,
  * stands in place of the thumbnail, bar and all. A null action leaves that part untappable.
+ * A watched card is dimmed, thumbnail and title, unless it is [playing] or
+ * [dims] is off, as it is where only watched entries are listed.
  */
 @Composable
 internal fun FeedCard(
@@ -346,8 +355,11 @@ internal fun FeedCard(
     modifier: Modifier = Modifier,
     onMark: ((Boolean) -> Unit)? = null,
     player: (@Composable () -> Unit)? = null,
+    playing: Boolean = player != null,
+    dims: Boolean = true,
 ) {
     val markLabel = stringResource(if (watched) R.string.mark_unwatched else R.string.mark_watched)
+    val dimmed = dims && watched && !playing
     SwipeToMark(watched = watched, onMark = onMark.takeIf { enabled && player == null }, modifier = modifier.fillMaxWidth()) { held ->
         Card(
             shape = CardShape,
@@ -362,6 +374,7 @@ internal fun FeedCard(
                     Modifier
                         .fillMaxWidth()
                         .aspectRatio(16f / 9f)
+                        .alpha(if (dimmed) WATCHED_ALPHA else 1f)
                         .clickable(enabled = enabled && onOpen != null, onClickLabel = playLabel) { onOpen?.invoke() }
                         .semantics {
                             if (enabled && onMark != null) {
@@ -398,12 +411,11 @@ internal fun FeedCard(
                 Text(
                     item.title,
                     style = MaterialTheme.typography.titleMedium,
-                    maxLines = 3,
+                    fontWeight = if (dimmed) FontWeight.Normal else null,
+                    color = if (dimmed) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    // a press plays, as on the thumbnail, which is the one place a screen reader finds that action
-                    modifier = Modifier.fillMaxWidth().pointerInput(enabled, onOpen) {
-                        detectTapGestures(onTap = { if (enabled) onOpen?.invoke() })
-                    },
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {

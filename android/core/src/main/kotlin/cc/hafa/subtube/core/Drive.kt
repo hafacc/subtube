@@ -32,6 +32,8 @@ data class DriveUser(
     val displayName: String,
     /** The account's address, when Drive shares it. */
     val emailAddress: String? = null,
+    /** The account's picture, when it has one. */
+    val photoLink: String? = null,
 )
 
 @Serializable
@@ -54,11 +56,11 @@ class DriveClient(
 
     private fun uploadUrl(): HttpUrl.Builder = apiBase.newBuilder().addPathSegments("upload/drive/v3/files")
 
-    /** The signed-in Google account's name and address; the app-folder scope is enough to ask. */
+    /** The signed-in Google account's name, address and picture; the app-folder scope is enough to ask. */
     suspend fun about(token: String): DriveUser {
         val url = apiBase.newBuilder()
             .addPathSegments("drive/v3/about")
-            .addQueryParameter("fields", "user(displayName,emailAddress)")
+            .addQueryParameter("fields", "user(displayName,emailAddress,photoLink)")
             .build()
         val body = http.googleCall(Request.Builder().url(url).build(), token, GoogleApi.DRIVE, "Google Drive about")
         return json.decodeFromString<AboutResponse>(body).user

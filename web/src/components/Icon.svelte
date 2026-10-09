@@ -7,6 +7,7 @@
     eyeOff:
       '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="M2 2l20 20"/>',
     filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
+    play: '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
     playAll: '<path d="M3 6h13M3 12h9M3 18h7"/><path d="M16 13v8l6-4z"/>',
     themeSystem:
       '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',

@@ -483,8 +483,10 @@ values, named by the page's `h1`.
   drawn selected, and with `pressed` it is one of a set: `aria-pressed`, and
   a press while not pressed gives its current choice), both styled by `.chip` in
   `app.css`, the same box selected or not; `.chip.round` is the icon-only one. `FeedCard` draws a 4px Sunflower
-  bar along the bottom of the thumbnail, `bars`' fraction wide; watched cards
-  are not dimmed. **The bar marks**: `.mark`, a plain button beside the
+  bar along the bottom of the thumbnail, `bars`' fraction wide; a watched card
+  is dimmed (`.dimmed`: thumbnail and bar at half opacity, title lighter and
+  grey) unless it is `playing` or `dims` is off, which `Feed` sets while the
+  watched filter shows only watched ones. **The bar marks**: `.mark`, a plain button beside the
   thumbnail button in `.picture` (not Bits' `Toggle`: its name changes with
   the state, "Mark watched" / "Mark unwatched", also its `title`), calls
   `onmark`, which `Feed` gives as `FeedController.setWatched` with the
@@ -512,7 +514,17 @@ values, named by the page's `h1`.
   place, has no `.mark` (the player's next position save would undo the
   mark): large or minimized it keeps the bar, which is then not a button,
   and in the card it has none; it doesn't swipe either. `.mark` is described by its card's title
-  (`aria-describedby`). Under the title one
+  (`aria-describedby`). **In a wide window only** (over 760px), as on the
+  Mac: left of the title the channel's picture (`picture`, a 28px `Avatar`
+  in the button `.channel-picture`, which opens the channel; out of the tab
+  order and hidden from screen readers, since the channel's name is that
+  button for them; `Feed` gives null on a channel's own page, which has
+  none), and, for a pointer that can hover, `.play` over the middle of the
+  thumbnail while the pointer is on the card: a 44px Sunflower disk with
+  the ink `play` icon, fading over 0.15 s (at once under
+  `prefers-reduced-motion`), which never takes the press
+  (`pointer-events: none`). The card that holds the player has neither.
+  Under the title one
   line holds the channel name (cut with an ellipsis) and the date at the
   right (never cut; `shortDate`, with the year when it is not this year); `FeedCardSkeleton` is the same height as a card with a
   two-line title. `FilterEditor` on the
@@ -719,9 +731,11 @@ page, moved by CSS); `PlayerHost`; tooltips, which are `title` attributes.
 
 - Biome reflows Svelte markup and adds whitespace between inline nodes.
 - Svelte `.svelte.ts` modules don't support TS parameter properties.
-- Settings shows the Google account's name and email, which Drive's `about`
-  answers under the app-folder scope (no email scope is requested); the
-  privacy policy says so.
+- Settings shows the Google account's name, email and photo (`photoLink`;
+  the YouTube channel's picture when it has none or before Drive answers),
+  which Drive's `about` answers under the app-folder scope (no email or
+  profile scope is requested); the privacy policy says so of the name and
+  email. The account button in the heading keeps the channel's picture.
 - Sign out only forgets the account on this browser; Google's grant stays
   (other devices stay signed in, no consent screen next time), so an
   interactive sign-in always asks Google for the account chooser. Only

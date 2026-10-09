@@ -7,7 +7,7 @@
 </svelte:head>
 
 <h1>SubTube privacy policy</h1>
-<p class="updated">Last updated 8 October 2026</p>
+<p class="updated">Last updated 9 October 2026</p>
 
 <p>
   SubTube shows new videos from the YouTube channels you subscribe to. It has no
@@ -26,8 +26,8 @@
     signed in.
   </li>
   <li>
-    The name and email address of your Google account, to show which account is
-    signed in.
+    The name, email address and picture of your Google account, to show which
+    account is signed in.
   </li>
 </ul>
 

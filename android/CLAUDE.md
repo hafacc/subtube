@@ -358,6 +358,10 @@ every client shares is in `../shared/`.
     (`signingOut`), and forgets the account and its token on this device; it does not revoke Google's grant, so other devices stay
     signed in, and a sign-in from signed out asks Google for its account
     chooser. Signing out cancels a running load.
+    Settings' account card shows the Google account's name, address and
+    picture from Drive's `about` (`loadUser`; `DriveUser.photoLink`, which
+    needs no further permission), and the YouTube channel's name and picture
+    until that answers or where it has none, as Apple's does.
     Settings' "Delete profile" calls the store, revokes Google's grant, then
     signs out to the first setup screen; a profile deleted from another device restarts first run at
     the channel step, still signed in. `sessionEpoch` keeps a load or a single
@@ -400,7 +404,10 @@ every client shares is in `../shared/`.
     a refresh refetches an off one too. The filter button on the page opens
     the filter sheet, which has no list of its own.
   - `ui/*Screen.kt`, `ui/FilterSheet.kt` — one file per screen. The filter
-    sheet hides Shorts, Live, the minimum length and Topics while Show is
+    sheet's fields are in the Mac's and the web's order: "Show in feed";
+    Show, Shorts, Live and the minimum length; the phrases with Matches,
+    Match in and Case; Topics. It
+    hides Shorts, Live, the minimum length and Topics while Show is
     Playlists; the minimum length is saved 0.4 s after the last digit typed,
     or when the sheet closes; its pattern is edited as phrases (`PhraseField`: Done or a
     comma makes a chip, pressing a chip removes it, Backspace in the empty
@@ -485,7 +492,7 @@ every client shares is in `../shared/`.
     (`PlayerCardSlot`, an empty box at least 200dp high that reports its
     whole box, `positionInRoot` and size, not `boundsInRoot`, which is cut
     to what the list shows; the video is cut off where the card's list
-    ends) or in the bottom trailing corner, 24dp in and 8dp above the
+    ends) or in the bottom trailing corner, 16dp in and 8dp above the
     navigation bar (`PlayerDock`, which `MainNavigationBar` reports its top
     edge to) or the keyboard. While it is a card's and that card has not
     been laid out (the frame after a press, or a list still scrolling to
@@ -536,7 +543,8 @@ every client shares is in `../shared/`.
     (`WatchedBar`), with no track along the rest; the bar is a
     control for marking: `WatchedBarTarget`, a 48dp strip reaching 32dp up
     over the thumbnail and 16dp down over the text (taking no room, above
-    both, and short of the title's first line, which still plays), calls
+    both, and short of the title's first line; a press on the title does
+    nothing, since only the thumbnail plays), calls
     `setWatched` with the opposite state ("Mark watched" / "Mark unwatched")
     and never plays. The fill runs to its new width unless animation is
     off. Swiping the card sideways, either way, does the same
@@ -557,7 +565,9 @@ every client shares is in `../shared/`.
     strip, no action and no swipe: the player's next save of its position would undo
     the mark (decided for every client). The card holding the player also
     has no `animateItem`, because the player cannot follow a card that
-    slides. Watched cards are not dimmed. `MarkWatchedTest` presses the
+    slides. A watched card is dimmed (thumbnail at half opacity, title
+    lighter and grey) unless the player has its entry or the watched chip
+    is on Watched. `MarkWatchedTest` presses the
     strip and swipes the card in the real activity.
   - `ui/Loading.kt` — how loading looks: `Modifier.shimmer` (the one shimmer:
     a band 40% of what it crosses wide, crossing every 1.4 s, off when the
