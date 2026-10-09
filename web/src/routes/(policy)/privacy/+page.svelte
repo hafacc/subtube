@@ -7,7 +7,7 @@
 </svelte:head>
 
 <h1>SubTube privacy policy</h1>
-<p class="updated">Last updated 4 October 2026</p>
+<p class="updated">Last updated 8 October 2026</p>
 
 <p>
   SubTube shows new videos from the YouTube channels you subscribe to. It has no
@@ -46,6 +46,22 @@
     you use Delete profile, which removes everything.
   </li>
   <li>Your Google sign-in, on the device only.</li>
+</ul>
+
+<h2>How your data is protected</h2>
+<ul>
+  <li>
+    Everything SubTube reads travels straight between Google and your device
+    over an encrypted connection.
+  </li>
+  <li>
+    Your Google sign-in is kept by your device's own secure storage: the
+    Keychain on Apple devices, Google Play services on Android, Chrome on the
+    web.
+  </li>
+  <li>
+    What SubTube saves in your Google Drive is protected by your Google account.
+  </li>
 </ul>
 
 <h2>What SubTube doesn't do</h2>
