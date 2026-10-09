@@ -100,8 +100,8 @@
     >
       <div class="who">
         <Avatar
-          title={account.title}
-          thumbnail={account.thumbnail}
+          title={user?.displayName ?? account.title}
+          thumbnail={user?.photoLink ?? account.thumbnail}
           size={40}
           tint
         />

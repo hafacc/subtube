@@ -132,20 +132,6 @@ fun FilterSheet(viewModel: SubtubeViewModel, channel: ChannelFilter, onDismiss: 
                 selected = mode,
                 onSelect = { choice -> update(channel.copy(contentMode = choice.takeIf { it == ContentMode.PLAYLISTS })) },
             )
-            PatternControls(
-                phrases = patternToPhrases(channel.regex).orEmpty(),
-                mode = channel.mode,
-                scope = channel.searchScope ?: FilterScope.TITLE,
-                onPhrases = { phrases -> update(channel.copy(regex = phrasesToPattern(phrases))) },
-                onMode = { choice -> update(channel.copy(mode = choice)) },
-                onScope = { choice -> update(channel.copy(searchScope = choice.takeUnless { it == FilterScope.TITLE })) },
-            )
-            SectionLabel(stringResource(R.string.letter_case))
-            Segmented(
-                options = listOf(false to R.string.case_ignore, true to R.string.case_match),
-                selected = channel.caseSensitive == true,
-                onSelect = { matchCase -> update(channel.copy(caseSensitive = matchCase.takeIf { it })) },
-            )
             // playlists have no Shorts, broadcasts or length to filter on
             if (mode != ContentMode.PLAYLISTS) {
                 SectionLabel(stringResource(R.string.shorts))
@@ -171,6 +157,20 @@ fun FilterSheet(viewModel: SubtubeViewModel, channel: ChannelFilter, onDismiss: 
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
             }
+            PatternControls(
+                phrases = patternToPhrases(channel.regex).orEmpty(),
+                mode = channel.mode,
+                scope = channel.searchScope ?: FilterScope.TITLE,
+                onPhrases = { phrases -> update(channel.copy(regex = phrasesToPattern(phrases))) },
+                onMode = { choice -> update(channel.copy(mode = choice)) },
+                onScope = { choice -> update(channel.copy(searchScope = choice.takeUnless { it == FilterScope.TITLE })) },
+            )
+            SectionLabel(stringResource(R.string.letter_case))
+            Segmented(
+                options = listOf(false to R.string.case_ignore, true to R.string.case_match),
+                selected = channel.caseSensitive == true,
+                onSelect = { matchCase -> update(channel.copy(caseSensitive = matchCase.takeIf { it })) },
+            )
             if (mode != ContentMode.PLAYLISTS) {
                 SectionLabel(stringResource(R.string.topics))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -356,7 +356,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     var lastSynced: Long? by mutableStateOf(null)
         private set
 
-    /** The signed-in Google account's name and address, once asked for. */
+    /** The signed-in Google account's name, address and picture, once asked for. */
     var user: DriveUser? by mutableStateOf(null)
         private set
 

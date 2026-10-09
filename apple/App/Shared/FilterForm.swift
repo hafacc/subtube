@@ -173,10 +173,6 @@ private struct FilterFields: View {
             .accessibilityLabel(Strings.showChannelInFeed(channel.title))
           contentMode
         }
-        Section(Strings.patternHeading(channel.searchScope)) {
-          patternFields
-        }
-        .id(isVideos ? "pattern" : Self.endID)
         if isVideos {
           Section {
             ShortsPicker(selection: binding(\.shortsFilter))
@@ -190,6 +186,12 @@ private struct FilterFields: View {
               }
             }
           }
+        }
+        Section(Strings.patternHeading(channel.searchScope)) {
+          patternFields
+        }
+        .id(isVideos ? "pattern" : Self.endID)
+        if isVideos {
           Section {
             topicChips
           } header: {

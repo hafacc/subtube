@@ -135,7 +135,7 @@ private val PlayerBarHeight: Dp = 48.dp
 private val FrameEdge = 1.dp
 
 /** The gap between the minimized player and the screen's trailing edge. */
-private val MinimizedSideGap = 24.dp
+private val MinimizedSideGap = 16.dp
 
 /** The gap between the minimized player and the navigation bar or keyboard under it. */
 private val MinimizedBottomGap = 8.dp

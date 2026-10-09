@@ -5,9 +5,9 @@ import SwiftUI
 /// channel and date. While it plays, the player takes the thumbnail's place.
 ///
 /// On a Mac the channel's avatar stands left of the title, with the channel
-/// and the date on one line under it; a watched card is dimmed, and under
-/// the pointer the card lies on a rounded plate with a Sunflower play button
-/// on its thumbnail.
+/// and the date on one line under it, and under the pointer the card lies
+/// on a rounded plate with a Sunflower play button on its thumbnail. A
+/// watched card is dimmed, unless only watched items are shown.
 ///
 /// The progress bar is also the control that marks the item watched or
 /// unwatched: on a Mac a strip along the thumbnail's bottom edge that shows
@@ -110,18 +110,18 @@ struct ItemCard: View {
     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
   }
 
+  /// Whether the card is drawn as watched; never the card of the item the
+  /// player has, and never while only watched items are shown.
+  private var isDimmed: Bool {
+    watched && session == nil && feed.watchedMode != .watched
+  }
+
   #if os(macOS)
     /// How far the plate under the pointer reaches past the card.
     private static let plateOutset: CGFloat = 8
 
     private var isHovered: Bool {
       cardHovered || asHovered
-    }
-
-    /// Whether the card is drawn as watched; never the card of the item the
-    /// player has.
-    private var isDimmed: Bool {
-      watched && session == nil
     }
 
     /// The Sunflower disk with an ink triangle, on the thumbnail under the pointer.
@@ -173,7 +173,12 @@ struct ItemCard: View {
     private var caption: some View {
       VStack(alignment: .leading, spacing: 2) {
         Text(item.title)
-          .font(large ? .body.weight(.semibold) : .callout.weight(.medium))
+          .font(
+            large
+              ? .body.weight(isDimmed ? .medium : .semibold)
+              : .callout.weight(isDimmed ? .regular : .medium)
+          )
+          .foregroundStyle(isDimmed ? .secondary : .primary)
           .lineLimit(2)
         HStack(spacing: 8) {
           Button(action: onOpenChannel) {
@@ -248,8 +253,8 @@ struct ItemCard: View {
               ProgressBar(fraction: progress ?? 0, showsTrack: showsTrack, thick: barRaised)
             }
             .clipShape(corners)
+            .opacity(isDimmed ? 0.5 : 1)
             #if os(macOS)
-              .opacity(isDimmed ? 0.5 : 1)
               .overlay { playMark }
             #endif
         }

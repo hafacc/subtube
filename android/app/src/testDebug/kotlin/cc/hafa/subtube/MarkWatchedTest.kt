@@ -183,12 +183,13 @@ class MarkWatchedTest {
     }
 
     @Test
-    fun theTitlesFirstLinePlaysUnderTheStrip() = onFeed {
+    fun pressingTheTitleNeitherPlaysNorMarks() = onFeed {
         val first = model.feed.items.first()
         compose.onAllNodesWithContentDescription(app.getString(R.string.mark_watched))[0].performTouchInput { click(Offset(centerX, height + 14.dp.toPx())) }
+        firstTitle().performClick()
         compose.waitForIdle()
         assertFalse(first.id in model.watched)
-        assertEquals(first.id, model.playing?.item?.id)
+        assertNull(model.playing)
     }
 
     @Test

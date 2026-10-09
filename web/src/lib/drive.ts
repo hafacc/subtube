@@ -54,11 +54,13 @@ export interface DriveUser {
   emailAddress?: string;
   /** the account's id in Drive, the same for every app and device */
   permissionId?: string;
+  /** the account's photo, when it has one */
+  photoLink?: string;
 }
 
-/** The signed-in Google account's name and address; the app-folder scope is enough to ask. */
+/** The signed-in Google account's name, address and photo; the app-folder scope is enough to ask. */
 export async function fetchDriveUser(token: string): Promise<DriveUser> {
-  const url = `${ABOUT_ENDPOINT}?fields=${encodeURIComponent("user(displayName,emailAddress,permissionId)")}`;
+  const url = `${ABOUT_ENDPOINT}?fields=${encodeURIComponent("user(displayName,emailAddress,permissionId,photoLink)")}`;
   const data = (await (await driveFetch(url, token)).json()) as {
     user: DriveUser;
   };

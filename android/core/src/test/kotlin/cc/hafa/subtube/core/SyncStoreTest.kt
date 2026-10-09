@@ -89,6 +89,9 @@ class SyncStoreTest {
                     request.method == "GET" && path == "/drive/v3/files/other" -> MockResponse.Builder()
                         .body(otherDevice)
                         .build()
+                    request.method == "GET" && path == "/drive/v3/about" -> MockResponse.Builder()
+                        .body("""{"user":{"displayName":"Ada","emailAddress":"ada@example.com","photoLink":"https://example.com/ada.jpg"}}""")
+                        .build()
                     request.method == "DELETE" && path.startsWith("/drive/v3/files/") -> {
                         val fileId = path.substringAfterLast('/')
                         if (fileId == undeletable) {
@@ -352,6 +355,13 @@ class SyncStoreTest {
         store.load(listOf(DriveFile("other", "device-other.json", "t1")))
         assertEquals(0, listings.get())
         assertTrue(isWatchedEntry(store.watchedEntry("seen")))
+    }
+
+    @Test
+    fun theAccountIsReadWithItsPicture() = runBlocking {
+        val user = DriveClient(OkHttpClient(), server.url("/")).about("token")
+        assertEquals(DriveUser("Ada", "ada@example.com", "https://example.com/ada.jpg"), user)
+        assertEquals("user(displayName,emailAddress,photoLink)", server.takeRequest().url.queryParameter("fields"))
     }
 
     @Test
