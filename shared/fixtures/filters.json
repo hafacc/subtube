@@ -36,13 +36,12 @@
       "kept": true
     },
     {
-      "name": "contentMode and followed do not gate items",
+      "name": "contentMode does not gate items",
       "filter": {
         "enabled": true,
         "regex": "",
         "mode": "include",
-        "contentMode": "playlists",
-        "followed": true
+        "contentMode": "playlists"
       },
       "item": {
         "kind": "video",

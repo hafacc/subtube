@@ -248,8 +248,8 @@ class ShortsListTest {
             server.takeRequest().url.queryParameter("fields"),
         )
 
-        server.enqueue(empty)
-        youtube.fetchChannels(listOf("UCabc"), "token")
+        server.enqueue(MockResponse.Builder().body("""{"items":[{"id":"UCme","snippet":{"title":"Me"}}]}""").build())
+        youtube.fetchMyChannel("token")
         assertEquals("items(id,snippet(title,customUrl,$thumbnails))", server.takeRequest().url.queryParameter("fields"))
     }
 

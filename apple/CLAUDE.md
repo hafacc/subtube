@@ -72,8 +72,8 @@ the pbxproj.
   `noteLoaded`, which `FeedModel` calls with every full load's item ids —
   refresh, then prune, and an upload only when either changed something; a
   load some channels failed in still counts, a channel fetched by itself
-  does not;
-  followed channels' names cached per account), `Drive`, `YouTube`
+  does not; the channels are the account's YouTube subscriptions and no
+  others, each with its saved filter — `channelsFor`), `Drive`, `YouTube`
   (`GoogleAPIError.dailyLimit`: a 403 whose body has `error.errors[].reason`
   `quotaExceeded` or `dailyLimitExceeded`, `isDailyLimit`, read only on
   YouTube answers; never retried, renews no token; the errors carry no text
@@ -468,7 +468,7 @@ the pbxproj.
   (`Color.page`), not the inspector's material; filters, opened
   only from a sidebar row and never by selecting a channel, under
   `MacFiltersPanel`'s header — the channel's avatar (36 pt), its name over
-  "Subscribed on YouTube" or "Followed in SubTube", and the round ×
+  "Subscribed on YouTube", and the round ×
   "Close"; selecting another channel keeps the panel open on that one and
   selecting Feed closes it; the group editor takes the same panel: opening
   one replaces the other, a change of page drops the draft, and the editor
@@ -654,9 +654,8 @@ macOS and iOS are cut separately; each has its own version line in
 - `GoogleClient.iOSClientID`: one Google iOS OAuth client (bundle id
   `cc.hafa.subtube`) serves both apps, in the same Cloud project as the
   other platforms' clients or the Drive app folder isn't shared.
-- Drive filters carry no channel id/title/thumbnail; followed channels' names
-  come from `channels.list?id=` (50 per call), cached in
-  `channels-<account>.json` in Application Support.
+- Drive filters carry no channel id/title/thumbnail; those come from the
+  subscription list.
 - A pattern read from Drive that isn't phrases (or fails the meta regex) is
   treated as no pattern, and written as empty the next time its filter is
   saved; the editor only ever builds patterns from phrases.

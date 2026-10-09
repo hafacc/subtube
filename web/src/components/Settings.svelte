@@ -168,9 +168,8 @@
             {/snippet}
           </AlertDialog.Trigger>
           <p class="secondary">
-            Deletes your filters, followed channels and what you've watched from
-            Google Drive, on all your devices. Your YouTube account isn't
-            changed.
+            Deletes your filters and what you've watched from Google Drive, on
+            all your devices. Your YouTube account isn't changed.
           </p>
         </div>
 
@@ -207,9 +206,8 @@
                         props: description,
                       })}
                         <p {...description}>
-                          This deletes your filters, followed channels and what
-                          you've watched from Google Drive and from this device.
-                          It can't be undone.
+                          This deletes your filters and what you've watched from
+                          Google Drive and from this device. It can't be undone.
                         </p>
                       {/snippet}
                     </AlertDialog.Description>

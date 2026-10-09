@@ -82,11 +82,8 @@ every client shares is in `../shared/`.
     probe runs only when the list couldn't be read (5xx twice running, or
     no answer: `fetchShortIds` gives null). `withoutShortsList`: uploads fetched without the Shorts
     list (a candidate stays unjudged, so no "Short" tag).
-  - `FeedLoader.kt` — subscriptions + sync, followed channels' names via
-    `channels.list?id=` (cached in `ChannelIdentityCache`; asked again only
-    when missing or over a day old; a failed lookup leaves the id as the
-    name, and an id YouTube no longer knows is remembered like a found one,
-    so it isn't asked for at every load),
+  - `FeedLoader.kt` — subscriptions + sync (the channels are the YouTube
+    subscriptions and nothing else),
     per-channel fetch, all on `Dispatchers.Default` (`compute`) whatever
     thread asks: `load` calls `onProgress` and `onChannels` there, and the
     view model posts what they change to the main thread (`duringLoad`).
@@ -117,8 +114,6 @@ every client shares is in `../shared/`.
     a filter has come to need it), queues the new ones and takes the others
     out of the queue; it stops asking after the daily limit. The `load` given
     one builds on what it has for each enabled channel.
-    A channel saved with `followed: true` is read and shown; the app has no
-    way to add or remove one.
   - `UnwatchedPassing.kt` — `unwatchedPassing`: a channel's entries of the
     kind it shows that pass its filter and aren't watched (the channel
     list's counts).

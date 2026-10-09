@@ -7,7 +7,6 @@ import {
   kindFor,
   passingCompiled,
 } from "./channel-chips";
-import { channelInfo } from "./channel-info";
 import { chipFiltered, chipRow } from "./chips";
 import { SignInRequiredError, shownMessage } from "./errors";
 import { feedItemId } from "./feed-item";
@@ -455,7 +454,6 @@ export async function fetchChannels(
 /** A load's result, before it is applied. */
 interface FeedData extends FetchedChannels {
   subscribed: ChannelInfo[];
-  followedInfo: Map<string, ChannelInfo> | undefined;
 }
 
 /**
@@ -911,17 +909,9 @@ export class FeedController {
       platform(),
       this.store.load(),
     ]);
-    const followed = this.store
-      .followedIds()
-      .filter(
-        (channelId) =>
-          !subscribed.some((channel) => channel.channelId === channelId),
-      );
-    const followedInfo =
-      followed.length > 0 ? await channelInfo(followed, token) : undefined;
-    const enabled = Array.from(
-      this.store.channels(subscribed, followedInfo).values(),
-    ).filter((channel) => channel.filter.enabled);
+    const enabled = Array.from(this.store.channels(subscribed).values()).filter(
+      (channel) => channel.filter.enabled,
+    );
     const probe = current?.probeShort;
     const known = this.knownDetails();
     const channels = await fetchChannels(
@@ -941,7 +931,7 @@ export class FeedController {
       },
       (finished) => this.advanceLoad(loadFraction(finished, enabled.length)),
     );
-    return { subscribed, followedInfo, ...channels };
+    return { subscribed, ...channels };
   }
 
   // never backwards: a load that starts over after renewing its token keeps its place
@@ -952,7 +942,7 @@ export class FeedController {
   /** Show a finished load: its channels and items replace the old ones at once. */
   private applyLoad(data: FeedData): void {
     // read the filters again, so edits made during the load stay
-    const channels = this.store.channels(data.subscribed, data.followedInfo);
+    const channels = this.store.channels(data.subscribed);
     const fresh = Array.from(data.fetched.values()).flatMap(
       ({ items }) => items,
     );

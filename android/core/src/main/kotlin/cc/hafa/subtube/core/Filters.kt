@@ -40,7 +40,6 @@ fun filterFromJson(channelId: String, title: String, thumbnail: String, stored: 
     shortsFilter = stored["shortsFilter"].oneOf(ShortsFilter.entries.toTypedArray()),
     contentMode = stored["contentMode"].oneOf(ContentMode.entries.toTypedArray()),
     topics = stored["topics"].stringsOrNull(),
-    followed = stored["followed"].booleanValue(),
     groups = groupsFromJson(stored["groups"]),
     stored = stored,
 )
@@ -70,7 +69,6 @@ fun filterToJson(filter: ChannelFilter): JsonObject {
     write("shortsFilter", filter.shortsFilter != before.shortsFilter, filter.shortsFilter?.let { shorts -> JsonPrimitive(shorts.wire) })
     write("contentMode", filter.contentMode != before.contentMode, filter.contentMode?.let { content -> JsonPrimitive(content.wire) })
     write("topics", filter.topics != before.topics, filter.topics?.let { ids -> JsonArray(ids.distinct().map(::JsonPrimitive)) })
-    write("followed", filter.followed != before.followed, filter.followed?.let(::JsonPrimitive))
     write("groups", filter.groups != before.groups, JsonArray(filter.groups.map(::JsonPrimitive)))
     return JsonObject(out)
 }

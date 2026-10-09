@@ -20,9 +20,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,9 +63,6 @@ fun filterSummary(context: Context, filter: ChannelFilter): String =
 
 private fun enabledSummary(context: Context, filter: ChannelFilter): String {
     val parts = ArrayList<String>()
-    if (filter.followed == true) {
-        parts.add(context.getString(R.string.summary_followed))
-    }
     val rules = ArrayList<String>()
     if (filter.contentMode == ContentMode.PLAYLISTS) {
         rules.add(context.getString(R.string.playlists))
@@ -144,7 +141,7 @@ private fun ChannelChipRow(viewModel: SubtubeViewModel, onNewGroup: () -> Unit, 
 }
 
 /**
- * The channels tab: under its chips, the subscribed and followed channels the
+ * The channels tab: under its chips, the subscribed channels the
  * group, time and topic chips keep, in the order the sort chip chooses, each with
  * its unwatched count, its switch, and its page on tap. The rows keep their
  * places while the tab is on screen: they are taken again only on entering

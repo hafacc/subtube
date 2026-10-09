@@ -13,7 +13,6 @@
         "liveFilter": "normal",
         "shortsFilter": "normal",
         "contentMode": "videos",
-        "followed": false,
         "topics": [
           "10",
           "28"
@@ -26,8 +25,7 @@
         "enabled": false,
         "regex": "",
         "mode": "exclude",
-        "contentMode": "playlists",
-        "followed": true
+        "contentMode": "playlists"
       }
     }
   },

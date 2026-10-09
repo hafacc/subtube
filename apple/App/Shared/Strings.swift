@@ -182,7 +182,6 @@ enum Strings {
   static let summaryShortsOnly = String(localized: "Shorts only")
   static let summaryNoLive = String(localized: "No live")
   static let summaryLiveOnly = String(localized: "Live only")
-  static let summaryFollowed = String(localized: "Followed in SubTube")
   static let subscribedOnYouTube = String(localized: "Subscribed on YouTube")
 
   static func summaryOnlyMatching(_ pattern: String, scope: FilterScope) -> String {
@@ -261,12 +260,12 @@ enum Strings {
   static let deleteProfile = String(localized: "Delete Profile")
   static let deleteProfileDetail = String(
     localized:
-      "Deletes your filters, followed channels and what you've watched from Google Drive, on all your devices. Your YouTube account isn't changed."
+      "Deletes your filters and what you've watched from Google Drive, on all your devices. Your YouTube account isn't changed."
   )
   static let deleteProfileTitle = String(localized: "Delete your profile?")
   static let deleteProfileMessage = String(
     localized:
-      "This deletes your filters, followed channels and what you've watched from Google Drive and from this device. It can't be undone."
+      "This deletes your filters and what you've watched from Google Drive and from this device. It can't be undone."
   )
   static let deleteProfileFailed = String(
     localized: "Couldn't delete your profile. Check your connection and try again.")

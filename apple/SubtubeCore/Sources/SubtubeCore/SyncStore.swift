@@ -43,7 +43,6 @@ public actor SyncStore {
   private let deviceId: String
   private let ownName: String
   private let localURL: URL
-  private let identitiesURL: URL
   /// Exists once this device's file has been seen in Drive.
   private let uploadedURL: URL
   private var uploadedBefore: Bool
@@ -72,8 +71,6 @@ public actor SyncStore {
   private var savesStarted = 0
   /// How many uploads have ended; a listing asked for before one ended may lack its file.
   private var savesEnded = 0
-  /// Names and avatars of followed channels, which the Drive files don't hold.
-  private var identities: [String: ChannelIdentity]
   /// When Drive last answered a read or a write.
   public private(set) var lastSyncedAt: Date?
 
@@ -90,7 +87,6 @@ public actor SyncStore {
     self.deviceId = deviceId
     ownName = "device-\(deviceId).json"
     localURL = directory.appendingPathComponent("sync-\(accountId).json")
-    identitiesURL = directory.appendingPathComponent("channels-\(accountId).json")
     uploadedURL = directory.appendingPathComponent("uploaded-\(accountId)")
     uploadedBefore = FileManager.default.fileExists(atPath: uploadedURL.path)
     self.tokens = tokens
@@ -98,9 +94,6 @@ public actor SyncStore {
     let local = (try? Data(contentsOf: localURL)).flatMap(parseDeviceFile) ?? DeviceFile()
     own = local
     merged = local
-    identities =
-      (try? Data(contentsOf: identitiesURL))
-      .flatMap { try? JSONDecoder().decode([String: ChannelIdentity].self, from: $0) } ?? [:]
   }
 
   private func markUploaded() {
@@ -118,13 +111,12 @@ public actor SyncStore {
     pendingSave = nil
     pendingLocalWrite?.cancel()
     pendingLocalWrite = nil
-    for url in [localURL, identitiesURL, uploadedURL] {
+    for url in [localURL, uploadedURL] {
       try? FileManager.default.removeItem(at: url)
     }
     own = DeviceFile()
     merged = DeviceFile()
     others = [:]
-    identities = [:]
     ownFileId = nil
     ownModifiedTime = nil
     uploadedBefore = false
@@ -341,27 +333,7 @@ public actor SyncStore {
 
   /// The channels the feed reads, given the account's subscriptions.
   public func channels(subscriptions: [Subscription]) -> [ChannelFilter] {
-    channelsFor(merged, subscriptions: subscriptions, identities: identities)
-  }
-
-  /// Followed channels that still need their name and avatar from YouTube.
-  public func missingIdentities(subscriptions: [Subscription]) -> [String] {
-    followedWithoutIdentity(merged, subscriptions: subscriptions, identities: identities)
-  }
-
-  /// Remember followed channels' names and avatars on this device.
-  public func remember(_ summaries: [ChannelSummary]) {
-    for summary in summaries {
-      identities[summary.channelId] = ChannelIdentity(
-        title: summary.title, thumbnail: summary.thumbnail, fetchedAt: Date())
-    }
-    do {
-      try FileManager.default.createDirectory(
-        at: identitiesURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-      try JSONEncoder().encode(identities).write(to: identitiesURL, options: .atomic)
-    } catch {
-      // asked again on the next load
-    }
+    channelsFor(merged, subscriptions: subscriptions)
   }
 
   /// The watched entries of `ids` as last saved on any device; an id

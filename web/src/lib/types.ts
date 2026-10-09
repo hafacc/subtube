@@ -53,8 +53,6 @@ export interface ChannelFilter {
   contentMode?: ContentMode;
   /** YouTube category ids; with any, only videos in one of them are kept */
   topics?: string[];
-  /** added in subtube rather than subscribed to on YouTube; listed while true */
-  followed?: boolean;
   /** names of the groups the channel is in (`groups.ts`) */
   groups?: string[];
   /** fields from a newer client, kept as they were */

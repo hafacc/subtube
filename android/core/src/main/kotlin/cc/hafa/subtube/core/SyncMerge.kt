@@ -204,52 +204,20 @@ fun pruneDeviceFile(file: DeviceFile, now: Long): DeviceFile =
         },
     )
 
-/** A channel's name and avatar, which YouTube owns and the device files never hold. */
-data class ChannelIdentity(
-    /** The channel's name. */
-    val title: String,
-    /** The channel's avatar URL; empty when there is none. */
-    val thumbnail: String,
-)
-
 /** The filter a subscription has until someone edits it. */
 fun defaultFilter(subscription: Subscription): ChannelFilter =
     filterFromJson(subscription.channelId, subscription.title, subscription.thumbnail, JsonObject(emptyMap()))
 
 /**
- * The channels the feed reads: every YouTube subscription with its saved filter
- * (or the default), plus the channels followed in subtube, named from
- * [followedIdentities] (looked up on YouTube, since the files don't hold
- * names). A filter saved for a channel since unsubscribed is kept, so
- * subscribing again restores it.
+ * The channels the feed reads: every YouTube subscription with its saved
+ * filter (or the default). A filter saved for a channel since unsubscribed
+ * stays in the file, so subscribing again restores it.
  */
-fun channelsFor(
-    merged: DeviceFile,
-    subscriptions: List<Subscription>,
-    followedIdentities: Map<String, ChannelIdentity> = emptyMap(),
-): Map<String, ChannelFilter> {
+fun channelsFor(merged: DeviceFile, subscriptions: List<Subscription>): Map<String, ChannelFilter> {
     val channels = LinkedHashMap<String, ChannelFilter>()
     for (subscription in subscriptions) {
         val saved = merged.channels[subscription.channelId]?.let(::entryFilter) ?: JsonObject(emptyMap())
         channels[subscription.channelId] = filterFromJson(subscription.channelId, subscription.title, subscription.thumbnail, saved)
     }
-    for ((channelId, entry) in merged.channels) {
-        if (channelId in channels) {
-            continue
-        }
-        val identity = followedIdentities[channelId]
-        val filter = filterFromJson(channelId, identity?.title ?: channelId, identity?.thumbnail.orEmpty(), entryFilter(entry))
-        if (filter.followed == true) {
-            channels[channelId] = filter
-        }
-    }
     return channels
-}
-
-/** The channels followed in subtube but not subscribed to on YouTube. */
-fun followedChannelIds(merged: DeviceFile, subscriptions: List<Subscription>): List<String> {
-    val subscribed = subscriptions.mapTo(HashSet(), Subscription::channelId)
-    return merged.channels.filter { (channelId, entry) ->
-        channelId !in subscribed && entryFilter(entry)["followed"].booleanValue() == true
-    }.keys.toList()
 }

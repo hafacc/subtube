@@ -148,12 +148,10 @@ private func feedItem(_ object: JSONObject, id: String = "x") -> FeedItem {
   }
 
   @Test func aNewFilterStoresOnlyRequiredFieldsAndNoIdentity() {
-    var filter = ChannelFilter(channelId: "UC1", title: "One", thumbnail: "t")
-    filter.followed = true
+    let filter = ChannelFilter(channelId: "UC1", title: "One", thumbnail: "t")
     #expect(
       filter.storedFilter == [
-        "enabled": .bool(true), "regex": .string(""), "mode": .string("include"),
-        "followed": .bool(true),
+        "enabled": .bool(true), "regex": .string(""), "mode": .string("include")
       ])
   }
 }
