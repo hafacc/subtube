@@ -108,14 +108,16 @@ struct GroupEditor: View {
       LazyVStack(spacing: 0) {
         ForEach(rows, id: \.channelId) { channel in
           HStack(spacing: 8) {
-            Avatar(url: channel.thumbnail, title: channel.title, size: 24)
-            Text(channel.title).lineLimit(1)
+            HStack(spacing: 8) {
+              Avatar(url: channel.thumbnail, title: channel.title, size: 24)
+              Text(channel.title).lineLimit(1)
+            }
+            .opacity(channel.enabled ? 1 : offChannelOpacity)
             Spacer()
             memberSwitch(channel).controlSize(.small)
           }
           .padding(.vertical, 6)
           .padding(.horizontal, 10)
-          .opacity(channel.enabled ? 1 : offChannelOpacity)
           if channel.channelId != rows.last?.channelId {
             Divider().padding(.horizontal, 10)
           }
@@ -190,7 +192,6 @@ struct GroupEditor: View {
                 ChannelRowLabel(channel: channel, feed: feed)
                 memberSwitch(channel)
               }
-              .opacity(channel.enabled ? 1 : offChannelOpacity)
             }
           }
           .listStyle(.insetGrouped)

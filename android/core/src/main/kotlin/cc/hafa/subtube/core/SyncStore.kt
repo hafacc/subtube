@@ -84,6 +84,9 @@ class SyncStore(
     private var own: DeviceFile = parseDeviceFile(storage.read(localKey)) ?: DeviceFile()
     private var ownFileId: String? = null
 
+    // Drive's time for this device's file as last downloaded or uploaded; a listing with the same needs no download
+    private var ownModifiedTime: String? = null
+
     // whether ownFileId is known; saving before then would create a second file
     private var listed = false
 
@@ -156,6 +159,7 @@ class SyncStore(
             saveTimer?.cancel()
             own = DeviceFile()
             ownFileId = null
+            ownModifiedTime = null
             others.clear()
             listed = false
             uploaded = false
@@ -192,19 +196,24 @@ class SyncStore(
     }
 
     /**
-     * Read every device's file, downloading only the ones that changed since the last load.
+     * Read every device's file, downloading only the ones that changed since
+     * the last load, this device's own among them. [listing] is the app
+     * folder when the caller has just listed it, so it isn't listed again.
      *
      * @throws ProfileDeletedException when this device's uploaded file is gone from the folder,
      * which a second look has to confirm.
      */
-    suspend fun load() {
-        withFreshToken { token -> loadWith(token) }
+    suspend fun load(listing: List<DriveFile>? = null) {
+        // reading and merging the files is kept off a caller on the main thread
+        withContext(Dispatchers.Default) {
+            withFreshToken { token -> loadWith(token, listing) }
+        }
     }
 
-    private suspend fun loadWith(token: String) {
+    private suspend fun loadWith(token: String, given: List<DriveFile>?) {
         // as it was before the listing was asked for: a file first uploaded meanwhile isn't in it
         val uploadedBefore = synchronized(lock) { uploaded }
-        val firstListing = drive.listAppFiles(token)
+        val firstListing = given ?: drive.listAppFiles(token)
         val folder = if (wasDeletedElsewhere(uploadedBefore, firstListing.map(DriveFile::name), ownName)) {
             folderUnlessDeleted(token) ?: run {
                 dropLocal()
@@ -218,9 +227,11 @@ class SyncStore(
             synchronized(lock) { markUploaded() }
         }
         val listing = folder.filter { entry -> deviceIdOf(entry.name) != null }
-        val known = synchronized(lock) { others.mapValues { (_, remote) -> remote.modifiedTime } }
+        val known = synchronized(lock) {
+            others.mapValues { (_, remote) -> remote.modifiedTime } + listOfNotNull(ownFileId?.let { fileId -> ownModifiedTime?.let { time -> fileId to time } })
+        }
         val downloads = coroutineScope {
-            listing.filter { entry -> entry.name == ownName || known[entry.id] != entry.modifiedTime }
+            listing.filter { entry -> known[entry.id] != entry.modifiedTime }
                 .map { entry -> async { entry to parseDeviceFile(drive.download(entry.id, token)) } }
                 .awaitAll()
         }
@@ -228,6 +239,7 @@ class SyncStore(
             for ((entry, file) in downloads) {
                 if (entry.name == ownName) {
                     ownFileId = entry.id
+                    ownModifiedTime = entry.modifiedTime
                     ownUnreadable = file == null
                     // the stored copy may hold edits the last upload never carried
                     if (file != null) {
@@ -406,13 +418,10 @@ class SyncStore(
             (own to ownFileId).takeUnless { ownUnreadable || ended }
         } ?: return
         val content = encodeDeviceFile(snapshot)
-        if (fileId != null) {
-            drive.updateJson(fileId, content, token)
-        } else {
-            val created = drive.createJson(ownName, content, token)
-            synchronized(lock) { ownFileId = created.id }
-        }
+        val saved = if (fileId != null) drive.updateJson(fileId, content, token) else drive.createJson(ownName, content, token)
         synchronized(lock) {
+            ownFileId = saved.id
+            ownModifiedTime = saved.modifiedTime
             // an edit made while this upload ran is still unsent
             unsent = own != snapshot
             writeLocal()
@@ -439,6 +448,7 @@ class SyncStore(
                 // this device's file may be among those already deleted: the next save lists the folder again and makes a new one
                 synchronized(lock) {
                     ownFileId = null
+                    ownModifiedTime = null
                     listed = false
                     unsent = true
                     uploaded = false

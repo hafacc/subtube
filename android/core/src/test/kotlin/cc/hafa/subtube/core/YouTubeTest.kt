@@ -221,6 +221,80 @@ class ShortsListTest {
     }
 
     @Test
+    fun everyRequestAsksOnlyForTheFieldsItReads() = runTest {
+        val thumbnails = "thumbnails(default(url),medium(url))"
+        val empty = MockResponse.Builder().body("""{"items":[]}""").build()
+        server.enqueue(empty)
+        youtube.fetchSubscriptions("token")
+        assertEquals("nextPageToken,items(snippet(title,resourceId(channelId),$thumbnails))", server.takeRequest().url.queryParameter("fields"))
+
+        enqueueUploads()
+        server.enqueue(empty)
+        youtube.fetchUploads("UCabc", "Channel", "token")
+        assertEquals(
+            "items(snippet(title,description,publishedAt,videoOwnerChannelId,videoOwnerChannelTitle,$thumbnails),contentDetails(videoId,videoPublishedAt))",
+            server.takeRequest().url.queryParameter("fields"),
+        )
+        assertEquals(
+            "items(id,snippet(liveBroadcastContent,categoryId),contentDetails(duration),liveStreamingDetails(actualEndTime))",
+            server.takeRequest().url.queryParameter("fields"),
+        )
+        assertEquals("items(contentDetails(videoId))", server.takeRequest().url.queryParameter("fields"))
+
+        server.enqueue(empty)
+        youtube.fetchPlaylists("UCabc", "Channel", "token")
+        assertEquals(
+            "items(id,snippet(title,description,publishedAt,channelId,channelTitle,$thumbnails),contentDetails(itemCount))",
+            server.takeRequest().url.queryParameter("fields"),
+        )
+
+        server.enqueue(empty)
+        youtube.fetchChannels(listOf("UCabc"), "token")
+        assertEquals("items(id,snippet(title,customUrl,$thumbnails))", server.takeRequest().url.queryParameter("fields"))
+    }
+
+    @Test
+    fun videoDetailsAreAskedOnlyForVideosNotHeldOrHeldUnsettled() = runTest {
+        fun item(videoId: String): String =
+            """{"snippet":{"title":"$videoId","publishedAt":"2026-01-01T00:00:00Z"},"contentDetails":{"videoId":"$videoId"}}"""
+        val ids = listOf("settled", "replay", "live", "upcoming", "unknown", "new")
+        server.enqueue(MockResponse.Builder().body("""{"items":[${ids.joinToString(",", transform = ::item)}]}""").build())
+        server.enqueue(
+            MockResponse.Builder().body(
+                """{"items":[{"id":"live","contentDetails":{"duration":"PT1H"},"liveStreamingDetails":{"actualEndTime":"2026-01-01T01:00:00Z"}},""" +
+                    """{"id":"upcoming","snippet":{"liveBroadcastContent":"live"}},{"id":"unknown","contentDetails":{"duration":"PT5M"}},""" +
+                    """{"id":"new","snippet":{"categoryId":"10"},"contentDetails":{"duration":"PT4M"}}]}""",
+            ).build(),
+        )
+        val held = listOf(
+            video("settled", durationSeconds = 600).copy(categoryId = "27"),
+            video("replay", durationSeconds = 7200, liveStatus = LiveStatus.VOD),
+            video("live", durationSeconds = 0, liveStatus = LiveStatus.LIVE),
+            video("upcoming", durationSeconds = 0, liveStatus = LiveStatus.UPCOMING),
+            video("unknown", durationSeconds = 0),
+        ).associateBy(Video::videoId)
+        val videos = youtube.fetchUploads("UCabc", "Channel", "token", judgeShorts = false, held = held).associateBy(Video::videoId)
+
+        server.takeRequest()
+        assertEquals("live,upcoming,unknown,new", server.takeRequest().url.queryParameter("id"))
+        assertEquals(Triple(600, LiveStatus.NORMAL, "27"), videos.getValue("settled").let { video -> Triple(video.durationSeconds, video.liveStatus, video.categoryId) })
+        assertEquals(7200 to LiveStatus.VOD, videos.getValue("replay").let { video -> video.durationSeconds to video.liveStatus })
+        assertEquals(3600 to LiveStatus.VOD, videos.getValue("live").let { video -> video.durationSeconds to video.liveStatus })
+        assertEquals(LiveStatus.LIVE, videos.getValue("upcoming").liveStatus)
+        assertEquals(300, videos.getValue("unknown").durationSeconds)
+        assertEquals(240 to "10", videos.getValue("new").let { video -> video.durationSeconds to video.categoryId })
+    }
+
+    @Test
+    fun noVideoDetailsAreAskedWhenEveryVideoIsHeld() = runTest {
+        enqueueUploads()
+        val held = listOf(video("clip", durationSeconds = 30), video("long", durationSeconds = 600)).associateBy(Video::videoId)
+        val videos = youtube.fetchUploads("UCabc", "Channel", "token", judgeShorts = false, held = held)
+        assertEquals(listOf(30, 600), videos.map(Video::durationSeconds))
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun anUploadsListThatAnswers500IsStillAnError() = runTest {
         fail()
         assertEquals(500, assertFailsWith<GoogleApiException> { youtube.fetchUploads("UCabc", "Channel", "token") }.status)

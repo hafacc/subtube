@@ -56,7 +56,8 @@ the pbxproj.
   `SyncStore` (Drive app-folder sync, debounced uploads, local pending copy
   uploaded again after a load finds Drive behind it or when the app leaves
   the foreground; never writes over its own Drive file if that couldn't be
-  read; uploads run one after another, each chained to the one before and
+  read; a load downloads its own file only when the listing's
+  `modifiedTime` is not the one its last upload or download had; uploads run one after another, each chained to the one before and
   clearing `saving` itself — never wait for one in a `while let running =
   saving` loop that someone else must clear, which spins the actor for good
   (`SyncStoreTests`); every Drive call goes through `withDrive`, which
@@ -64,7 +65,10 @@ the pbxproj.
   the profile only after `ownFileIsGone` confirms it — asked for by id, or
   listed again — and never when an upload ran while the listing was asked
   for; `watchedEntries`, `setWatched`, and `setProgress`, which keeps a
-  position on the device at once and starts an upload only when told to;
+  position in memory at once, merging that one entry only, and starts an
+  upload only when told to; the local file is written then, and otherwise
+  within `positionWriteDelay`, 30 s, or by `persist()`, which
+  `FeedModel.quitting` waits for when the Mac app quits;
   `noteLoaded`, which `FeedModel` calls with every full load's item ids —
   refresh, then prune, and an upload only when either changed something; a
   load some channels failed in still counts, a channel fetched by itself
@@ -76,7 +80,10 @@ the pbxproj.
   of their own, `Strings.message(for:signedOut:)` words them; an uploads list
   that is "not found" is an empty one; `shortIds` is empty for a Shorts list
   that is "not found" and nil when the list couldn't be read — a 5xx twice,
-  or a failed request), `Shorts` (`withoutShortsList`: a video that can't be
+  or a failed request; `uploads` asks `videos.list` only for the videos not
+  in `known`, which a load fills with `settledDetails` of the videos
+  `FeedModel` holds: nil, so asked again, for one that is live, upcoming or
+  without a length), `Shorts` (`withoutShortsList`: a video that can't be
   a Short is not one, a candidate stays unjudged; `classifyShorts` probes
   only when the list couldn't be read), `ShortsProbe`,
   `Settings` (`SyncedSettings`: `feedSort`, `channelSort`,
@@ -200,13 +207,19 @@ the pbxproj.
   time and topic chips, in the `feedSort` order, the random one under a seed
   that a full load and `reshuffle()` replace; `topicChips` are counted
   after the filters and the watched chip, `unwatchedByChannel` ignores the
-  chips; an item that becomes watched or unwatched on screen stays until a
+  chips; a rebuild runs the filters over the items once, `feedPassing`, and
+  the page, the counts and the channel lists' chips all come from that; a
+  change of `channels` compiles only the filters that changed; `itemIndex`
+  is the items by channel, built again only after they change, and
+  `publishedTime` reads each date once until the next full load; an item that becomes watched or unwatched on screen stays until a
   full load, a filter edit, a change of the watched, time, topic or group
   chip, a group save or delete that changes the feed's selected groups, or
   a move between the feed and a channel's page, not a change of the sort; `watched` and `bars` are worked out from a
   mirror of the store's entries, `entries`, and each video's length;
   everything asked of the store about entries and settings goes through one
-  queue, `storeCalls`, so saves land in the order made; `recordProgress`
+  queue, `storeCalls`, so saves land in the order made, and nothing in it
+  waits for an upload: `flush()` and a position saved for Drive at once
+  only start one there (`SyncStore.startFlush`); `recordProgress`
   saves the player's position, `resumeAt` is where a video opens;
   `player` is the one `PlayerSession`, and replacing it
   saves the old one's position: `open` starts a card, large on a Mac and in
@@ -403,10 +416,15 @@ the pbxproj.
   `skeleton()` for stand-ins: a first load shows skeleton cards, a reload
   sweeps the greyed feed with a dark band on light and a light band on dark;
   still under reduced motion; the card that holds the player is never
-  greyed, swept or disabled), `channelsMatching` (the one "Search
+  greyed, swept or disabled), `RemoteImage` (the picture behind `Avatar` and
+  `Thumbnail`: decoded pictures are kept in one `NSCache`, looked up before
+  the placeholder is drawn, so a row scrolled back shows its picture at
+  once, and one address is fetched by one request however many views ask),
+  `channelsMatching` (the one "Search
   channels" filter, ignoring case and nothing else: the Channels tab, the
   group editor and setup), `channelsByName` (the one by-name order, the
-  shared compare), `offChannelOpacity` (0.45, every list),
+  shared compare), `offChannelOpacity` (0.45, on an off channel's picture and text in every
+  list, never on the row's switch),
   `Strings`.
 - `App/macOS/` — `NavigationSplitView` (sidebar: the Feed row with its
   unwatched count as a number, then under a plain "Channels" header with no
@@ -474,8 +492,12 @@ the pbxproj.
   it on pause, on a first click and on keyboard focus: the page here
   reports none of those to the overlay
   (the window's toolbar stays above it), `FeedCommands` (Feed menu),
-  Settings scene (General, Account).
-- `App/iOS/` — tab bar (Feed, Channels, Settings; tapping Feed while the feed shows
+  Settings scene (General, Account). The window losing the focus saves and
+  uploads nothing; only the app going to the background does
+  (`leftForeground`), and quitting writes the playing position to disk
+  (`quitting`).
+- `App/iOS/` — tab bar (Feed, Channels under `play.square.stack` as the
+  Mac's `ChannelsButton`, Settings; tapping Feed while the feed shows
   scrolls to the top and refreshes, and pull to refresh stays); the Feed and
   Channels tabs have the standard large title, alone. The Channels list's
   first row is its chip row, then `ChannelSearchField`, which narrows what

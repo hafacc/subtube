@@ -1,12 +1,18 @@
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { getValidToken, silentRefresh, withToken } from "./auth";
 import { nextUnwatched } from "./autoplay";
-import { kindFor, passingItems } from "./channel-chips";
+import {
+  type CompiledChannel,
+  compileChannels,
+  kindFor,
+  passingCompiled,
+} from "./channel-chips";
 import { channelInfo } from "./channel-info";
 import { chipFiltered, chipRow } from "./chips";
 import { SignInRequiredError, shownMessage } from "./errors";
 import { feedItemId } from "./feed-item";
 import { newShuffleSeed, sortFeed } from "./feed-order";
-import { compileFilter, videoPassesFilter } from "./filters";
+import { videoPassesFilter } from "./filters";
 import {
   deleteGroup,
   type GroupEdit,
@@ -45,7 +51,9 @@ import {
   fetchUploads,
   InsufficientScopeError,
   markShorts,
+  settledDetails,
   TokenExpiredError,
+  type VideoDetails,
 } from "./youtube";
 
 /** 50 is the most one playlistItems page returns, still for 1 quota unit. */
@@ -54,7 +62,7 @@ const FETCH_CONCURRENCY = 6;
 /** What a load says when some channels couldn't be fetched. */
 export const PARTIAL_MESSAGE =
   "Some channels couldn't be loaded; showing partial results.";
-/** Returning to the tab after this long away loads the feed again. */
+/** Returning to the tab this long after the last load that worked loads the feed again. */
 export const STALE_AFTER_MS = 15 * 60_000;
 
 /** Run `worker` over `items`, at most `limit` at a time, keeping their order. */
@@ -118,12 +126,14 @@ export interface ChannelItems {
 
 /**
  * A channel's newest items: uploads or playlists, as its filter says. The
- * Shorts list is read only when the filter {@link needsShorts}.
+ * Shorts list is read only when the filter {@link needsShorts}, and the
+ * details of the videos in `known` (`settledDetails`) are not asked for.
  */
 export async function fetchChannelItems(
   channel: Channel,
   token: string,
   probe?: ShortsProbe,
+  known?: ReadonlyMap<string, VideoDetails>,
 ): Promise<ChannelItems> {
   if (channel.filter.contentMode === "playlists") {
     return {
@@ -143,6 +153,7 @@ export async function fetchChannelItems(
         UPLOADS_PER_CHANNEL,
         probe,
         shorts,
+        known,
       ),
     };
   }
@@ -177,10 +188,13 @@ export function covers(fetched: ChannelItems, filter: ChannelFilter): boolean {
   );
 }
 
-/** A channel's newest items, fetched with a fresh token and this browser's Shorts probe. */
-async function fetchItemsWithToken(channel: Channel): Promise<ChannelItems> {
+/** A channel's newest items, fetched with a fresh token and this browser's Shorts probe; `known` as in {@link fetchChannelItems}. */
+async function fetchItemsWithToken(
+  channel: Channel,
+  known?: ReadonlyMap<string, VideoDetails>,
+): Promise<ChannelItems> {
   const probe = (await platform())?.probeShort;
-  return withToken((token) => fetchChannelItems(channel, token, probe));
+  return withToken((token) => fetchChannelItems(channel, token, probe, known));
 }
 
 /** The Shorts marks a channel's fetched uploads lack, fetched with a fresh token and this browser's Shorts probe. */
@@ -257,7 +271,8 @@ export class Prefetch {
    * yet.
    */
   constructor(
-    fetchAll: (channel: Channel) => Promise<ChannelItems> = fetchItemsWithToken,
+    fetchAll: (channel: Channel) => Promise<ChannelItems> = (channel) =>
+      fetchItemsWithToken(channel),
     addShorts: (
       channel: Channel,
       fetched: ChannelItems,
@@ -455,9 +470,9 @@ export class FeedController {
   /** the channels with their filters, as of the last load plus edits since */
   channels: Map<string, Channel> = $state.raw(new Map());
   /** ids of loaded items that are watched */
-  watched: Set<string> = $state.raw(new Set());
+  readonly watched: SvelteSet<string> = new SvelteSet();
   /** how full each loaded video's progress bar is, from 0 to 1; videos with no bar are absent */
-  bars: Map<string, number> = $state.raw(new Map());
+  readonly bars: SvelteMap<string, number> = new SvelteMap();
   /** every loaded item */
   items: FeedItem[] = $state.raw([]);
   /** whether a load is running */
@@ -528,14 +543,14 @@ export class FeedController {
     );
   }
 
+  /** Every listed channel's filter compiled, by channel id; made anew only when the channels change. */
+  private compiled: Map<string, CompiledChannel> = $derived(
+    compileChannels(this.channels.values()),
+  );
+
   /** Everything the current view could show, watched or not, by id. */
   passing: Map<string, FeedItem> = $derived.by(() => {
-    const compiled = new Map(
-      Array.from(this.channels.values(), (channel) => [
-        channel.channelId,
-        compileFilter(channel.filter),
-      ]),
-    );
+    const compiled = this.compiled;
     const channelView = this.channelView;
     const mode = this.channelEntry?.filter.contentMode ?? "videos";
     const source = this.onDemandChannel
@@ -548,16 +563,15 @@ export class FeedController {
       if (channelView && item.channelId !== channelView) {
         continue;
       }
-      const filter = compiled.get(item.channelId);
+      const entry = compiled.get(item.channelId);
       // the feed shows enabled channels; a channel page shows its channel regardless
-      if (!channelView && !filter?.enabled) {
+      if (!channelView && !entry?.filter.enabled) {
         continue;
       }
-      const channelMode = this.channels.get(item.channelId)?.filter.contentMode;
-      if (filter && item.kind !== kindFor(channelMode)) {
+      if (entry && item.kind !== entry.kind) {
         continue;
       }
-      if (filter && !videoPassesFilter(item, filter)) {
+      if (entry && !videoPassesFilter(item, entry.filter)) {
         continue;
       }
       shown.set(feedItemId(item), item);
@@ -567,7 +581,7 @@ export class FeedController {
 
   /** Every on channel's fetched items that pass its filter, watched or not. */
   private listed: FeedItem[] = $derived(
-    passingItems(this.channels.values(), this.items),
+    passingCompiled(this.compiled, this.items),
   );
 
   /** Every on channel's unwatched items that pass its filter: what the counts count and the sidebar orders by. */
@@ -775,7 +789,11 @@ export class FeedController {
     return source.filter((item) => item.channelId === channelId);
   }
 
-  /** Upload as the tab is hidden, and reload on returning after a while away. */
+  /**
+   * Upload as the tab is hidden or the page goes, reload on returning a while after the last
+   * load that worked, and reload when the browser is online again while a
+   * load's error shows.
+   */
   start(): () => void {
     const onVisible = () => {
       if (document.visibilityState === "hidden") {
@@ -787,8 +805,20 @@ export class FeedController {
         void this.load();
       }
     };
+    const onOnline = () => {
+      if (this.session.ready && this.error !== null) {
+        void this.load();
+      }
+    };
+    const onLeave = () => this.store.flush();
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("pagehide", onLeave);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("pagehide", onLeave);
+    };
   }
 
   /** Let the cards that changed sides since the last time drop out of a mode that doesn't list them. */
@@ -825,59 +855,56 @@ export class FeedController {
     }
   }
 
+  /** What the loaded videos' details are for good, which a fetch then needn't ask for again. */
+  private knownDetails(): Map<string, VideoDetails> {
+    return settledDetails([...this.items, ...(this.channelItems?.items ?? [])]);
+  }
+
   /*
    * Apply the synced watched state to one batch of items. Marks made here are in
    * the store already, so a batch can't revert one made while it loaded.
    */
   private applyWatchedBatch(batch: FeedItem[]): void {
-    const watched = new Set(this.watched);
-    const bars = new Map(this.bars);
     for (const item of batch) {
-      this.readEntry(feedItemId(item), durationOf(item), watched, bars);
+      this.readEntry(feedItemId(item), durationOf(item));
     }
-    this.watched = watched;
-    this.bars = bars;
   }
 
   /** Put what the store holds for one item into `watched` and `bars`; says whether it is watched. */
-  private readEntry(
-    id: string,
-    durationSeconds: number,
-    watched: Set<string>,
-    bars: Map<string, number>,
-  ): boolean {
+  private readEntry(id: string, durationSeconds: number): boolean {
     const entry = this.store.watchedEntry(id);
     const isWatched = isWatchedEntry(entry, durationSeconds);
     const fraction = progressFraction(entry, durationSeconds);
     if (isWatched) {
-      watched.add(id);
+      this.watched.add(id);
     } else {
-      watched.delete(id);
+      this.watched.delete(id);
     }
     if (fraction === null) {
-      bars.delete(id);
+      this.bars.delete(id);
     } else {
-      bars.set(id, fraction);
+      this.bars.set(id, fraction);
     }
     return isWatched;
   }
 
-  /** Show an item's entry as just saved; one that became watched stays on screen. */
+  /** Show an item's entry as just saved; one that became watched or unwatched stays on screen. */
   private entryChanged(id: string, durationSeconds: number): void {
     const wasWatched = this.watched.has(id);
-    const watched = new Set(this.watched);
-    const bars = new Map(this.bars);
-    const isWatched = this.readEntry(id, durationSeconds, watched, bars);
-    this.bars = bars;
-    if (isWatched !== wasWatched) {
-      this.watched = watched;
+    if (this.readEntry(id, durationSeconds) !== wasWatched) {
       this.staying = new Set(this.staying).add(id);
     }
   }
 
+  /**
+   * A load's data. Each channel's items are put in `kept` as they arrive,
+   * and a channel already there is not fetched again, so a load that starts
+   * over keeps what it had.
+   */
   private async fetchEverything(
     token: string,
     prefetched: Prefetch | null,
+    kept: Map<string, ChannelItems>,
   ): Promise<FeedData> {
     const [subscribed, current] = await Promise.all([
       fetchSubscriptions(token),
@@ -896,16 +923,22 @@ export class FeedController {
       this.store.channels(subscribed, followedInfo).values(),
     ).filter((channel) => channel.filter.enabled);
     const probe = current?.probeShort;
+    const known = this.knownDetails();
     const channels = await fetchChannels(
       enabled,
-      async (channel) =>
-        completeItems(
+      async (channel) => {
+        const items = await completeItems(
           channel,
-          (await prefetched?.items(channel.channelId)) ?? null,
-          (wanted) => fetchChannelItems(wanted, token, probe),
+          kept.get(channel.channelId) ??
+            (await prefetched?.items(channel.channelId)) ??
+            null,
+          (wanted) => fetchChannelItems(wanted, token, probe, known),
           (wanted, have) =>
             addShortsMarks(wanted.channelId, have, token, probe),
-        ),
+        );
+        kept.set(channel.channelId, items);
+        return items;
+      },
       (finished) => this.advanceLoad(loadFraction(finished, enabled.length)),
     );
     return { subscribed, followedInfo, ...channels };
@@ -983,17 +1016,12 @@ export class FeedController {
     this.error = null;
     this.notice = null;
     try {
-      let token: string;
-      try {
-        token = await getValidToken();
-      } catch {
-        this.session.tokenLost();
-        return;
-      }
+      const token = await getValidToken();
       const prefetched = takePrefetched(this.accountId);
+      const kept = new Map<string, ChannelItems>();
       let data: FeedData;
       try {
-        data = await this.fetchEverything(token, prefetched);
+        data = await this.fetchEverything(token, prefetched, kept);
       } catch (caught) {
         if (!(caught instanceof TokenExpiredError)) {
           throw caught;
@@ -1002,9 +1030,11 @@ export class FeedController {
         data = await this.fetchEverything(
           await silentRefresh(true),
           prefetched,
+          kept,
         );
       }
       this.applyLoad(data);
+      this.lastLoadedAt = Date.now();
       this.notice = data.dailyLimit
         ? DAILY_LIMIT_MESSAGE
         : data.failed.size > 0
@@ -1016,8 +1046,8 @@ export class FeedController {
       this.loading = false;
       this.loadProgress = null;
       this.loadInFlight = false;
-      this.lastLoadedAt = Date.now();
       this.pumpChannels();
+      void this.ensureChannelItems();
     }
   }
 
@@ -1059,10 +1089,19 @@ export class FeedController {
   // the newest channel page fetch, which alone says when loading is over
   private channelRequest = 0;
 
-  /** Fetch a channel page's items when the feed doesn't load that channel. */
+  /**
+   * Fetch a channel page's items when the feed doesn't load that channel.
+   * Not before the first load is shown nor while a load runs: only a load
+   * says whether the channel is on and what its filter is.
+   */
   async ensureChannelItems(): Promise<void> {
     const channelId = this.channelView;
-    if (!channelId || !this.onDemandChannel) {
+    if (
+      !channelId ||
+      !this.onDemandChannel ||
+      this.loadCount === 0 ||
+      this.loadInFlight
+    ) {
       return;
     }
     const channel: Channel = this.channelEntry ?? {
@@ -1083,7 +1122,7 @@ export class FeedController {
       const fetched = await completeItems(
         channel,
         have,
-        fetchItemsWithToken,
+        (wanted) => fetchItemsWithToken(wanted, this.knownDetails()),
         addShortsMarksWithToken,
       );
       if (this.channelView === channelId) {
@@ -1189,7 +1228,7 @@ export class FeedController {
       const fetched = await completeItems(
         channel,
         this.fetchedUploads(channel.channelId),
-        fetchItemsWithToken,
+        (wanted) => fetchItemsWithToken(wanted, this.knownDetails()),
         addShortsMarksWithToken,
       );
       this.markBeforeStart([channel.channelId], fetched.items);

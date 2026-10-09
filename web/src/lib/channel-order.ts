@@ -1,4 +1,4 @@
-import { compareIgnoringCase } from "./text-order";
+import { compareCodePoints, foldCase } from "./text-order";
 import type { Channel, FeedItem } from "./types";
 
 /** The orders the synced `channelSort` setting chooses between. */
@@ -13,6 +13,8 @@ export interface ChannelOrderKey {
   id: string;
   /** channel name */
   title: string;
+  /** the name as `foldCase` gives it, where a caller has worked it out already */
+  folded?: string;
   /** whether the channel is on */
   enabled: boolean;
   /** `publishedAt` of its newest fetched item; absent when it has none */
@@ -40,8 +42,10 @@ function group(key: ChannelOrderKey): number {
 
 function byName(left: ChannelOrderKey, right: ChannelOrderKey): number {
   return (
-    compareIgnoringCase(left.title, right.title) ||
-    compareCodeUnits(left.id, right.id)
+    compareCodePoints(
+      left.folded ?? foldCase(left.title),
+      right.folded ?? foldCase(right.title),
+    ) || compareCodeUnits(left.id, right.id)
   );
 }
 
@@ -128,17 +132,21 @@ export function orderChannels(
   for (const item of unwatched) {
     counts.set(item.channelId, (counts.get(item.channelId) ?? 0) + 1);
   }
-  const key = (channel: Channel): ChannelOrderKey => ({
-    id: channel.channelId,
-    title: channel.title,
-    enabled: channel.filter.enabled,
-    newest: newest.get(channel.channelId),
-    unwatched: counts.get(channel.channelId),
-    newestUnwatched: newestUnwatched.get(channel.channelId),
-  });
-  return channels.toSorted((left, right) =>
-    compareChannelOrder(key(left), key(right), sort),
-  );
+  const keyed = channels.map((channel): [Channel, ChannelOrderKey] => [
+    channel,
+    {
+      id: channel.channelId,
+      title: channel.title,
+      folded: foldCase(channel.title),
+      enabled: channel.filter.enabled,
+      newest: newest.get(channel.channelId),
+      unwatched: counts.get(channel.channelId),
+      newestUnwatched: newestUnwatched.get(channel.channelId),
+    },
+  ]);
+  return keyed
+    .toSorted(([, left], [, right]) => compareChannelOrder(left, right, sort))
+    .map(([channel]) => channel);
 }
 
 /**

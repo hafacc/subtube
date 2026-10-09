@@ -36,7 +36,8 @@ export interface PlaybackStates {
  * player's reported end.
  *
  * Nothing is saved for a playlist or a live broadcast; a playlist is marked
- * when its last video ends. `onended` runs once the item is over.
+ * when its last video ends. `onended` runs once the item is over, which a
+ * video the player refuses to play is at once ({@link failed}).
  */
 export class Playback {
   /** what the player last reported about its video */
@@ -164,6 +165,18 @@ export class Playback {
       this.feed.setWatched(this.item.id, true);
     }
     this.onended();
+  }
+
+  /**
+   * The player reported an error: a video that can't play is over, unmarked
+   * and with its saved position as it was. A playlist's player skips such a
+   * video itself.
+   */
+  failed(): void {
+    if (this.item.kind === "video") {
+      this.tracking = false;
+      this.onended();
+    }
   }
 
   /** The player changed state. */

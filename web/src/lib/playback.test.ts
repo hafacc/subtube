@@ -203,6 +203,27 @@ describe("Playback under a cover", () => {
   });
 });
 
+describe("Playback the player reports an error for", () => {
+  test("a video is over, unmarked, and nothing more is saved", () => {
+    const { playback, player, calls } = playing(VIDEO);
+    playback.ready(player);
+    playback.stateChanged(STATES.PLAYING, player);
+    calls.length = 0;
+    playback.failed();
+    playback.save("soon");
+    expect(calls).toEqual(["ended"]);
+  });
+
+  test("a playlist goes on, as its player skips the video", () => {
+    const { playback, player, calls } = playing(PLAYLIST, {
+      playlist: ["a", "b"],
+    });
+    playback.ready(player);
+    playback.failed();
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("Playback of a playlist", () => {
   test("lets the player load its own list and saves no position", () => {
     const { playback, player, calls } = playing(PLAYLIST, {

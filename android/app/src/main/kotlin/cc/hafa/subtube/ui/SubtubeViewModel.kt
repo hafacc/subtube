@@ -20,6 +20,7 @@ import cc.hafa.subtube.R
 import cc.hafa.subtube.auth.AuthorizeOutcome
 import cc.hafa.subtube.core.ChannelFilter
 import cc.hafa.subtube.core.ChipTitle
+import cc.hafa.subtube.core.CompiledFilter
 import cc.hafa.subtube.core.GroupEdit
 import cc.hafa.subtube.core.GroupSelections
 import cc.hafa.subtube.core.ChannelIdentityCache
@@ -102,6 +103,7 @@ import cc.hafa.subtube.core.passesFilter
 import cc.hafa.subtube.core.passingItems
 import cc.hafa.subtube.core.playedEntry
 import cc.hafa.subtube.core.progressFraction
+import cc.hafa.subtube.core.publishedMillis
 import cc.hafa.subtube.core.resumePosition
 import cc.hafa.subtube.core.shownSorts
 import cc.hafa.subtube.core.sortAfterPress
@@ -330,6 +332,10 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     var deletingProfile: Boolean by mutableStateOf(false)
         private set
 
+    /** Whether a sign-out is running. */
+    var signingOut: Boolean by mutableStateOf(false)
+        private set
+
     /** Why the last load or fetch failed, for the lists' banner; null when it didn't. */
     var error: UiMessage? by mutableStateOf(null)
         private set
@@ -433,6 +439,9 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     var setUpChannels: List<ChannelFilter> by mutableStateOf(emptyList())
         private set
 
+    // whether first run's channel list has been loaded, with or without a channel in it
+    private var setUpChannelsLoaded = false
+
     /** The first-run channel step's switches. */
     var setUpEnabled: Map<String, Boolean> by mutableStateOf(emptyMap())
         private set
@@ -457,16 +466,40 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
 
     private val itemsById: Map<String, FeedItem> by derivedStateOf { items.associateBy(FeedItem::id) }
 
+    /** The videos held, by id: a fetch asks YouTube again only for the details of those it lacks. */
+    private fun heldVideos(): Map<String, Video> = items.filterIsInstance<Video>().associateBy(Video::videoId)
+
+    // each channel's filter with what it last compiled to, so an edit compiles only the filter it changed
+    private var lastCompiled: Map<String, Pair<ChannelFilter, CompiledFilter>> = emptyMap()
+
+    /** Every channel's compiled filter, by channel id: compiled once per change of [channels], for everything that filters. */
+    private val compiledFilters: Map<String, CompiledFilter> by derivedStateOf {
+        val compiled = channels.mapValues { (channelId, filter) ->
+            lastCompiled[channelId]?.takeIf { (known, _) -> known == filter } ?: (filter to compileFilter(filter))
+        }
+        lastCompiled = compiled
+        compiled.mapValues { (_, entry) -> entry.second }
+    }
+
+    private val itemsByChannel: Map<String, List<FeedItem>> by derivedStateOf { items.groupBy(FeedItem::channelId) }
+
     /** How many unwatched entries pass each on channel's filter, by channel id; channels with none are absent. */
     val unwatchedByChannel: Map<String, Int> by derivedStateOf {
-        val byChannel = items.groupBy(FeedItem::channelId)
+        val byChannel = itemsByChannel
+        val compiled = compiledFilters
         channels.values.filter(ChannelFilter::enabled)
-            .associate { channel -> channel.channelId to unwatchedPassing(channel, byChannel[channel.channelId].orEmpty(), watched).size }
+            .associate { channel ->
+                channel.channelId to
+                    unwatchedPassing(channel, byChannel[channel.channelId].orEmpty(), watched, compiled.getValue(channel.channelId)).size
+            }
             .filterValues { count -> count > 0 }
     }
 
     /** Every on channel's fetched entries of the kind it shows that pass its filter, watched or not. */
-    private val listedItems: List<FeedItem> by derivedStateOf { passingItems(channels.values, items) }
+    private val listedItems: List<FeedItem> by derivedStateOf {
+        val compiled = compiledFilters
+        passingItems(channels.values, items) { channel -> compiled.getValue(channel.channelId) }
+    }
 
     /** The channels tab's topic chips, as category ids in row order. */
     val channelTopics: List<String> by derivedStateOf { chipRow(listedItems, settings.channelTopicChips) }
@@ -478,7 +511,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     private val chipChannels: Set<String>? by derivedStateOf {
         keptByBoth(
             groupKeptChannels(channels.values, settings.channelGroupChips),
-            chipKeptChannels(listedItems, settings.channelTimeChip, settings.channelTopicChips, chipClock),
+            chipKeptChannels(listedItems, settings.channelTimeChip, settings.channelTopicChips, chipClock, ::publishedTime),
         )
     }
 
@@ -541,6 +574,12 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     // the time the time chips count back from
     private var chipClock: Long by mutableLongStateOf(System.currentTimeMillis())
 
+    // each publish time read so far, by its text, so a time chip reads every entry's date once; main thread only
+    private val publishedTimes = HashMap<String, Long>()
+
+    private fun publishedTime(item: FeedItem): Long? =
+        publishedTimes[item.publishedAt] ?: publishedMillis(item.publishedAt)?.also { time -> publishedTimes[item.publishedAt] = time }
+
     // the watched entries of made-up data, which has no store
     private var demoEntries: Map<String, JsonObject> = emptyMap()
 
@@ -556,6 +595,9 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
 
     // goes up with every new store, so a load begun on an older one changes nothing when it ends
     private var sessionEpoch = 0
+
+    // goes up with every full load that is shown, so a single channel's fetch begun before one doesn't land on top of it
+    private var loadsShown = 0
 
     // showing made-up data: no account, so nothing is asked of Google or kept
     private var demo = false
@@ -612,6 +654,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         backStack.clear()
         if (data.step != null) {
             setUpChannels = data.channels.sortedWith(channelsByName)
+            setUpChannelsLoaded = true
             setUpEnabled = channels.mapValues { (_, filter) -> filter.enabled }
             setUpShortsStart = commonShortsFilter(setUpChannels)
             setUpShorts = setUpShortsStart
@@ -854,7 +897,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     /** Move through first run. */
     fun goToStep(step: SetUpStep) {
         setUpStep = step
-        if (step == SetUpStep.CHANNELS && setUpChannels.isEmpty()) {
+        if (step == SetUpStep.CHANNELS && !setUpChannelsLoaded && !setUpLoading) {
             loadSetUpChannels()
         }
     }
@@ -945,6 +988,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         watched = emptySet()
         bars = emptyMap()
         items = emptyList()
+        publishedTimes.clear()
         fetched = emptySet()
         shortsListed = emptySet()
         feed = ShownList()
@@ -968,6 +1012,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         signOutError = null
         notice = null
         setUpChannels = emptyList()
+        setUpChannelsLoaded = false
+        setUpLoading = false
         setUpEnabled = emptyMap()
         setUpShorts = ShortsFilter.ALL
         setUpShortsStart = ShortsFilter.ALL
@@ -982,13 +1028,14 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
      * next sign-in here asks for no consent, only which account.
      */
     fun signOut() {
-        if (demo) {
+        if (demo || signingOut) {
             return
         }
+        signingOut = true
         signOutError = null
         viewModelScope.launch {
             try {
-                store?.save()
+                store?.saveUnsent()
             } catch (caught: CancellationException) {
                 throw caught
             } catch (caught: Exception) {
@@ -1003,6 +1050,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
             } catch (caught: Exception) {
                 Log.w(LOG_TAG, "sign-out failed", caught)
                 signOutError = UiMessage(R.string.cant_reach_google)
+            } finally {
+                signingOut = false
             }
         }
     }
@@ -1031,7 +1080,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
                 val subscribed = withToken { token ->
                     coroutineScope {
                         val fetched = async { app.youtube.fetchSubscriptions(token) }
-                        syncStore.load()
+                        syncStore.load(folder)
                         fetched.await()
                     }
                 }
@@ -1041,6 +1090,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
                 subscriptions = subscribed
                 channels = syncStore.channels(subscribed, identities?.all().orEmpty())
                 setUpChannels = channels.values.sortedWith(channelsByName)
+                setUpChannelsLoaded = true
                 setUpEnabled = channels.mapValues { (_, filter) -> filter.enabled }
                 setUpShortsStart = commonShortsFilter(setUpChannels)
                 setUpShorts = setUpShortsStart
@@ -1061,6 +1111,13 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
                     setUpLoading = false
                 }
             }
+        }
+    }
+
+    /** Load first run's channel list again after it failed. */
+    fun retrySetUpChannels() {
+        if (!setUpLoading && !setUpChannelsLoaded) {
+            loadSetUpChannels()
         }
     }
 
@@ -1133,7 +1190,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         }
         backStack.clear()
         backStack.add(Screen.Feed)
-        loadFeed()
+        // the channel step read the subscriptions and Drive moments ago
+        loadFeed(subscribed = subscriptions.takeIf { setUpChannelsLoaded })
     }
 
     /** The app came to the foreground. */
@@ -1163,7 +1221,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     /** Load everything again, and the open page's channel when it is off, which a load leaves out. */
     fun refresh() {
         loadFeed()
-        pageChannelId?.let(channels::get)?.takeUnless(ChannelFilter::enabled)?.let(::fetchChannelIntoFeed)
+        pageChannelId?.let(channels::get)?.takeUnless(ChannelFilter::enabled)?.let { channel -> fetchChannelIntoFeed(channel, afresh = true) }
     }
 
     private fun changeSetting(changed: Settings, name: String, value: JsonElement, dropsStaying: Boolean = false) {
@@ -1340,7 +1398,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     /** Everything fetched for a channel, whatever its filter keeps. */
     fun channelFetched(channelId: String): List<FeedItem> = items.filter { item -> item.channelId == channelId }
 
-    private fun loadFeed() {
+    /** Start a full load; [subscribed] is the subscriptions when they and Drive were only just read. */
+    private fun loadFeed(subscribed: List<Subscription>? = null) {
         val currentLoader = loader ?: return
         if (loadInFlight) {
             return
@@ -1354,7 +1413,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         error = null
         loadJob = viewModelScope.launch {
             try {
-                val data = withToken { token -> loadWith(currentLoader, token, prefetched) }
+                val held = heldVideos()
+                val data = withToken { token -> loadWith(currentLoader, token, prefetched, held, subscribed, epoch) }
                 if (epoch == sessionEpoch) {
                     finishLoad(data)
                 }
@@ -1378,17 +1438,37 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private suspend fun loadWith(currentLoader: FeedLoader, token: String, prefetched: Prefetch?): FeedData = currentLoader.load(
+    private suspend fun loadWith(
+        currentLoader: FeedLoader,
+        token: String,
+        prefetched: Prefetch?,
+        held: Map<String, Video>,
+        subscribed: List<Subscription>?,
+        epoch: Int,
+    ): FeedData = currentLoader.load(
         token,
         prefetched,
-        onProgress = { finished, total -> loadFraction = loadProgress(finished, total) },
+        held,
+        subscribed,
+        onProgress = { finished, total -> duringLoad(epoch) { loadFraction = loadProgress(finished, total) } },
         onChannels = { subscribed, loaded ->
-            subscriptions = subscribed
-            if (feed.items.isEmpty()) {
-                channels = loaded
+            duringLoad(epoch) {
+                subscriptions = subscribed
+                if (feed.items.isEmpty()) {
+                    channels = loaded
+                }
             }
         },
     )
+
+    /** Make a running load's [change] on the main thread, which the loader is not on; dropped once the session of [epoch] is over. */
+    private fun duringLoad(epoch: Int, change: () -> Unit) {
+        viewModelScope.launch {
+            if (epoch == sessionEpoch && loadInFlight) {
+                change()
+            }
+        }
+    }
 
     /** Say why a load failed: the daily limit as a notice, anything else as the error. */
     private fun showFailure(caught: Exception) {
@@ -1485,15 +1565,19 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun finishLoad(data: FeedData) {
+        loadsShown += 1
         subscriptions = data.subscriptions
         // the store also holds filter edits made while the load ran
         channels = store?.channels(data.subscriptions, identities?.all().orEmpty()) ?: data.channels
         val loaded = data.fetched.mapTo(HashSet()) { (channelId, fresh) -> channelId to fresh.mode }
+        // off or no longer listed, so no load refreshes what is held for them; the open page's channel is refreshed with it
+        val lapsed = fetched.mapTo(HashSet()) { (channelId, _) -> channelId }
+            .filterTo(HashSet()) { channelId -> channels[channelId]?.enabled != true && channelId != pageChannelId }
         // a failed channel keeps what it had; a loaded one keeps nothing of its other kind
-        val kept = keptAfterLoad(fetched, loaded, channels.values.mapTo(HashSet(), ChannelFilter::fetchKey))
+        val kept = keptAfterLoad(fetched, loaded, channels.values.mapTo(HashSet(), ChannelFilter::fetchKey), lapsed)
         items = items.filter { item -> (item.channelId to item.contentMode) in kept } + data.items
         fetched = kept + loaded
-        shortsListed = shortsListed.intersect(channels.keys)
+        shortsListed = shortsListed.intersect(channels.keys) - lapsed
         data.fetched.forEach { (channelId, fresh) -> markShortsListed(channelId, fresh) }
         settings = store?.settings() ?: settings
         shuffleSeed = newShuffleSeed()
@@ -1528,7 +1612,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         if (fresh) {
             staying = emptySet()
         }
-        val compiled = channels.mapValues { (_, filter) -> compileFilter(filter) }
+        val compiled = compiledFilters
         fun passes(item: FeedItem, channel: ChannelFilter): Boolean =
             (channel.contentMode ?: ContentMode.VIDEOS) == item.contentMode && passesFilter(item, compiled.getValue(channel.channelId))
 
@@ -1536,7 +1620,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
             val beforeChips = modeFiltered(passing.distinctBy(FeedItem::id), watchedMode, watched, staying)
             val inGroups = if (grouped == null) beforeChips else beforeChips.filter { item -> item.channelId in grouped }
             return ShownList(
-                items = sortFeed(chipFiltered(inGroups, settings.timeChip, settings.topicChips, chipClock), settings.feedSort, shuffleSeed),
+                items = sortFeed(chipFiltered(inGroups, settings.timeChip, settings.topicChips, chipClock, ::publishedTime), settings.feedSort, shuffleSeed),
                 topics = chipRow(beforeChips, settings.topicChips),
             )
         }
@@ -1583,7 +1667,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun fetchChannelIntoFeed(filter: ChannelFilter) {
+    /** Fetch what [filter] needs and lacks; [afresh] fetches its entries again whatever is held. */
+    private fun fetchChannelIntoFeed(filter: ChannelFilter, afresh: Boolean = false) {
         val currentLoader = loader ?: return
         val key = filter.fetchKey
         if (key in fetching) {
@@ -1591,24 +1676,43 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         }
         fetching = fetching + key
         val round = fetchRound
+        val epoch = sessionEpoch
         viewModelScope.launch {
+            // a full load was shown while this ran: what it built on is gone, so it is made again
+            var overtaken = false
             try {
                 fetchPermits.withPermit {
                     // the daily limit refused a request since: this one would be refused too
-                    if (round == fetchRound) {
-                        val have = heldUploads(filter.channelId)
-                        mergeItems(filter.channelId, withToken { token -> currentLoader.complete(filter, have, token) })
+                    if (round == fetchRound && epoch == sessionEpoch) {
+                        val loads = loadsShown
+                        val have = if (afresh) null else heldUploads(filter.channelId)
+                        val held = heldVideos()
+                        val fresh = withToken { token -> currentLoader.complete(filter, have, token, held) }
+                        if (epoch == sessionEpoch) {
+                            overtaken = loads != loadsShown
+                            if (!overtaken) {
+                                mergeItems(filter.channelId, fresh)
+                            }
+                        }
                     }
                 }
             } catch (caught: CancellationException) {
                 throw caught
             } catch (caught: Exception) {
-                if (caught is DailyLimitException) {
-                    fetchRound += 1
+                if (epoch == sessionEpoch) {
+                    if (caught is DailyLimitException) {
+                        fetchRound += 1
+                    }
+                    showFailure(caught)
                 }
-                showFailure(caught)
             } finally {
-                fetching = fetching - key
+                if (epoch == sessionEpoch) {
+                    fetching = fetching - key
+                    val current = channels[filter.channelId]
+                    if (overtaken && current != null && (afresh || isMissing(current)) && (current.enabled || current.channelId == pageChannelId)) {
+                        fetchChannelIntoFeed(current, afresh)
+                    }
+                }
             }
         }
     }

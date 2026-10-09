@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import manifest from "../manifest.json";
 import { storeManifest } from "../scripts/store-manifest";
-import { EXTENSION_ORIGIN_MATCHES, isAllowedOrigin } from "./protocol";
+import {
+  EXTENSION_ORIGIN_MATCHES,
+  isAllowedOrigin,
+  silentFailureNeedsUser,
+} from "./protocol";
 
 describe("protocol", () => {
   test("the manifest lets in exactly the pages the protocol names", () => {
@@ -33,5 +37,16 @@ describe("protocol", () => {
     expect(
       isAllowedOrigin("http://localhost:3000", ["https://subtube.hafa.cc/*"]),
     ).toBe(false);
+  });
+
+  test("silentFailureNeedsUser is true only when Google or Chrome wanted the user", () => {
+    expect(silentFailureNeedsUser("login_required")).toBe(true);
+    expect(silentFailureNeedsUser("interaction_required")).toBe(true);
+    expect(silentFailureNeedsUser("consent_required")).toBe(true);
+    expect(silentFailureNeedsUser("User interaction required.")).toBe(true);
+    expect(
+      silentFailureNeedsUser("Authorization page could not be loaded."),
+    ).toBe(false);
+    expect(silentFailureNeedsUser("sign-in returned no response")).toBe(false);
   });
 });

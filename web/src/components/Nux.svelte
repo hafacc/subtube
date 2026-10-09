@@ -20,7 +20,7 @@
   import { mostCommonShorts, SHORTS_OPTIONS } from "../lib/channel-summary";
   import { START_OPTIONS, type StartFrom } from "../lib/chips";
   import { chromeWebStoreUrl, privacyUrl, termsUrl } from "../lib/config";
-  import { shownMessage } from "../lib/errors";
+  import { SignInRequiredError, shownMessage } from "../lib/errors";
   import { handOffPrefetched, Prefetch } from "../lib/feed.svelte";
   import { recheckPlatform } from "../lib/platform";
   import type { Session } from "../lib/session.svelte";
@@ -28,7 +28,11 @@
   import { ProfileDeletedError } from "../lib/sync-store";
   import { compareIgnoringCase, nameMatches } from "../lib/text-order";
   import type { Channel, ChannelFilter, ShortsFilter } from "../lib/types";
-  import { fetchSubscriptions } from "../lib/youtube";
+  import {
+    fetchSubscriptions,
+    InsufficientScopeError,
+    TokenExpiredError,
+  } from "../lib/youtube";
   import Avatar from "./Avatar.svelte";
   import ChoiceRow from "./ChoiceRow.svelte";
   import GoogleButton from "./GoogleButton.svelte";
@@ -100,6 +104,8 @@
   let loadingChannels = $state(false);
   let channelsLoaded = $state(false);
   let error: string | null = $state(null);
+  // the channels' load failed for want of a sign-in, so loading again can't help
+  let needsSignIn = $state(false);
 
   // the items of the channels left on, fetched from "Choose channels"' Next
   const prefetch = new Prefetch();
@@ -181,6 +187,7 @@
       return;
     }
     loadingChannels = true;
+    error = null;
     try {
       try {
         await store.load();
@@ -217,6 +224,10 @@
     } catch (caught) {
       console.error(caught);
       error = shownMessage(caught);
+      needsSignIn =
+        caught instanceof SignInRequiredError ||
+        caught instanceof TokenExpiredError ||
+        caught instanceof InsufficientScopeError;
     } finally {
       loadingChannels = false;
     }
@@ -487,7 +498,26 @@
                   {/each}
                 </div>
               {:else if error}
-                <p class="error-text">{error}</p>
+                <div class="load-error">
+                  <p class="error-text">{error}</p>
+                  {#if needsSignIn}
+                    <button
+                      type="button"
+                      class="button-small"
+                      onclick={() => void signIn()}
+                    >
+                      Sign in
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      class="button-small"
+                      onclick={() => void loadChannels()}
+                    >
+                      Refresh
+                    </button>
+                  {/if}
+                </div>
               {/if}
             {:else}
               <h1>Choose channels</h1>
@@ -781,6 +811,16 @@
 
   .content.tight {
     gap: 14px;
+  }
+
+  .load-error {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .load-error .error-text {
+    flex: 1;
   }
 
   .content.centered {

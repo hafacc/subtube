@@ -37,6 +37,8 @@ public enum SyncError: Error, Sendable {
 public actor SyncStore {
   /// A burst of edits (marking several cards) goes up as one upload.
   public static let saveDelay: Duration = .seconds(2)
+  /// A position saved while a video plays is on disk within this long.
+  public static let positionWriteDelay: Duration = .seconds(30)
 
   private let deviceId: String
   private let ownName: String
@@ -51,6 +53,9 @@ public actor SyncStore {
   private let session: URLSession
   private var own: DeviceFile
   private var ownFileId: String?
+  /// Drive's `modifiedTime` of this device's file as last uploaded or
+  /// downloaded and read; a listing that shows it has nothing new.
+  private var ownModifiedTime: String?
   // whether ownFileId is known; saving before then would create a second file
   private var listed = false
   private var others: [String: (modifiedTime: String, source: DeviceFileSource)] = [:]
@@ -60,6 +65,8 @@ public actor SyncStore {
   /// Whether this device's Drive file was there but couldn't be read.
   private var ownUnreadable = false
   private var pendingSave: Task<Void, Never>?
+  /// Runs while `own` holds a position the local file doesn't.
+  private var pendingLocalWrite: Task<Void, Never>?
   /// The newest upload asked for; nil once it has ended.
   private var saving: Task<Void, Error>?
   private var savesStarted = 0
@@ -109,6 +116,8 @@ public actor SyncStore {
     deleted = true
     pendingSave?.cancel()
     pendingSave = nil
+    pendingLocalWrite?.cancel()
+    pendingLocalWrite = nil
     for url in [localURL, identitiesURL, uploadedURL] {
       try? FileManager.default.removeItem(at: url)
     }
@@ -117,6 +126,7 @@ public actor SyncStore {
     others = [:]
     identities = [:]
     ownFileId = nil
+    ownModifiedTime = nil
     uploadedBefore = false
   }
 
@@ -137,6 +147,7 @@ public actor SyncStore {
       // this device's file may be among the ones already gone: the next
       // save lists the folder again and makes a new one
       ownFileId = nil
+      ownModifiedTime = nil
       listed = false
       uploadedBefore = false
       try? FileManager.default.removeItem(at: uploadedURL)
@@ -146,6 +157,8 @@ public actor SyncStore {
   }
 
   private func writeLocal() {
+    pendingLocalWrite?.cancel()
+    pendingLocalWrite = nil
     guard !deleted else { return }
     do {
       try FileManager.default.createDirectory(
@@ -159,6 +172,36 @@ public actor SyncStore {
   private func remerge() {
     merged = mergeDeviceFiles(
       [DeviceFileSource(deviceId: deviceId, file: own)] + others.values.map(\.source))
+  }
+
+  /// Merge one watched entry again, leaving every other entry as it is.
+  private func remergeWatched(_ id: String) {
+    let sources = [DeviceFileSource(deviceId: deviceId, file: own)] + others.values.map(\.source)
+    merged.watched[id] =
+      mergeDeviceFiles(
+        sources.map { source in
+          DeviceFileSource(
+            deviceId: source.deviceId,
+            file: DeviceFile(watched: source.file.watched[id].map { [id: $0] } ?? [:]))
+        }
+      ).watched[id]
+  }
+
+  private func writeLocalLater() {
+    if pendingLocalWrite == nil {
+      pendingLocalWrite = Task {
+        guard (try? await Task.sleep(for: Self.positionWriteDelay)) != nil else { return }
+        self.writeLocal()
+      }
+    }
+  }
+
+  /// Write to disk now any position still waiting to be; the app calls it
+  /// before it quits.
+  public func persist() {
+    if pendingLocalWrite != nil {
+      writeLocal()
+    }
   }
 
   /// Run `work` against Drive, renewing the token once if Google refuses it.
@@ -208,17 +251,20 @@ public actor SyncStore {
     var downloads: [(DriveFile, Data)]
   }
 
-  /// Read every device's file, downloading only the ones that changed.
+  /// Read every device's file, downloading only the ones that changed:
+  /// another device's since it was last downloaded, this device's own since
+  /// it was last uploaded or downloaded.
   public func load() async throws {
     guard !deleted else { throw SyncError.profileDeleted }
     let ownName = ownName
-    let known = others.mapValues(\.modifiedTime)
+    let ownKnown = ownFileId.flatMap { fileId in ownModifiedTime.map { [fileId: $0] } } ?? [:]
+    let known = others.mapValues(\.modifiedTime).merging(ownKnown) { _, own in own }
     let endedBefore = savesEnded
     let savingBefore = saving != nil
     let read = try await withDrive { client in
       let files = try await client.listAppFiles().filter { deviceIdFromFileName($0.name) != nil }
       let downloads = try await withThrowingTaskGroup(of: (DriveFile, Data).self) { group in
-        for entry in files where entry.name == ownName || known[entry.id] != entry.modifiedTime {
+        for entry in files where known[entry.id] != entry.modifiedTime {
           group.addTask { (entry, try await client.download(entry.id)) }
         }
         var results: [(DriveFile, Data)] = []
@@ -252,6 +298,7 @@ public actor SyncStore {
     }
     if !ownKept {
       ownFileId = nil
+      ownModifiedTime = nil
       ownUnreadable = false
       unsent = needsUpload(local: own, remote: nil)
     }
@@ -260,6 +307,8 @@ public actor SyncStore {
       if entry.name == ownName {
         ownFileId = entry.id
         ownUnreadable = file == nil
+        // one that couldn't be read is asked for again
+        ownModifiedTime = file == nil ? nil : entry.modifiedTime
         if let file {
           // a save from this device may have landed since this copy was read
           var combined = mergeDeviceFiles([
@@ -383,17 +432,21 @@ public actor SyncStore {
   }
 
   /// Save how far a video has been played; `ended` when its player reported
-  /// the end. It is kept on this device at once and goes to Drive with the
-  /// next upload, which this starts only when `upload` is set.
+  /// the end. It is kept in memory at once and goes to Drive with the next
+  /// upload, which this starts only when `upload` is set. With `upload` it
+  /// is on disk at once too; without, as a video playing saves it every few
+  /// seconds, within ``positionWriteDelay`` or at the next ``persist()``.
   public func setProgress(_ id: String, position: Int, ended: Bool, upload: Bool) {
     guard !deleted else { return }
     own.watched[id] = playedEntry(
       own.watched[id], now: epochMilliseconds(), position: position, ended: ended)
-    remerge()
-    writeLocal()
+    remergeWatched(id)
     unsent = true
     if upload {
+      writeLocal()
       scheduleSave()
+    } else {
+      writeLocalLater()
     }
   }
 
@@ -456,6 +509,10 @@ public actor SyncStore {
   /// Upload this device's file now; a save already running is waited for
   /// first.
   public func save() async throws {
+    try await startSave().value
+  }
+
+  private func startSave() -> Task<Void, Error> {
     let previous = saving
     savesStarted += 1
     let started = savesStarted
@@ -470,7 +527,7 @@ public actor SyncStore {
       try await self.upload()
     }
     saving = task
-    try await task.value
+    return task
   }
 
   private func upload() async throws {
@@ -485,13 +542,15 @@ public actor SyncStore {
       let content = try encodeDeviceFile(own)
       let ownName = ownName
       let fileId = ownFileId
-      ownFileId = try await withDrive { client in
+      let saved = try await withDrive { client in
         if let fileId {
-          return try await client.updateJSON(fileId: fileId, content: content).id
+          return try await client.updateJSON(fileId: fileId, content: content)
         } else {
-          return try await client.createJSON(name: ownName, content: content).id
+          return try await client.createJSON(name: ownName, content: content)
         }
       }
+      ownFileId = saved.id
+      ownModifiedTime = saved.modifiedTime
     } catch {
       unsent = true
       throw error
@@ -504,10 +563,18 @@ public actor SyncStore {
 
   /// Upload any edits Drive doesn't have yet, without waiting out the pause.
   public func flush() async throws {
+    try await startFlush()?.value
+  }
+
+  /// Start the upload ``flush()`` makes and return it without waiting for
+  /// it; nil when Drive has everything.
+  public func startFlush() -> Task<Void, Error>? {
     if pendingSave != nil || unsent {
       pendingSave?.cancel()
       pendingSave = nil
-      try await save()
+      return startSave()
+    } else {
+      return nil
     }
   }
 }

@@ -1,10 +1,52 @@
 import { chipFiltered, knownTopics, type TimeChip } from "./chips";
-import { compileFilter, videoPassesFilter } from "./filters";
+import {
+  type CompiledFilter,
+  compileFilter,
+  videoPassesFilter,
+} from "./filters";
 import type { Channel, ContentMode, FeedItem } from "./types";
 
 /** The kind of feed entry a content mode shows. */
 export function kindFor(mode: ContentMode | undefined): FeedItem["kind"] {
   return mode === "playlists" ? "playlist" : "video";
+}
+
+/** A channel's filter ready to apply, with the kind of item the channel shows. */
+export interface CompiledChannel {
+  /** videos or playlists */
+  kind: FeedItem["kind"];
+  /** the compiled filter */
+  filter: CompiledFilter;
+}
+
+/** Every channel's filter compiled, by channel id. */
+export function compileChannels(
+  channels: Iterable<Channel>,
+): Map<string, CompiledChannel> {
+  return new Map(
+    Array.from(channels, (channel) => [
+      channel.channelId,
+      {
+        kind: kindFor(channel.filter.contentMode),
+        filter: compileFilter(channel.filter),
+      },
+    ]),
+  );
+}
+
+/** {@link passingItems}, given the channels' filters already compiled. */
+export function passingCompiled(
+  compiled: ReadonlyMap<string, CompiledChannel>,
+  items: readonly FeedItem[],
+): FeedItem[] {
+  return items.filter((item) => {
+    const entry = compiled.get(item.channelId);
+    return (
+      entry?.filter.enabled === true &&
+      item.kind === entry.kind &&
+      videoPassesFilter(item, entry.filter)
+    );
+  });
 }
 
 /**
@@ -16,25 +58,7 @@ export function passingItems(
   channels: Iterable<Channel>,
   items: readonly FeedItem[],
 ): FeedItem[] {
-  const enabled = new Map(
-    Array.from(channels)
-      .filter((channel) => channel.filter.enabled)
-      .map((channel) => [
-        channel.channelId,
-        {
-          kind: kindFor(channel.filter.contentMode),
-          filter: compileFilter(channel.filter),
-        },
-      ]),
-  );
-  return items.filter((item) => {
-    const entry = enabled.get(item.channelId);
-    return (
-      entry !== undefined &&
-      item.kind === entry.kind &&
-      videoPassesFilter(item, entry.filter)
-    );
-  });
+  return passingCompiled(compileChannels(channels), items);
 }
 
 /**

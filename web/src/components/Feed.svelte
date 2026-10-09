@@ -72,6 +72,19 @@
       performance.now() - fullScreenEnded < FULL_SCREEN_SETTLE_MS,
   );
 
+  /** How many cards a page draws at first, and how many more each time its end comes near. */
+  const CARD_CHUNK = 60;
+  // how many of the page's cards are drawn at least
+  let drawn = $state(CARD_CHUNK);
+  const playingIndex = $derived.by(() => {
+    const id = player.playing?.item.id;
+    return id === undefined
+      ? -1
+      : feed.feed.findIndex((item) => feedItemId(item) === id);
+  });
+  // the card of what plays is always among them: the player may lie in it, auto-play scrolls to it and focus returns to it
+  const cards = $derived(feed.feed.slice(0, Math.max(drawn, playingIndex + 1)));
+
   // the left sidebar as a drawer, in windows too narrow to keep it in place
   let showSidebar = $state(false);
   let narrow = $state(NARROW.matches);
@@ -145,6 +158,23 @@
       narrow && showSidebar,
     ]),
   );
+
+  /** Draw the next cards once the end of the drawn ones is within two panes' height of the pane. */
+  function nearEnd(strip: HTMLElement): () => void {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          drawn = cards.length + CARD_CHUNK;
+        }
+      },
+      {
+        root: strip.closest("[data-player-view]"),
+        rootMargin: "0px 0px 200% 0px",
+      },
+    );
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }
 
   function cardOf(id: string): HTMLElement | null {
     return document.querySelector<HTMLElement>(
@@ -258,6 +288,13 @@
     untrack(() => player.pageChanged());
   });
 
+  // the card that played stays drawn once the player has left it
+  $effect(() => {
+    if (playingIndex >= drawn) {
+      drawn = playingIndex + 1;
+    }
+  });
+
   // focus goes back to the card of whatever the closed player last played
   let overlayId: string | null = null;
   $effect(() => {
@@ -279,6 +316,7 @@
     void router.route.channel;
     const channel = router.route.channel;
     untrack(() => {
+      drawn = CARD_CHUNK;
       groupEdit = null;
       // the panel has only a channel's filters to show
       if (channel === null) {
@@ -499,7 +537,7 @@
                   <FeedCardSkeleton />
                 {/each}
               {/if}
-              {#each feed.feed as item (feedItemId(item))}
+              {#each cards as item (feedItemId(item))}
                 {@const id = feedItemId(item)}
                 <FeedCard
                   {item}
@@ -513,6 +551,12 @@
                 />
               {/each}
             </main>
+            {#if cards.length < feed.feed.length}
+              <!-- made anew after each part, so one that still shows asks again -->
+              {#key cards.length}
+                <div class="more" {@attach nearEnd}></div>
+              {/key}
+            {/if}
 
             {#if feed.feed.length === 0}
               {#if firstLoad}
@@ -815,6 +859,10 @@
 
   .content.vacant > main {
     display: none;
+  }
+
+  .more {
+    height: 1px;
   }
 
   main.stale > :global(.card) {

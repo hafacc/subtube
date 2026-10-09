@@ -2,7 +2,13 @@ import { ShownError } from "./errors";
 import { byNewest } from "./feed-order";
 import { decodeHtmlEntities } from "./html";
 import { classifyShorts, type ShortsList, withoutShortsList } from "./shorts";
-import type { ChannelInfo, LiveStatus, Playlist, Video } from "./types";
+import type {
+  ChannelInfo,
+  FeedItem,
+  LiveStatus,
+  Playlist,
+  Video,
+} from "./types";
 
 const API_BASE = "https://www.googleapis.com/youtube/v3";
 
@@ -133,6 +139,17 @@ interface SubscriptionListResponse {
   nextPageToken?: string;
 }
 
+/**
+ * A channel's picture: the 88px one, which covers the largest avatar drawn
+ * (40px) on a screen of twice the density; "" when it has none.
+ */
+export function channelPicture(thumbnails: {
+  default?: { url: string };
+  medium?: { url: string };
+}): string {
+  return thumbnails.default?.url ?? thumbnails.medium?.url ?? "";
+}
+
 /** The account's YouTube subscriptions, alphabetically. */
 export async function fetchSubscriptions(
   token: string,
@@ -158,10 +175,7 @@ export async function fetchSubscriptions(
       subscriptions.push({
         channelId: item.snippet.resourceId.channelId,
         title: decodeHtmlEntities(item.snippet.title),
-        thumbnail:
-          item.snippet.thumbnails.medium?.url ??
-          item.snippet.thumbnails.default?.url ??
-          "",
+        thumbnail: channelPicture(item.snippet.thumbnails),
       });
     }
     pageToken = data.nextPageToken;
@@ -296,6 +310,31 @@ export async function fetchVideoDetails(
   return details;
 }
 
+/**
+ * The details of the videos among `items` that YouTube won't change: those
+ * with a length that are not live or upcoming, by video id. A fetch given
+ * them asks videos.list only for the others.
+ */
+export function settledDetails(
+  items: Iterable<FeedItem>,
+): Map<string, VideoDetails> {
+  const settled = new Map<string, VideoDetails>();
+  for (const item of items) {
+    if (
+      item.kind === "video" &&
+      item.durationSeconds &&
+      (item.liveStatus === "normal" || item.liveStatus === "vod")
+    ) {
+      settled.set(item.videoId, {
+        durationSeconds: item.durationSeconds,
+        liveStatus: item.liveStatus,
+        categoryId: item.categoryId,
+      });
+    }
+  }
+  return settled;
+}
+
 /** One page of a playlist's entries; a playlist YouTube says it can't find has none. */
 async function playlistPage(
   playlistId: string,
@@ -327,7 +366,8 @@ async function playlistPage(
  * with `judgeShorts` whether it is a Short; without, the Shorts list is not
  * fetched and a video that could be a Short is left unjudged. `probe` asks
  * /shorts/{id} directly, where the platform can. A channel with no uploads,
- * whose uploads list YouTube answers "not found" for, has none.
+ * whose uploads list YouTube answers "not found" for, has none. A video in
+ * `known` ({@link settledDetails}) keeps those details and is not asked for.
  */
 export async function fetchUploads(
   channelId: string,
@@ -336,6 +376,7 @@ export async function fetchUploads(
   maxResults = 15,
   probe?: (videoId: string) => Promise<boolean | null>,
   judgeShorts = true,
+  known: ReadonlyMap<string, VideoDetails> = new Map(),
 ): Promise<Video[]> {
   const entries = await playlistPage(
     uploadsPlaylistId(channelId),
@@ -362,11 +403,11 @@ export async function fetchUploads(
     }));
 
   const details = await fetchVideoDetails(
-    videos.map((video) => video.videoId),
+    videos.map((video) => video.videoId).filter((id) => !known.has(id)),
     token,
   );
   const detailed = videos.map((video) => {
-    const detail = details.get(video.videoId);
+    const detail = known.get(video.videoId) ?? details.get(video.videoId);
     return {
       ...video,
       durationSeconds: detail?.durationSeconds ?? 0,
@@ -524,10 +565,7 @@ function toInfo(
   return {
     channelId: item.id,
     title: decodeHtmlEntities(item.snippet.title),
-    thumbnail:
-      item.snippet.thumbnails.medium?.url ??
-      item.snippet.thumbnails.default?.url ??
-      "",
+    thumbnail: channelPicture(item.snippet.thumbnails),
   };
 }
 

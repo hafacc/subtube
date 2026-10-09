@@ -60,6 +60,7 @@
 </script>
 
 <div class="editor">
+  <h2>{group === null ? "New group" : "Edit group"}</h2>
   <div class="filter-group">
     <label class="label" for="group-name">Name</label>
     <input
@@ -133,6 +134,14 @@
 
   .editor > * {
     flex-shrink: 0;
+  }
+
+  /* as the filter editor's heading */
+  h2 {
+    margin: 2px 0 0;
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 700;
   }
 
   .label {

@@ -17,3 +17,23 @@ export function formatDuration(totalSeconds: number): string {
 export function videoCount(count: number): string {
   return count === 1 ? "1 video" : `${count} videos`;
 }
+
+const DAY_FORMAT = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+});
+const DAY_AND_YEAR_FORMAT = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+/** A publish time as a short date ("Sep 24"), with the year when it isn't `now`'s. */
+export function shortDate(publishedAt: string, now: Date = new Date()): string {
+  const published = new Date(publishedAt);
+  const format =
+    published.getFullYear() === now.getFullYear()
+      ? DAY_FORMAT
+      : DAY_AND_YEAR_FORMAT;
+  return format.format(published);
+}
