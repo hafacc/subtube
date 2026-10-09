@@ -16,7 +16,6 @@
 
 <script lang="ts">
   import { withToken } from "../lib/auth";
-  import { channelInfo } from "../lib/channel-info";
   import { mostCommonShorts, SHORTS_OPTIONS } from "../lib/channel-summary";
   import { START_OPTIONS, type StartFrom } from "../lib/chips";
   import { chromeWebStoreUrl, privacyUrl, termsUrl } from "../lib/config";
@@ -205,12 +204,7 @@
         return;
       }
       const subscribed = await withToken(fetchSubscriptions);
-      const followed = store.followedIds();
-      const info =
-        followed.length > 0
-          ? await withToken((token) => channelInfo(followed, token))
-          : undefined;
-      channels = Array.from(store.channels(subscribed, info).values()).sort(
+      channels = Array.from(store.channels(subscribed).values()).sort(
         (left, right) => compareIgnoringCase(left.title, right.title),
       );
       enabled = Object.fromEntries(

@@ -272,9 +272,8 @@ class SyncStore(
     /** The merged view of every device's file. */
     fun merged(): DeviceFile = merged
 
-    /** The channels the feed reads, given the account's YouTube subscriptions and the followed channels' names. */
-    fun channels(subscriptions: List<Subscription>, followedIdentities: Map<String, ChannelIdentity> = emptyMap()): Map<String, ChannelFilter> =
-        channelsFor(merged, subscriptions, followedIdentities)
+    /** The channels the feed reads, given the account's YouTube subscriptions. */
+    fun channels(subscriptions: List<Subscription>): Map<String, ChannelFilter> = channelsFor(merged, subscriptions)
 
     /** A video's or playlist's watched entry as last saved on any device; [isWatchedEntry] and its neighbours read it. */
     fun watchedEntry(id: String): JsonObject? = merged.watched[id]

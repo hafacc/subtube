@@ -9,22 +9,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 
 /** 50 is the most one playlistItems page holds, and still costs 1 quota unit. */
 const val UPLOADS_PER_CHANNEL: Int = 50
 
 /** How many channels are fetched at once. */
 const val FETCH_CONCURRENCY: Int = 6
-
-/** A followed channel's name is looked up again once it is this old. */
-const val IDENTITY_MAX_AGE_MS: Long = 24L * 60 * 60 * 1000
 
 /** A channel and the kind of entry fetched for it, the unit that is fetched. */
 typealias ChannelKind = Pair<String, ContentMode>
@@ -181,87 +171,12 @@ data class FeedData(
 }
 
 /**
- * The names and avatars of channels followed in subtube, kept on the device:
- * the Drive files hold only filters, so these come from YouTube.
- */
-class ChannelIdentityCache(
-    private val storage: SyncStorage,
-    accountId: String,
-    private val clock: () -> Long = System::currentTimeMillis,
-) {
-    private val key = "subtube.channels.$accountId"
-    private val lock = Any()
-
-    // when each identity was looked up; absent for ones saved before ages were kept
-    private var lookedUpAt: Map<String, Long> = emptyMap()
-    private var known: Map<String, ChannelIdentity> = read()
-
-    private fun read(): Map<String, ChannelIdentity> = try {
-        val root = Json.parseToJsonElement(storage.read(key) ?: "{}").jsonObject
-        lookedUpAt = root.mapNotNull { (channelId, value) ->
-            value.jsonObject["at"]?.jsonPrimitive?.longOrNull?.let { at -> channelId to at }
-        }.toMap()
-        root.mapValues { (_, value) ->
-            val fields = value.jsonObject
-            ChannelIdentity(fields["title"]?.jsonPrimitive?.content.orEmpty(), fields["thumbnail"]?.jsonPrimitive?.content.orEmpty())
-        }
-    } catch (_: SerializationException) {
-        emptyMap()
-    } catch (_: IllegalArgumentException) {
-        emptyMap()
-    }
-
-    /** Forget every identity. */
-    fun clear() {
-        synchronized(lock) {
-            known = emptyMap()
-            lookedUpAt = emptyMap()
-        }
-        storage.remove(key)
-    }
-
-    /** Every identity known. */
-    fun all(): Map<String, ChannelIdentity> = synchronized(lock) { known }
-
-    /** The ids among [channelIds] with no identity, or one looked up more than [IDENTITY_MAX_AGE_MS] ago. */
-    fun missingOrStale(channelIds: Collection<String>): List<String> {
-        val now = clock()
-        return synchronized(lock) {
-            channelIds.filter { channelId -> channelId !in known || now - (lookedUpAt[channelId] ?: 0) > IDENTITY_MAX_AGE_MS }
-        }
-    }
-
-    /** Remember [identities] as looked up now, replacing what was known for those channels. */
-    fun putAll(identities: Map<String, ChannelIdentity>) {
-        val now = clock()
-        val (snapshot, ages) = synchronized(lock) {
-            known = known + identities
-            lookedUpAt = lookedUpAt + identities.mapValues { now }
-            known to lookedUpAt
-        }
-        val json = JsonObject(
-            snapshot.mapValues { (channelId, identity) ->
-                JsonObject(
-                    listOfNotNull(
-                        "title" to JsonPrimitive(identity.title),
-                        "thumbnail" to JsonPrimitive(identity.thumbnail),
-                        ages[channelId]?.let { at -> "at" to JsonPrimitive(at) },
-                    ).toMap(),
-                )
-            },
-        )
-        storage.write(key, json.toString())
-    }
-}
-
-/**
  * Loads the feed: subscriptions and synced filters, then every enabled
  * channel's items. Everything runs on [compute], whatever thread asks.
  */
 class FeedLoader(
     private val youtube: YouTubeClient,
     private val store: SyncStore,
-    private val identities: ChannelIdentityCache,
     /** Asks `/shorts/{id}` directly, for when a channel's Shorts list isn't served. */
     private val probe: (suspend (String) -> Boolean?)?,
     /** Where answers are read and entries built, so a caller on the main thread isn't held up. */
@@ -328,31 +243,7 @@ class FeedLoader(
             store.load()
             fetched.await()
         }
-        onChannels(subscriptions, store.channels(subscriptions, identities.all()))
-        // a failed lookup leaves the channel under its id until a later load
-        val unnamed = identities.missingOrStale(followedChannelIds(store.merged(), subscriptions))
-        if (unnamed.isNotEmpty()) {
-            // the same failures end the load here as in fetchChannels; any other leaves the names for a later load
-            val looked = try {
-                youtube.fetchChannels(unnamed, token)
-            } catch (caught: CancellationException) {
-                throw caught
-            } catch (caught: TokenExpiredException) {
-                throw caught
-            } catch (caught: InsufficientScopeException) {
-                throw caught
-            } catch (_: Exception) {
-                null
-            }
-            if (looked != null) {
-                // a channel YouTube no longer knows keeps its id as its name, and isn't asked for again for a day
-                val known = identities.all()
-                val gone = unnamed.associateWith { channelId -> known[channelId] ?: ChannelIdentity(channelId, "") }
-                val found = looked.associate { channel -> channel.channelId to ChannelIdentity(channel.title, channel.thumbnail) }
-                withContext(Dispatchers.IO) { identities.putAll(gone + found) }
-            }
-        }
-        val channels = store.channels(subscriptions, identities.all())
+        val channels = store.channels(subscriptions)
         onChannels(subscriptions, channels)
         val enabled = channels.values.filter(ChannelFilter::enabled)
         onProgress(0, enabled.size)

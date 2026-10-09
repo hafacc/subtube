@@ -1041,7 +1041,6 @@ describe("FeedController loads", () => {
     let lost = 0;
     const store = {
       load: async () => undefined,
-      followedIds: () => [],
       channels: (subscribed: { channelId: string; title: string }[]) =>
         new Map(
           subscribed.map((info) => [

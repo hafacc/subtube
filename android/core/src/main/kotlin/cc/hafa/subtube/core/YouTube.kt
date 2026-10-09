@@ -371,20 +371,6 @@ class YouTubeClient(
         val data = get<ChannelListResponse>("channels", mapOf("part" to "snippet", "mine" to "true", "fields" to CHANNEL_FIELDS), token)
         return data.items?.firstOrNull()?.toSummary() ?: throw NoYouTubeChannelException()
     }
-
-    /** Look up channels by id, 50 per call (1 quota unit each); ids YouTube doesn't know are left out. */
-    suspend fun fetchChannels(channelIds: List<String>, token: String): List<ChannelSummary> {
-        val found = ArrayList<ChannelSummary>()
-        for (batch in channelIds.distinct().chunked(50)) {
-            val data = get<ChannelListResponse>(
-                "channels",
-                mapOf("part" to "snippet", "id" to batch.joinToString(","), "maxResults" to "50", "fields" to CHANNEL_FIELDS),
-                token,
-            )
-            data.items.orEmpty().mapTo(found) { item -> item.toSummary() }
-        }
-        return found
-    }
 }
 
 /** The Google account has no YouTube channel, so there's no account id to key its data by. */

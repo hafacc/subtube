@@ -70,8 +70,6 @@ final class FeedModel {
   private var savedFilters: [String: JSONObject] = [:]
   /// Whether each channel shows uploads or playlists.
   private var modes: [String: ContentMode] = [:]
-  /// The channels the account subscribes to on YouTube.
-  private(set) var subscribedIds = Set<String>()
   /// Every item fetched, for the feed or a channel page.
   private var items: [String: FeedItem] = [:] {
     didSet { index = nil }
@@ -342,11 +340,6 @@ final class FeedModel {
 
   func channel(_ channelId: String) -> ChannelFilter? {
     channels.first { $0.channelId == channelId }
-  }
-
-  /// Whether the channel is shown because it was added in subtube.
-  func isFollowedOnly(_ channelId: String) -> Bool {
-    !subscribedIds.contains(channelId) && channel(channelId)?.followed == true
   }
 
   /// Everything fetched for a channel, whatever its filter keeps.
@@ -660,7 +653,6 @@ final class FeedModel {
       }
       savedFilters = await read { await $0.savedFilters() }
       await applyEntries(fresh)
-      subscribedIds = Set(result.subscriptions.map(\.channelId))
       channels = keepingEdits(result.channels, edits: editsDuringLoad)
       if wantsItems {
         // what the load didn't fetch (channels off, failed or added meanwhile) stays
@@ -1377,12 +1369,10 @@ private enum FetchMark {
         case "Five": channel.minDurationSeconds = 60
         case "Six": channel.liveFilter = .normal
         case "Seven": channel.enabled = false
-        case "Eight": channel.followed = true
         default: break
         }
         return channel
       }
-      feed.subscribedIds = Set(names.filter { $0 != "Eight" }.map { "UC\($0)" })
       // title, channel, seconds (or a playlist's video count), day counted
       // from 1 September 2026, watched, kind, category id, seconds played;
       // the same entries as Android's demo, so screenshots compare

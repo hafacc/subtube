@@ -66,11 +66,7 @@
   <Avatar title={channel.title} thumbnail={channel.thumbnail} size={36} />
   <div class="names">
     <h2>{channel.title}</h2>
-    <span class="secondary">
-      {filter.followed === true
-        ? "Followed in SubTube"
-        : "Subscribed on YouTube"}
-    </span>
+    <span class="secondary">Subscribed on YouTube</span>
   </div>
   <button
     type="button"

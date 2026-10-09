@@ -534,7 +534,7 @@ struct ChannelRowLabel: View {
       Avatar(url: channel.thumbnail, title: channel.title, size: 40)
       VStack(alignment: .leading, spacing: 2) {
         Text(channel.title).font(.body.weight(.medium)).foregroundStyle(.primary)
-        Text(filterSummary(channel, followedOnly: feed.isFollowedOnly(channel.channelId)))
+        Text(filterSummary(channel))
           .font(.footnote)
           .foregroundStyle(.secondary)
           .lineLimit(1)
@@ -626,11 +626,9 @@ struct ChannelSwitch: View {
 }
 
 /// A one-line description of a channel's filter, as the channels list shows it.
-func filterSummary(_ channel: ChannelFilter, followedOnly: Bool) -> String {
+func filterSummary(_ channel: ChannelFilter) -> String {
   if channel.enabled {
-    let parts = filterSummaryParts(channel).map(Strings.summary)
-    return ((followedOnly ? [Strings.summaryFollowed] : []) + parts)
-      .joined(separator: " · ")
+    return filterSummaryParts(channel).map(Strings.summary).joined(separator: " · ")
   } else {
     return Strings.summaryOff
   }

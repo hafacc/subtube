@@ -170,8 +170,8 @@ values, named by the page's `h1`.
     load and when the tab is hidden; a Drive file of this device that this
     version can't read is never overwritten. `deleteProfile()` (Settings →
     "Delete profile") deletes every file in the Drive folder, this device's
-    last, then the local copy; `Session.deleteProfile` also drops the kept
-    channel names and the account's setup-done mark, withdraws Google's
+    last, then the local copy; `Session.deleteProfile` also drops the
+    account's setup-done mark, withdraws Google's
     grant (`revokeAccess`: the only place that does), signs out, and setup
     starts over. Another tab hears of it through the `storage` event and
     forgets the profile too. A store keeps in localStorage
@@ -298,8 +298,6 @@ values, named by the page's `h1`.
     rules `nextInQueue`, `endOutcome`, `afterRoute`, and the boxes
     `largeBox`, `minimizedBox`, `cardHolds`, `clipped`. See "Playing"
     below.
-  - `channel-info.ts` — names/pictures of followed (non-subscribed) channels:
-    `channels.list?id=` 50 per call, kept in localStorage, refreshed daily.
   - `feed.svelte.ts` — `FeedController`: load (subscriptions + Drive in
     parallel → every enabled channel's items, applied in one go when the load
     finishes; meanwhile `Feed` greys out the previous feed), filtering, the
@@ -534,8 +532,7 @@ values, named by the page's `h1`.
   going to the feed; there is no button for it in the heading. The panel
   runs the window's whole height, beside the heading. It edits the open
   channel's filter with no preview (the page beside it is the preview)
-  under a header (the avatar, the name over "Subscribed on YouTube" or
-  "Followed in SubTube", the ×), in cards with no lines between rows:
+  under a header (the avatar, the name over "Subscribed on YouTube", the ×), in cards with no lines between rows:
   "Show in feed" alone, then "Videos" (Show, Shorts, Live, "Hide videos
   under", saved when the field is left or Enter pressed, not at each key; only Show for playlists), the phrases under their heading, and
   "Topics", each title above its card.

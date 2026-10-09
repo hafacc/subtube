@@ -11,7 +11,6 @@ import {
   deviceIdFromName,
   editedEntry,
   editedFilter,
-  followedIds,
   hasProfile,
   markedEntry,
   mergeDeviceFiles,
@@ -230,30 +229,16 @@ describe("channelsFor", () => {
     expect(channels.get("UCtwo")?.filter).toEqual(defaultFilter());
   });
 
-  test("adds followed channels with looked-up identity, leaves unsubscribed ones out", () => {
+  test("lists no channel that isn't subscribed, whatever its saved filter holds", () => {
     const merged: DeviceFile = {
       version: 1,
       channels: {
         UCgone: { at: 1, filter: filter({}) },
-        UCfollow: { at: 1, filter: filter({ followed: true }) },
-        UCunknown: { at: 1, filter: filter({ followed: true }) },
+        UCold: { at: 1, filter: filter({ fromOlderVersion: true }) },
       },
       watched: {},
     };
-    const channels = channelsFor(
-      merged,
-      [],
-      new Map([
-        [
-          "UCfollow",
-          { channelId: "UCfollow", title: "Follow", thumbnail: "f.jpg" },
-        ],
-      ]),
-    );
-    expect(Array.from(channels.keys())).toEqual(["UCfollow", "UCunknown"]);
-    expect(channels.get("UCfollow")?.title).toBe("Follow");
-    expect(channels.get("UCunknown")?.title).toBe("UCunknown");
-    expect(followedIds(merged)).toEqual(["UCfollow", "UCunknown"]);
+    expect(Array.from(channelsFor(merged, []).keys())).toEqual([]);
   });
 });
 

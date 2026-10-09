@@ -38,24 +38,6 @@ private func channel(_ id: String, _ configure: (inout ChannelFilter) -> Void = 
 }
 
 @Suite struct SyncDecisionTests {
-  @Test func followedNamesAreAskedWhenMissingOrADayOld() {
-    var merged = DeviceFile()
-    var followed = channel("UCfollowed")
-    followed.followed = true
-    merged.channels["UCfollowed"] = ChannelEntry(at: 1, filter: followed.storedFilter)
-    let now = Date(timeIntervalSince1970: 1_000_000)
-    func ask(_ identity: ChannelIdentity?) -> [String] {
-      followedWithoutIdentity(
-        merged, subscriptions: [], identities: identity.map { ["UCfollowed": $0] } ?? [:], now: now)
-    }
-    #expect(ask(nil) == ["UCfollowed"])
-    #expect(ask(ChannelIdentity(title: "T", thumbnail: "")) == ["UCfollowed"])
-    #expect(ask(ChannelIdentity(title: "T", thumbnail: "", fetchedAt: now.addingTimeInterval(-3600))) == [])
-    #expect(
-      ask(ChannelIdentity(title: "T", thumbnail: "", fetchedAt: now.addingTimeInterval(-90_000)))
-        == ["UCfollowed"])
-  }
-
   @Test func unsentEditsAreUploaded() {
     var local = DeviceFile()
     #expect(!needsUpload(local: local, remote: nil))
@@ -351,25 +333,20 @@ private func uploads(_ ids: [String] = [], shorts: Bool = false) -> ChannelItems
     }
   }
 
-  @Test func followedChannelsAreListedByNameIgnoringCaseAfterTheSubscriptions() {
-    func followed(_ at: Int64) -> ChannelEntry {
-      ChannelEntry(
-        at: at,
-        filter: [
-          "enabled": .bool(true), "regex": .string(""), "mode": .string("include"),
-          "followed": .bool(true),
-        ])
-    }
-    let merged = DeviceFile(channels: ["UCb": followed(1), "UCa": followed(2), "UCz": followed(3)])
-    let listed = channelsFor(
-      merged,
-      subscriptions: [Subscription(channelId: "UCsub", title: "zebra", thumbnail: "")],
-      identities: [
-        "UCb": ChannelIdentity(title: "beta", thumbnail: ""),
-        "UCa": ChannelIdentity(title: "Alpha", thumbnail: ""),
-        "UCz": ChannelIdentity(title: "Éclair", thumbnail: ""),
+  @Test func onlySubscriptionsAreListedAndASavedFilterForAnotherChannelIsKept() {
+    let saved = ChannelEntry(
+      at: 1,
+      filter: [
+        "enabled": .bool(false), "regex": .string(""), "mode": .string("include"),
+        "newField": .string("kept"),
       ])
-    #expect(listed.map(\.title) == ["zebra", "Alpha", "beta", "Éclair"])
+    let merged = DeviceFile(channels: ["UCsub": saved, "UCgone": saved])
+    let listed = channelsFor(
+      merged, subscriptions: [Subscription(channelId: "UCsub", title: "zebra", thumbnail: "")])
+    #expect(listed.map(\.channelId) == ["UCsub"])
+    #expect(listed.first?.enabled == false)
+    #expect(listed.first?.storedFilter["newField"] == .string("kept"))
+    #expect(merged.channels["UCgone"] == saved)
   }
 
   @Test func workIsDoneAFewAtATimeAndComesBackInOrder() async throws {

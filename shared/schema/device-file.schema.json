@@ -177,10 +177,6 @@
             "playlists"
           ]
         },
-        "followed": {
-          "description": "Added in subtube rather than subscribed to on YouTube; listed while true. Default false.",
-          "type": "boolean"
-        },
         "topics": {
           "description": "YouTube video category ids (strings, e.g. \"10\" for Music; the table is in shared/fixtures/feed-chips.json). With any listed, only the channel's videos in a listed category are kept; empty or absent keeps every category. Default [].",
           "type": "array",

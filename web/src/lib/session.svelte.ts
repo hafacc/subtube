@@ -8,7 +8,6 @@ import {
   signOut,
   silentRefresh,
 } from "./auth";
-import { clearChannelInfo } from "./channel-info";
 import { fetchDriveUser } from "./drive";
 import {
   SignInCancelledError,
@@ -155,9 +154,8 @@ export class Session {
     this.expect(account);
   }
 
-  /** Forget the channel names and the account's setup-done mark; the store forgets its own part. */
+  /** Forget the account's setup-done mark; the store forgets its own part. */
   private forgetLocal(accountId: string): void {
-    clearChannelInfo();
     writeText(SETUP_DONE_PREFIX + accountId, null);
   }
 

@@ -28,7 +28,7 @@ private fun filterProblems(path: String, filter: JsonElement?): List<String> {
     for (identity in listOf("channelId", "title", "thumbnail")) {
         if (identity in filter) problems.add("$path.$identity must not be stored")
     }
-    for (flag in listOf("enabled", "caseSensitive", "followed")) {
+    for (flag in listOf("enabled", "caseSensitive")) {
         if (flag in filter && filter[flag].booleanValue() == null) problems.add("$path.$flag is not a boolean")
     }
     val regex = filter["regex"]

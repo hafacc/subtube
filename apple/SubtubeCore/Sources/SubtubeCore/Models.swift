@@ -107,8 +107,6 @@ public struct ChannelFilter: Sendable, Hashable {
   public var contentMode = ContentMode.videos
   /// The category ids videos are kept in; empty keeps every category.
   public var topics: [String] = []
-  /// Added in subtube rather than subscribed to on YouTube; listed while true.
-  public var followed = false
   /// The names of the groups the channel is in (``filterGroups(_:)``).
   public var groups: [String] = []
   /// The filter object as read from Drive.
@@ -137,7 +135,6 @@ public struct ChannelFilter: Sendable, Hashable {
     shortsFilter = parsed.shortsFilter
     contentMode = parsed.contentMode
     topics = parsed.topics
-    followed = parsed.followed
     groups = parsed.groups
   }
 
@@ -152,7 +149,6 @@ public struct ChannelFilter: Sendable, Hashable {
     var shortsFilter = ShortsFilter.all
     var contentMode = ContentMode.videos
     var topics: [String] = []
-    var followed = false
     var groups: [String] = []
   }
 
@@ -176,7 +172,6 @@ public struct ChannelFilter: Sendable, Hashable {
       let ids = listed.compactMap(\.stringValue)
       fields.topics = ids.count == listed.count ? knownTopics(ids) : []
     }
-    fields.followed = object["followed"]?.boolValue ?? false
     fields.groups = filterGroups(object)
     return fields
   }
@@ -225,8 +220,6 @@ public struct ChannelFilter: Sendable, Hashable {
     optional(
       "topics", .array(topics.map(JSONValue.string)), isDefault: topics.isEmpty,
       changed: topics != read.topics)
-    optional(
-      "followed", .bool(followed), isDefault: !followed, changed: followed != read.followed)
     // an emptied `groups` is written as [], and a malformed one stays until the groups change
     if !groups.elementsEqual(read.groups, by: sameScalars) {
       object["groups"] = .array(groups.map(JSONValue.string))

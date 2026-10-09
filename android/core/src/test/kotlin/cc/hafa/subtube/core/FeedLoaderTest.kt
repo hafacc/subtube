@@ -59,35 +59,6 @@ class KeptAfterLoadTest {
     }
 }
 
-class ChannelIdentityCacheTest {
-    @Test
-    fun asksAgainForIdentitiesMissingOrOverADayOld() {
-        var now = 1_000L
-        val storage = MapStorage()
-        val cache = ChannelIdentityCache(storage, "UCme", clock = { now })
-        assertEquals(listOf("UCa", "UCb"), cache.missingOrStale(listOf("UCa", "UCb")))
-
-        cache.putAll(mapOf("UCa" to ChannelIdentity("A", "a.jpg")))
-        assertEquals(listOf("UCb"), cache.missingOrStale(listOf("UCa", "UCb")))
-
-        now += IDENTITY_MAX_AGE_MS
-        val reopened = ChannelIdentityCache(storage, "UCme", clock = { now })
-        assertEquals(ChannelIdentity("A", "a.jpg"), reopened.all()["UCa"])
-        assertEquals(listOf("UCb"), reopened.missingOrStale(listOf("UCa", "UCb")))
-        now += 1
-        assertEquals(listOf("UCa", "UCb"), reopened.missingOrStale(listOf("UCa", "UCb")))
-    }
-
-    @Test
-    fun treatsAnIdentitySavedWithoutAnAgeAsStale() {
-        val storage = MapStorage()
-        storage.values["subtube.channels.UCme"] = """{"UCa":{"title":"A","thumbnail":""}}"""
-        val cache = ChannelIdentityCache(storage, "UCme", clock = { IDENTITY_MAX_AGE_MS + 1 })
-        assertEquals("A", cache.all().getValue("UCa").title)
-        assertEquals(listOf("UCa"), cache.missingOrStale(listOf("UCa")))
-    }
-}
-
 class FeedLoaderThreadTest {
     @Test
     fun aLoadReadsItsAnswersAndReportsOffTheCallersThread() {
@@ -115,7 +86,6 @@ class FeedLoaderThreadTest {
             val loader = FeedLoader(
                 YouTubeClient(http, server.url("/youtube/v3/")),
                 store,
-                ChannelIdentityCache(storage, "UCme"),
                 probe = null,
                 compute = executor.asCoroutineDispatcher(),
             )

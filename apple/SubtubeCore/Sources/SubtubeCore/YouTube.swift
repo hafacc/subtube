@@ -464,17 +464,4 @@ public struct YouTubeClient: Sendable {
       throw GoogleAPIError.noChannel
     }
   }
-
-  /// Look up channels by id, 50 per call (1 quota unit each).
-  public func channelSummaries(_ channelIds: [String]) async throws -> [ChannelSummary] {
-    var summaries: [ChannelSummary] = []
-    for start in stride(from: 0, to: channelIds.count, by: 50) {
-      let batch = channelIds[start..<min(start + 50, channelIds.count)]
-      let page: ChannelListResponse = try await get(
-        "channels",
-        ["part": "snippet", "id": batch.joined(separator: ","), "maxResults": "50"])
-      summaries += (page.items ?? []).map(\.summary)
-    }
-    return summaries
-  }
 }

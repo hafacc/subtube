@@ -376,19 +376,6 @@ private func loadOnce(
   async let synced: Void = store.load()
   let subscriptions = try await subscribed
   try await synced
-  let missing = await store.missingIdentities(subscriptions: subscriptions)
-  if !missing.isEmpty {
-    do {
-      await store.remember(try await client.channelSummaries(missing))
-    } catch let error as GoogleAPIError
-      where error == .tokenExpired || error == .insufficientScope || error == .dailyLimit
-    {
-      throw error
-    } catch {
-      // the ids show until a later load gets the names
-      loaderLog.error("channel names failed: \(String(describing: error), privacy: .public)")
-    }
-  }
   let channels = await store.channels(subscriptions: subscriptions)
   await sink.channels(channels)
   let wanted = wantsItems ? channels.filter(\.enabled) : []
