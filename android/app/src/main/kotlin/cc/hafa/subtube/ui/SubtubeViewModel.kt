@@ -133,9 +133,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-/** Returning to the app after this long away loads the feed again. */
-private const val STALE_AFTER_MS = 15 * 60_000L
-
 /** How many channels the made-up data's running load shows as through. */
 private const val DEMO_CHANNELS_LOADED = 3
 
@@ -588,7 +585,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     private var loader: FeedLoader? = null
     private var loadInFlight = false
     private var loadJob: Job? = null
-    private var lastLoadedAt = 0L
+    private var loadFailed = false
     private var syncWatcher: Job? = null
 
     // goes up with every new store, so a load begun on an older one changes nothing when it ends
@@ -633,8 +630,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         loading = false
         loadFraction = null
         loadInFlight = false
-        // never stale, so coming to the foreground loads nothing
-        lastLoadedAt = Long.MAX_VALUE
+        loadFailed = false
         lastSynced = System.currentTimeMillis()
         session = data.account?.let(Session::SignedIn) ?: Session.SignedOut
         user = data.user
@@ -703,7 +699,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
             app.prefs.keepPendingStart(signedIn.account.channelId, null)
         }
         clearFeed()
-        lastLoadedAt = 0L
+        loadFailed = false
         lastSynced = null
     }
 
@@ -1187,11 +1183,13 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         loadFeed(subscribed = subscriptions.takeIf { setUpChannelsLoaded })
     }
 
-    /** The app came to the foreground. */
+    /**
+     * The app came to the foreground: try a failed load again.
+     *
+     * A load that worked is run again only when asked, since every load costs quota.
+     */
     fun onForeground() {
-        if (backStack.firstOrNull() == Screen.Feed && lastLoadedAt > 0 &&
-            System.currentTimeMillis() - lastLoadedAt > STALE_AFTER_MS
-        ) {
+        if (backStack.firstOrNull() == Screen.Feed && loadFailed) {
             loadFeed()
         }
     }
@@ -1404,6 +1402,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         loading = true
         loadFraction = loadProgress(finished = 0, total = null)
         error = null
+        loadFailed = false
         loadJob = viewModelScope.launch {
             try {
                 val held = heldVideos()
@@ -1416,6 +1415,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
             } catch (caught: Exception) {
                 if (epoch == sessionEpoch) {
                     showFailure(caught)
+                    loadFailed = error != null
                 }
             } finally {
                 // nothing the load still needs can be running
@@ -1426,7 +1426,6 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
                 loading = false
                 loadFraction = null
                 loadInFlight = false
-                lastLoadedAt = System.currentTimeMillis()
             }
         }
     }

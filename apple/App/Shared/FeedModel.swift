@@ -22,8 +22,6 @@ private enum LoadDepth: Comparable {
 
 @MainActor @Observable
 final class FeedModel {
-  /// Returning to the app after this long away loads the feed again.
-  private static let staleAfter: TimeInterval = 15 * 60
 
   let account: ChannelSummary
   private let auth: GoogleAuth
@@ -177,8 +175,8 @@ final class FeedModel {
   /// The Google account's name and address, once asked.
   private(set) var user: DriveUser?
   private(set) var lastSyncedAt: Date?
-  /// When a full load last succeeded.
-  private var lastLoadedAt = Date.distantPast
+  /// Whether a full load has succeeded.
+  private var hasLoaded = false
   /// What a load asked for while another was running wanted.
   private var loadAskedMeanwhile: LoadDepth?
   /// Called when a load finds the profile was deleted from another device.
@@ -486,9 +484,11 @@ final class FeedModel {
     }
   }
 
-  /// The first load, and a load on returning after a while away.
+  /// The first load, and another on returning while a load's error shows.
+  ///
+  /// A load that worked is run again only when asked, since every load costs quota.
   func appeared() {
-    if Date().timeIntervalSince(lastLoadedAt) > Self.staleAfter {
+    if !hasLoaded || error != nil {
       Task { await load() }
     }
   }
@@ -694,7 +694,7 @@ final class FeedModel {
       }
       channelsLoaded = true
       if wantsItems {
-        lastLoadedAt = Date()
+        hasLoaded = true
       }
     } catch SyncError.profileDeleted {
       appLog.notice("load ended: profile deleted elsewhere")
