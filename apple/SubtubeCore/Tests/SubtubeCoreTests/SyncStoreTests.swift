@@ -38,13 +38,20 @@ private final class FakeDrive: URLProtocol, @unchecked Sendable {
 
   private static let lock = NSLock()
   nonisolated(unsafe) private static var state = State()
+  /// How many folders there have been; each session's requests carry the
+  /// number of the folder it was made for.
+  nonisolated(unsafe) private static var folders = 0
+  private static let folderHeader = "Fake-Drive-Folder"
 
   static func reset(_ change: (inout State) -> Void = { _ in }) -> URLSession {
-    lock.withLock {
+    let folder = lock.withLock {
       state = State()
       change(&state)
+      folders += 1
+      return folders
     }
     let configuration = URLSessionConfiguration.ephemeral
+    configuration.httpAdditionalHeaders = [folderHeader: "\(folder)"]
     configuration.protocolClasses = [FakeDrive.self]
     return URLSession(configuration: configuration)
   }
@@ -104,8 +111,12 @@ private final class FakeDrive: URLProtocol, @unchecked Sendable {
     let token = request.value(forHTTPHeaderField: "Authorization")?.dropFirst("Bearer ".count)
     let content = body()
     let isUpload = url.path.contains("/upload/")
+    let folder = request.value(forHTTPHeaderField: Self.folderHeader)
     let (status, json, delay): (Int, String, TimeInterval) = Self.lock.withLock {
-      if let accepted = Self.state.acceptedToken, token.map(String.init) != accepted {
+      if folder != "\(Self.folders)" {
+        // an earlier test's store saving late, which must not reach this test's folder
+        return (500, "{}", 0)
+      } else if let accepted = Self.state.acceptedToken, token.map(String.init) != accepted {
         return (401, "{}", 0)
       } else if isUpload, let fileId {
         Self.state.uploads += 1
