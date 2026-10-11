@@ -9,8 +9,8 @@ No UI of its own; the page talks to it with `chrome.runtime.sendMessage`
 ```sh
 cd extension
 bun install
-bun run build   # bundles to dist/
-bun run lint    # type-check and biome
+bun export      # bundles to dist/
+bun lint       # type-check and biome
 bun test
 ```
 
@@ -30,6 +30,6 @@ Sign-in redirects to `https://<id>.chromiumapp.org/`. Add that exact URL as an
 The extension's ID is `gobcnmccpjhlgpnohehgkahhknkfbmfo`, the Chrome Web Store
 listing's. An unpacked build gets the same ID because `manifest.json` carries
 the listing's public key as `key` (store dashboard → Package → View public
-key, as one base64 line). `bun run package` leaves `key` out of the upload,
+key, as one base64 line). `bun pack` leaves `key` out of the upload,
 which the store requires, and `http://localhost/*` out of the pages that may
 message it.

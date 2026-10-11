@@ -71,9 +71,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run lint
+      - run: bun lint
       - run: bun test
-      - run: bun run build
+      - run: bun export
 
   extension:
     needs: changes
@@ -86,9 +86,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run lint
+      - run: bun lint
       - run: bun test
-      - run: bun run build
+      - run: bun export
 
   shared:
     needs: changes
@@ -102,7 +102,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun tools/check.ts
-      - run: bun run lint
+      - run: bun lint
 
   android:
     needs: changes

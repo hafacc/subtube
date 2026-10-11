@@ -4,7 +4,7 @@ MV3 service worker with no UI. The web app talks to it with
 `chrome.runtime.sendMessage(extensionId, request)`; `externally_connectable`
 lets in `https://subtube.hafa.cc/*` and, in a development build only,
 `http://localhost/*` (any port): the store zip's manifest has no `http:` page
-(`scripts/store-manifest.ts`), and `isAllowedOrigin` reads the running
+(`bun pack`), and `isAllowedOrigin` reads the running
 manifest, so a store install answers the site alone.
 
 - `src/protocol.ts` — the message types (`ping`, `token`, `signOut`,
@@ -25,9 +25,9 @@ manifest, so a store install answers the site alone.
   `youtube.com/shorts/{id}` with `redirect: "manual"` (200 = Short, redirect =
   not, anything else = unknown). The OAuth client id must match
   `web/src/lib/config.ts`.
-- `bun install`, `bun run build` (→ `dist/`, load unpacked), `bun run lint`
-  (tsc + biome), `bun test`, `bun run package` (→ `subtube-extension.zip` for the Web Store,
-  without the manifest `key`), `bun run icons` (regenerates `icons/` from
+- `bun install`, `bun export` (→ `dist/`, load unpacked), `bun lint`
+  (tsc + biome), `bun test`, `bun pack` (→ `subtube-extension.zip` for the Web Store,
+  without the manifest `key`), `bun icons` (regenerates `icons/` from
   `../design/icons/sub-play-centred.svg`, the logo centered in its square, and the 16 pixel one from `sub-play-centred-small.svg`, with one large bubble; needs rsvg-convert; output committed).
 - Releases: run the `ext-cut` workflow by hand with a patch/minor/major bump.
   It bumps `manifest.json`'s version (the source of truth), tags

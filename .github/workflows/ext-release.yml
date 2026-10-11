@@ -25,7 +25,7 @@ jobs:
           ref: ${{ inputs.tag }}
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run package
+      - run: bun pack
       - name: create release
         env:
           GH_TOKEN: ${{ github.token }}

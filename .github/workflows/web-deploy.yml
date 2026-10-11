@@ -23,9 +23,9 @@ jobs:
           ref: main # the branch tip, not the dispatch SHA
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run lint
+      - run: bun lint
       - run: bun test
-      - run: bun run build
+      - run: bun export
       - uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
