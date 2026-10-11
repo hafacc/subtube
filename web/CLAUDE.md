@@ -4,14 +4,14 @@ Svelte 5 single-page app built by SvelteKit 3 with `adapter-static`
 (configured in `vite.config.ts`; there is no `svelte.config.js`), TypeScript,
 plain CSS with brand tokens in `src/app.css`, bun, biome (double quotes,
 2-space; `.svelte` files via biome's HTML support). Every page is prerendered:
-`bun run build` → `dist/`, published to GitHub
+`bun export` → `dist/`, published to GitHub
 Pages at https://subtube.hafa.cc by `.github/workflows/web-deploy.yml`, started
 by hand, which publishes `main` (custom domain set in the repo's Pages
 settings; no CNAME file).
 
-- `bun install`, `bun run dev` (port 3000), `bun run build`, `bun test`,
-  `bun run lint` (`svelte-kit sync`, `svelte-check`, `biome check`),
-  `bun run fmt`.
+- `bun install`, `bun dev` (port 3000), `bun export`, `bun test`,
+  `bun lint` (`svelte-kit sync`, `svelte-check`, `biome check`),
+  `bun fmt`.
 - `src/app.html` is the page shell; `src/routes/+layout.svelte` loads
   `app.css`; `src/routes/+page.svelte` is the app's page: the built page
   holds the title and description only, and `src/App.svelte` mounts in the
@@ -29,7 +29,7 @@ settings; no CNAME file).
   sidebar, where the name is hidden, the logo is moved down to the same
   place.
 - Dev sign-in: load `../extension/dist` unpacked, then put its id in
-  `web/.env.local` as `VITE_EXTENSION_ID=…` and restart `bun run dev`. The
+  `web/.env.local` as `VITE_EXTENSION_ID=…` and restart `bun dev`. The
   extension's redirect URI must be on the web OAuth client.
 
 ## Privacy policy and terms (`src/routes/(policy)/`)

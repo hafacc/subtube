@@ -5,7 +5,7 @@ runs in desktop Chrome with the [subtube extension](../extension).
 
 ```sh
 bun install
-bun run dev     # http://localhost:3000
+bun dev     # http://localhost:3000
 bun test
-bun run build   # static site in dist/
+bun export   # static site in dist/
 ```
