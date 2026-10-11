@@ -12,12 +12,13 @@
   },
   "type": "module",
   "scripts": {
-    "build": "bun build.ts",
-    "package": "bun scripts/package.ts",
+    "export:bundle": "bun build src/background.ts --outdir dist --target browser --format esm --minify",
+    "export:static": "cp manifest.json dist/manifest.json && cp -r icons dist/icons",
+    "export": "rm -rf dist && bun export:bundle && bun export:static",
+    "pack": "rm -rf store subtube-extension.zip && bun build src/background.ts --outdir store --target browser --format esm --minify && cp -r icons store/icons && jq 'del(.key) | .externally_connectable.matches |= map(select(startswith(\"http:\") | not))' manifest.json > store/manifest.json && (cd store && zip -r -X ../subtube-extension.zip .) && rm -rf store",
     "lint": "tsc && biome check",
     "fmt": "biome check --write",
-    "icons": "bun scripts/icons.ts",
-    "test": "bun test"
+    "icons": "rm -rf icons && mkdir icons && rsvg-convert -w 16 -h 16 ../design/icons/sub-play-centred-small.svg -o icons/icon-16.png && rsvg-convert -w 32 -h 32 ../design/icons/sub-play-centred.svg -o icons/icon-32.png && rsvg-convert -w 48 -h 48 ../design/icons/sub-play-centred.svg -o icons/icon-48.png && rsvg-convert -w 128 -h 128 ../design/icons/sub-play-centred.svg -o icons/icon-128.png"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

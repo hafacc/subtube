@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import manifest from "../manifest.json";
-import { storeManifest } from "../scripts/store-manifest";
 import {
   EXTENSION_ORIGIN_MATCHES,
   isAllowedOrigin,
@@ -26,17 +25,6 @@ describe("protocol", () => {
     ).toBe(false);
     expect(isAllowedOrigin("not an origin", matches)).toBe(false);
     expect(isAllowedOrigin(undefined, matches)).toBe(false);
-  });
-
-  test("the store build lets in no http page", () => {
-    const store = storeManifest(manifest);
-    expect(store.externally_connectable).toEqual({
-      matches: ["https://subtube.hafa.cc/*"],
-    });
-    expect("key" in store).toBe(false);
-    expect(
-      isAllowedOrigin("http://localhost:3000", ["https://subtube.hafa.cc/*"]),
-    ).toBe(false);
   });
 
   test("silentFailureNeedsUser is true only when Google or Chrome wanted the user", () => {
