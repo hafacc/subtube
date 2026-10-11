@@ -13,11 +13,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "export": "vite build",
     "preview": "vite preview",
     "lint": "svelte-kit sync && svelte-check --fail-on-warnings && biome check",
-    "fmt": "biome check --write",
-    "test": "bun test"
+    "fmt": "biome check --write"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
