@@ -61,8 +61,6 @@ const FETCH_CONCURRENCY = 6;
 /** What a load says when some channels couldn't be fetched. */
 export const PARTIAL_MESSAGE =
   "Some channels couldn't be loaded; showing partial results.";
-/** Returning to the tab this long after the last load that worked loads the feed again. */
-export const STALE_AFTER_MS = 15 * 60_000;
 
 /** Run `worker` over `items`, at most `limit` at a time, keeping their order. */
 export async function mapWithConcurrency<Item, Result>(
@@ -508,7 +506,6 @@ export class FeedController {
   private shuffleSeed = $state(newShuffleSeed());
   // the time the time chips count back from
   private chipClock = $state(Date.now());
-  private lastLoadedAt = 0;
   private readonly accountId: string;
   private readonly session: Session;
   private readonly store: SyncStore;
@@ -788,26 +785,23 @@ export class FeedController {
   }
 
   /**
-   * Upload as the tab is hidden or the page goes, reload on returning a while after the last
-   * load that worked, and reload when the browser is online again while a
-   * load's error shows.
+   * Upload as the tab is hidden or the page goes, and reload on returning or when the browser
+   * is online again while a load's error shows. A load that worked is never run again unasked.
    */
   start(): () => void {
-    const onVisible = () => {
-      if (document.visibilityState === "hidden") {
-        this.store.flush();
-      } else if (
-        this.session.ready &&
-        Date.now() - this.lastLoadedAt > STALE_AFTER_MS
-      ) {
-        void this.load();
-      }
-    };
-    const onOnline = () => {
+    const retryFailed = () => {
       if (this.session.ready && this.error !== null) {
         void this.load();
       }
     };
+    const onVisible = () => {
+      if (document.visibilityState === "hidden") {
+        this.store.flush();
+      } else {
+        retryFailed();
+      }
+    };
+    const onOnline = retryFailed;
     const onLeave = () => this.store.flush();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
@@ -1024,7 +1018,6 @@ export class FeedController {
         );
       }
       this.applyLoad(data);
-      this.lastLoadedAt = Date.now();
       this.notice = data.dailyLimit
         ? DAILY_LIMIT_MESSAGE
         : data.failed.size > 0
