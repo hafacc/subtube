@@ -317,10 +317,10 @@ values, named by the page's `h1`.
     `SvelteSet` and a `SvelteMap` changed one id at a time, so a save
     redraws only that id's card;
     `recordProgress` saves the player's position, `resumeAt` is where a video
-    opens), mid-load 401 silent retry, reload
-    on returning `STALE_AFTER_MS` after the last load that worked (a failed
-    load is tried again on every return), and when the browser is online
-    again while a load's error shows. Filter edits only re-filter; a channel that
+    opens), mid-load 401 silent retry, and reload
+    on returning to the tab or when the browser is online again, both only
+    while a load's error shows: a load that worked is run again only when
+    asked (a load costs quota). Filter edits only re-filter; a channel that
     is on is fetched by itself only when something its filter needs is
     missing (`isMissing`: its mode's items never fetched or failed in the
     last load, or the Shorts list — see below), at most 6 at a
