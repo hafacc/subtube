@@ -287,9 +287,10 @@ final class PlayerSession: Identifiable {
   private func perform(_ actions: [PlaybackAction]) {
     for action in actions {
       switch action {
-      case .saveProgress(let position, let duration, let ended, let upload):
+      case .saveProgress(let position, let duration, let ended, let upload, let place):
         feed?.recordProgress(
-          item.id, position: position, playerDuration: duration, ended: ended, upload: upload)
+          item.id, position: position, playerDuration: duration, ended: ended, upload: upload,
+          place: place)
       case .markWatched:
         feed?.markWatched(item.id)
       case .ended:
@@ -313,17 +314,25 @@ final class PlayerSession: Identifiable {
       if case .video = content {
         feed?.playbackEnded(self)
       }
+    case "playlistReady":
+      if let start = feed?.playlistStart(item.id, videos: message["videos"] as? [String] ?? []) {
+        page?.evaluateJavaScript("startPlaylist(\(start.index), \(start.position))")
+      }
     case "time":
       perform(
         playback.timeReported(
-          position: position, duration: duration, clock: ProcessInfo.processInfo.systemUptime))
+          position: position, duration: duration, clock: ProcessInfo.processInfo.systemUptime,
+          playlistIndex: message["playlistIndex"] as? Int,
+          playlistLength: message["playlistLength"] as? Int,
+          video: message["video"] as? String))
     case "state":
       if let state = message["state"] as? Int {
         perform(
           playback.stateChanged(
             state: state, position: position, duration: duration,
             playlistIndex: message["playlistIndex"] as? Int,
-            playlistLength: message["playlistLength"] as? Int))
+            playlistLength: message["playlistLength"] as? Int,
+            video: message["video"] as? String))
       }
     default:
       break
@@ -501,17 +510,24 @@ enum PlayerPage {
           duration: player.getDuration ? player.getDuration() : 0,
           playlistIndex: player.getPlaylistIndex ? player.getPlaylistIndex() : null,
           playlistLength: playlist ? playlist.length : null,
+          video: config.kind === "playlist" && player.getVideoData ? player.getVideoData().video_id : null,
         });
       };
+      // the app's answer to "playlistReady": where the playlist starts
+      function startPlaylist(index, startSeconds) {
+        player.loadPlaylist({ list: config.playlistId, listType: "playlist", index, startSeconds });
+      }
       const tag = document.createElement("script");
       tag.src = "https://www.youtube.com/iframe_api";
       tag.onerror = () => post({ event: "loadFailed" });
       document.head.appendChild(tag);
       function onYouTubeIframeAPIReady() {
         // a video is loaded from its id in onReady: passing videoId with the
-        // playlist param unreliably drops the first id
+        // playlist param unreliably drops the first id. A playlist is only
+        // cued here: once ready its videos are known, and the app says
+        // which to start at.
         const playerVars = config.kind === "playlist"
-          ? { autoplay: 1, rel: 0, playsinline: 1, fs: 1, listType: "playlist", list: config.playlistId }
+          ? { rel: 0, playsinline: 1, fs: 1, listType: "playlist", list: config.playlistId }
           : { rel: 0, playsinline: 1, fs: 1 };
         if (config.identity) {
           playerVars.origin = config.identity;
@@ -528,6 +544,8 @@ enum PlayerPage {
               }
               if (config.kind === "videos") {
                 event.target.loadPlaylist(config.videoIds, 0, config.start);
+              } else {
+                post({ event: "playlistReady", videos: event.target.getPlaylist() || [] });
               }
             },
             onStateChange: (event) => {

@@ -100,6 +100,7 @@ import cc.hafa.subtube.core.Playback
 import cc.hafa.subtube.core.PlayerPlace
 import cc.hafa.subtube.core.PlayerState
 import cc.hafa.subtube.core.Playlist
+import cc.hafa.subtube.core.PlaylistStart
 import cc.hafa.subtube.core.Video
 import cc.hafa.subtube.core.ProgressUpload
 import cc.hafa.subtube.core.minimizedSize
@@ -152,10 +153,15 @@ private val NavigationBarHeight = 80.dp
 private const val PAUSE_SCRIPT = "player && player.pauseVideo && player.pauseVideo()"
 private const val PLAY_SCRIPT = "player && player.playVideo && player.playVideo()"
 
+/** The call that starts the page's playlist at [start]. */
+private fun startPlaylistScript(start: PlaylistStart): String = "startPlaylist(${start.index}, ${start.position})"
+
 /**
  * The IFrame API page, for one video ([kind] "video", started [startSeconds]
  * in) or a real playlist ("playlist"). The video is loaded with loadPlaylist
  * in onReady: combining videoId with the `playlist` parameter drops the first id.
+ * A playlist is only cued: once ready the page reports its videos, and
+ * [startPlaylistScript] starts it at one of them.
  * Every report is one JSON message carrying [token], which only this page knows.
  */
 private fun playerHtml(kind: String, videoId: String, playlistId: String, startSeconds: Double, origin: String, token: String): String = """
@@ -180,9 +186,21 @@ function report(kind, fields) {
   fields.token = token;
   $BRIDGE_NAME.postMessage(JSON.stringify(fields));
 }
+function where(fields) {
+  var loaded = kind === "playlist" && player.getPlaylist ? player.getPlaylist() : null;
+  fields.time = player.getCurrentTime() || 0;
+  fields.duration = player.getDuration() || 0;
+  fields.video = loaded && player.getVideoData ? player.getVideoData().video_id || "" : "";
+  fields.index = loaded ? player.getPlaylistIndex() : 0;
+  fields.count = loaded ? loaded.length : 0;
+  return fields;
+}
+function startPlaylist(index, startSeconds) {
+  player.loadPlaylist({ list: playlistId, listType: "playlist", index: index, startSeconds: startSeconds });
+}
 function onYouTubeIframeAPIReady() {
   var vars = kind === "playlist"
-    ? { autoplay: 1, rel: 0, playsinline: 1, fs: 1, listType: "playlist", list: playlistId }
+    ? { rel: 0, playsinline: 1, fs: 1, listType: "playlist", list: playlistId }
     : { rel: 0, playsinline: 1, fs: 1 };
   vars.origin = appOrigin;
   vars.widget_referrer = appOrigin;
@@ -194,12 +212,12 @@ function onYouTubeIframeAPIReady() {
       onReady: function (event) {
         if (kind === "video") {
           event.target.loadPlaylist(queue, 0, startSeconds);
+        } else {
+          report("playlist", { videos: event.target.getPlaylist() || [] });
         }
       },
       onStateChange: function (event) {
-        var loaded = event.target.getPlaylist();
-        var last = !!loaded && event.target.getPlaylistIndex() === loaded.length - 1;
-        report("state", { code: event.data, time: event.target.getCurrentTime() || 0, duration: event.target.getDuration() || 0, last: last });
+        report("state", where({ code: event.data }));
       },
       onError: function (event) {
         report("error", { code: event.data });
@@ -208,7 +226,7 @@ function onYouTubeIframeAPIReady() {
   });
   setInterval(function () {
     if (player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING) {
-      report("position", { time: player.getCurrentTime() || 0, duration: player.getDuration() || 0 });
+      report("position", where({}));
     }
   }, $REPORT_EVERY_MS);
 }
@@ -254,6 +272,9 @@ internal class PlayerPage {
 
     /** Plays the video; set by the host that owns the web view. */
     var resume: () -> Unit = {}
+
+    /** Starts the page's playlist; set by the host that owns the web view. */
+    var startPlaylist: (PlaylistStart) -> Unit = {}
 
     /** A new page is loaded for [playback]: returns the token its reports must carry. */
     fun load(playback: Playback): String {
@@ -301,20 +322,25 @@ internal class PlayerPage {
     private fun current(token: String): Playback? = playback.takeIf { token == this.token }
 
     /** The page with [token] reports that its player changed state. */
-    fun stateChanged(token: String, state: PlayerState, time: Double, duration: Double, last: Boolean) {
+    fun stateChanged(token: String, state: PlayerState, time: Double, duration: Double, video: String? = null, index: Int = 0, count: Int = 0) {
         current(token)?.let { playback ->
             playing = state == PlayerState.PLAYING
             if (playing && (covered || stopped)) {
                 pausedForCover = covered
                 pause()
             }
-            playback.stateChanged(state, time, duration, last)
+            playback.stateChanged(state, time, duration, video, index, count)
         }
     }
 
     /** The page with [token] reports where its player is. */
-    fun positionChanged(token: String, time: Double, duration: Double) {
-        current(token)?.positionChanged(time, duration)
+    fun positionChanged(token: String, time: Double, duration: Double, video: String? = null, index: Int = 0, count: Int = 0) {
+        current(token)?.positionChanged(time, duration, video, index, count)
+    }
+
+    /** The page with [token] reports that its playlist is ready, with the [videos] it loaded. */
+    fun playlistReady(token: String, videos: List<String>) {
+        current(token)?.let { playback -> startPlaylist(playback.playlistStart(videos)) }
     }
 
     /** The page with [token] reports that its player can't play the video, which ends it as its end does. */
@@ -338,7 +364,10 @@ private class PlayerReport(
     val code: Int = -1,
     val time: Double = 0.0,
     val duration: Double = 0.0,
-    val last: Boolean = false,
+    val video: String = "",
+    val index: Int = 0,
+    val count: Int = 0,
+    val videos: List<String> = emptyList(),
 )
 
 private val reportJson = Json { ignoreUnknownKeys = true }
@@ -356,8 +385,9 @@ internal class PlayerBridge(private val page: PlayerPage) {
         main.post {
             runCatching { reportJson.decodeFromString<PlayerReport>(message) }.getOrNull()?.let { report ->
                 when (report.kind) {
-                    "state" -> page.stateChanged(report.token, playerState(report.code), report.time, report.duration, report.last)
-                    "position" -> page.positionChanged(report.token, report.time, report.duration)
+                    "state" -> page.stateChanged(report.token, playerState(report.code), report.time, report.duration, report.video.ifEmpty { null }, report.index, report.count)
+                    "position" -> page.positionChanged(report.token, report.time, report.duration, report.video.ifEmpty { null }, report.index, report.count)
+                    "playlist" -> page.playlistReady(report.token, report.videos)
                     "error" -> page.playerFailed(report.token)
                     "failed" -> page.loadFailed(report.token)
                 }
@@ -639,6 +669,7 @@ private fun PlayerOverlay(viewModel: SubtubeViewModel, item: FeedItem, boxes: Pl
     DisposableEffect(webView) {
         page.pause = { webView.evaluateJavascript(PAUSE_SCRIPT, null) }
         page.resume = { webView.evaluateJavascript(PLAY_SCRIPT, null) }
+        page.startPlaylist = { start -> webView.evaluateJavascript(startPlaylistScript(start), null) }
         onDispose {
             page.close()
             webView.destroy()

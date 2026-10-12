@@ -50,8 +50,14 @@ the pbxproj.
   `Progress` (what a watched entry means: `WatchedEntry.position` lives in
   the entry's `extra`; `isWatched` — marked, or a position in the last 10
   seconds of a video longer than that — `resumePosition`,
-  `progressFraction` for the card's bar; `markedEntry` keeps the position on
-  a mark and drops it on an unmark, `playedEntry` writes a position with
+  `progressFraction` for the card's bar; `WatchedEntry.video`, the video of a
+  playlist that was playing, and `playlistStart`, the video to start a
+  playlist at and how far in: that one when the player's list still has it,
+  else the first; `WatchedEntry.progress` and `playlistProgress`, how far
+  through a playlist the player is by video count, which fills a playlist's
+  bar; `markedEntry` keeps the position and the video on
+  a mark and drops them on an unmark, `playedEntry` writes a position, and
+  for a playlist its playing video, with
   `watched` true only at the player's reported end),
   `SyncStore` (Drive app-folder sync, debounced uploads, local pending copy
   uploaded again after a load finds Drive behind it or when the app leaves
@@ -168,9 +174,11 @@ the pbxproj.
   `minimizedPlayerSize`, `largePlayerSize`),
   `Playback` (one item in
   one player, no web view: from the player's reports it says what to save —
-  a video's position every 5 s on the device, for Drive on pause and on
-  `save(upload:)`, `watched` at the reported end; nothing for a playlist or
-  a live broadcast, which are marked when they end), `FeedLoader`
+  a video's position, and for a playlist the video playing with no length,
+  every 5 s on the device, for Drive on pause and on
+  `save(upload:)`, `watched` at the reported end; nothing for
+  a live broadcast, which is marked when it ends, as a playlist is when its
+  last video does), `FeedLoader`
   (`needsShorts`: uploads with Shorts on Hide or Only; `fetchChannelItems`
   asks for the `UUSH` list only then, and `ChannelItems.shorts` records
   whether it was read; `completeItems` returns what is there when it
@@ -220,7 +228,8 @@ the pbxproj.
   queue, `storeCalls`, so saves land in the order made, and nothing in it
   waits for an upload: `flush()` and a position saved for Drive at once
   only start one there (`SyncStore.startFlush`); `recordProgress`
-  saves the player's position, `resumeAt` is where a video opens;
+  saves the player's position, `resumeAt` is where a video opens and
+  `playlistStart` where a playlist does;
   `player` is the one `PlayerSession`, and replacing it
   saves the old one's position: `open` starts a card, large on a Mac and in
   the card on a phone, keeping the page's list for what plays next;
@@ -267,7 +276,10 @@ the pbxproj.
   `widget_referrer` are `PlayerPage.identity`, `https://<bundle id>` read
   from the bundle, as YouTube asks of a native app —
   so a view showing it can go and come back without restarting it; the page
-  posts the player's state and, each second while playing, its position;
+  posts the player's state and, each second while playing, its position,
+  with the playing video's id for a playlist; a playlist is only cued, and
+  once ready the page posts its videos (`playlistReady`) and the session
+  answers with the page's `startPlaylist(index, seconds)`;
   every 250 ms it checks whether the web view is in no window, in a hidden
   or minimized window, or under a sheet or anything else presented, and
   pauses the video through the page's `cover()`, which plays it again once

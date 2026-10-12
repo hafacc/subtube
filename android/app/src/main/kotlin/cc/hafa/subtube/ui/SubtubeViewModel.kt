@@ -40,6 +40,8 @@ import cc.hafa.subtube.core.InsufficientScopeException
 import cc.hafa.subtube.core.NoYouTubeChannelException
 import cc.hafa.subtube.core.PlaybackFeed
 import cc.hafa.subtube.core.Playlist
+import cc.hafa.subtube.core.PlaylistPlace
+import cc.hafa.subtube.core.PlaylistStart
 import cc.hafa.subtube.core.Prefetch
 import cc.hafa.subtube.core.ProfileDeletedException
 import cc.hafa.subtube.core.ProgressUpload
@@ -101,6 +103,7 @@ import cc.hafa.subtube.core.orderChannels
 import cc.hafa.subtube.core.passesFilter
 import cc.hafa.subtube.core.passingItems
 import cc.hafa.subtube.core.playedEntry
+import cc.hafa.subtube.core.playlistStart
 import cc.hafa.subtube.core.progressFraction
 import cc.hafa.subtube.core.publishedMillis
 import cc.hafa.subtube.core.resumePosition
@@ -1908,17 +1911,20 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
 
     override fun findItem(id: String): FeedItem? = itemsById[id]
 
+    override fun playlistStart(id: String, videos: List<String>): PlaylistStart = playlistStart(entryOf(id), videos)
+
     /**
      * Save how far a video has been played. It is always kept on this device;
      * [upload] says whether Drive gets it after the usual pause, at once, or
-     * only with the next upload.
+     * only with the next upload. For a playlist, [place] is where in it the
+     * player is.
      */
-    override fun recordProgress(id: String, position: Double, playerDuration: Double, ended: Boolean, upload: ProgressUpload) {
+    override fun recordProgress(id: String, position: Double, playerDuration: Double, ended: Boolean, upload: ProgressUpload, place: PlaylistPlace?) {
         val seconds = maxOf(0.0, position).toLong()
         if (demo) {
-            demoEntries = demoEntries + (id to playedEntry(demoEntries[id], System.currentTimeMillis(), seconds, ended))
+            demoEntries = demoEntries + (id to playedEntry(demoEntries[id], System.currentTimeMillis(), seconds, ended, place))
         }
-        store?.setProgress(id, seconds, ended, upload != ProgressUpload.LATER)
+        store?.setProgress(id, seconds, ended, upload != ProgressUpload.LATER, place)
         if (upload == ProgressUpload.NOW) {
             onBackground()
         }

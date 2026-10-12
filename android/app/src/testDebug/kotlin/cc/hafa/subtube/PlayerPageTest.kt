@@ -5,6 +5,8 @@ import cc.hafa.subtube.core.FeedItem
 import cc.hafa.subtube.core.Playback
 import cc.hafa.subtube.core.PlaybackFeed
 import cc.hafa.subtube.core.PlayerState
+import cc.hafa.subtube.core.PlaylistPlace
+import cc.hafa.subtube.core.PlaylistStart
 import cc.hafa.subtube.core.ProgressUpload
 import cc.hafa.subtube.ui.PlayerBridge
 import cc.hafa.subtube.ui.PlayerPage
@@ -17,13 +19,17 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** What a played video's saves were, and nothing else of a feed. */
+/** What a played video's saves were, and nothing else of a feed; a playlist starts at its last video, 42 seconds in. */
 private class Saves : PlaybackFeed {
     val uploads: MutableList<ProgressUpload> = mutableListOf()
+    val places: MutableList<PlaylistPlace?> = mutableListOf()
 
-    override fun recordProgress(id: String, position: Double, playerDuration: Double, ended: Boolean, upload: ProgressUpload) {
+    override fun recordProgress(id: String, position: Double, playerDuration: Double, ended: Boolean, upload: ProgressUpload, place: PlaylistPlace?) {
         uploads.add(upload)
+        places.add(place)
     }
+
+    override fun playlistStart(id: String, videos: List<String>): PlaylistStart = PlaylistStart(videos.lastIndex, 42.0)
 
     override fun setWatched(id: String, watched: Boolean) = Unit
 
@@ -59,12 +65,26 @@ class PlayerPageTest {
         send("""{"token":"$first","kind":"failed"}""")
         send("""{"token":"","kind":"failed"}""")
         assertFalse(page.failed)
-        send("""{"token":"$first","kind":"state","code":0,"time":90,"duration":90,"last":true}""")
+        send("""{"token":"$first","kind":"state","code":0,"time":90,"duration":90}""")
         assertEquals(0, ended)
-        send("""{"token":"$second","kind":"state","code":0,"time":90,"duration":90,"last":true}""")
+        send("""{"token":"$second","kind":"state","code":0,"time":90,"duration":90}""")
         assertEquals(1, ended)
         send("""{"token":"$second","kind":"failed"}""")
         assertTrue(page.failed)
+    }
+
+    @Test
+    fun aPlaylistIsStartedWhereTheFeedSaysAndSavesItsPlayingVideo() {
+        val starts = ArrayList<PlaylistStart>()
+        page.startPlaylist = { start -> starts.add(start) }
+        val token = page.load(Playback("PL1", isPlaylist = true, saves) { ended += 1 })
+        send("""{"token":"other","kind":"playlist","videos":["a","b"]}""")
+        assertTrue(starts.isEmpty())
+        send("""{"token":"$token","kind":"playlist","videos":["a","b"]}""")
+        assertEquals(listOf(PlaylistStart(1, 42.0)), starts)
+        send("""{"token":"$token","kind":"state","code":1,"time":42,"duration":90,"video":"b","index":1,"count":2}""")
+        send("""{"token":"$token","kind":"state","code":2,"time":45,"duration":90,"video":"b","index":1,"count":2}""")
+        assertEquals(listOf<PlaylistPlace?>(PlaylistPlace("b", 0.75)), saves.places)
     }
 
     @Test
@@ -97,10 +117,10 @@ class PlayerPageTest {
     @Test
     fun aCoveredVideoPausesAndPlaysAgainOnceClear() {
         val token = load()
-        page.stateChanged(token, PlayerState.PLAYING, 10.0, 90.0, last = true)
+        page.stateChanged(token, PlayerState.PLAYING, 10.0, 90.0)
         page.cover(true)
         assertEquals(1, pauses)
-        page.stateChanged(token, PlayerState.PAUSED, 10.0, 90.0, last = true)
+        page.stateChanged(token, PlayerState.PAUSED, 10.0, 90.0)
         page.cover(false)
         assertEquals(1, resumes)
     }
@@ -108,7 +128,7 @@ class PlayerPageTest {
     @Test
     fun aVideoTheUserPausedStaysPausedWhenASheetCloses() {
         val token = load()
-        page.stateChanged(token, PlayerState.PAUSED, 10.0, 90.0, last = true)
+        page.stateChanged(token, PlayerState.PAUSED, 10.0, 90.0)
         page.cover(true)
         page.cover(false)
         assertEquals(0, pauses)
@@ -120,7 +140,7 @@ class PlayerPageTest {
         val token = load()
         page.cover(true)
         assertEquals(0, pauses)
-        send("""{"token":"$token","kind":"state","code":1,"time":0,"duration":90,"last":true}""")
+        send("""{"token":"$token","kind":"state","code":1,"time":0,"duration":90}""")
         assertEquals(1, pauses)
         page.cover(false)
         assertEquals(1, resumes)
@@ -129,7 +149,7 @@ class PlayerPageTest {
     @Test
     fun leavingTheScreenSavesAtOnceAndPausesAndComingBackDoesNotPlay() {
         val token = load()
-        page.stateChanged(token, PlayerState.PLAYING, 10.0, 90.0, last = true)
+        page.stateChanged(token, PlayerState.PLAYING, 10.0, 90.0)
         page.stop()
         assertEquals(listOf(ProgressUpload.NOW), saves.uploads)
         assertEquals(1, pauses)
@@ -143,18 +163,18 @@ class PlayerPageTest {
         page.stop()
         assertEquals(1, pauses)
         // the page finished loading after the app left, and its player started
-        send("""{"token":"$token","kind":"state","code":1,"time":0,"duration":90,"last":true}""")
+        send("""{"token":"$token","kind":"state","code":1,"time":0,"duration":90}""")
         assertEquals(2, pauses)
         page.start()
         assertEquals(0, resumes)
-        page.stateChanged(token, PlayerState.PLAYING, 0.0, 90.0, last = true)
+        page.stateChanged(token, PlayerState.PLAYING, 0.0, 90.0)
         assertEquals(2, pauses)
     }
 
     @Test
     fun aSheetClosedOffTheScreenDoesNotPlay() {
         val token = load()
-        page.stateChanged(token, PlayerState.PLAYING, 10.0, 90.0, last = true)
+        page.stateChanged(token, PlayerState.PLAYING, 10.0, 90.0)
         page.cover(true)
         page.stop()
         page.cover(false)

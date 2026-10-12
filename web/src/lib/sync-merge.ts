@@ -1,4 +1,5 @@
 import { phrasePatternOnly } from "./phrases";
+import type { PlaylistPlace } from "./progress";
 import type { Channel, ChannelFilter, ChannelInfo } from "./types";
 
 /**
@@ -24,8 +25,12 @@ export interface WatchedEntry {
   at: number;
   /** true for a mark, or a video whose player reported the end */
   watched: boolean;
-  /** how far a video has been played, in seconds; kept whatever it holds */
+  /** how far a video, or a playlist's `video`, has been played, in seconds; kept whatever it holds */
   position?: unknown;
+  /** the video of a playlist that was playing; kept whatever it holds */
+  video?: unknown;
+  /** how far through a playlist that is, from 0 to 1; kept whatever it holds */
+  progress?: unknown;
   /** when this device last had it among a full load's items, in epoch milliseconds; kept whatever it holds */
   seen?: unknown;
   /** fields from a newer client, kept as they were */
@@ -84,29 +89,37 @@ export function editedEntry<Entry extends { at: number }>(
 }
 
 /**
- * A watched entry after a mark: marking watched keeps its position, unmarking
- * drops it, or a position near the end would read as watched again.
+ * A watched entry after a mark: marking watched keeps its position and its
+ * playlist's video and progress, unmarking drops them, or a position near the
+ * end would read as watched again.
  */
 export function markedEntry(
   prior: WatchedEntry | undefined,
   at: number,
   watched: boolean,
 ): WatchedEntry {
-  const { position, ...rest } = editedEntry(prior, { at, watched });
-  return watched && position !== undefined ? { ...rest, position } : rest;
+  const edited = editedEntry(prior, { at, watched });
+  if (watched) {
+    return edited;
+  } else {
+    const { position, video, progress, ...rest } = edited;
+    return rest;
+  }
 }
 
 /**
  * A watched entry after its video played to `position` seconds; `ended` when
- * the player reported the end, which alone marks it watched here.
+ * the player reported the end, which alone marks it watched here. A
+ * playlist's entry also says where in it that was, `place`.
  */
 export function playedEntry(
   prior: WatchedEntry | undefined,
   at: number,
   position: number,
   ended: boolean,
+  place?: PlaylistPlace,
 ): WatchedEntry {
-  return editedEntry(prior, { at, watched: ended, position });
+  return editedEntry(prior, { at, watched: ended, position, ...place });
 }
 
 /** An empty file of the current version. */

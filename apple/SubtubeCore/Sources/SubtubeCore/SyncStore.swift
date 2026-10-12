@@ -404,14 +404,16 @@ public actor SyncStore {
   }
 
   /// Save how far a video has been played; `ended` when its player reported
-  /// the end. It is kept in memory at once and goes to Drive with the next
+  /// the end, and for a playlist its `place` in it. It is kept in memory at once and goes to Drive with the next
   /// upload, which this starts only when `upload` is set. With `upload` it
   /// is on disk at once too; without, as a video playing saves it every few
   /// seconds, within ``positionWriteDelay`` or at the next ``persist()``.
-  public func setProgress(_ id: String, position: Int, ended: Bool, upload: Bool) {
+  public func setProgress(
+    _ id: String, position: Int, ended: Bool, upload: Bool, place: PlaylistPlace? = nil
+  ) {
     guard !deleted else { return }
     own.watched[id] = playedEntry(
-      own.watched[id], now: epochMilliseconds(), position: position, ended: ended)
+      own.watched[id], now: epochMilliseconds(), position: position, ended: ended, place: place)
     remergeWatched(id)
     unsent = true
     if upload {
