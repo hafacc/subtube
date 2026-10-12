@@ -182,7 +182,9 @@ values, named by the page's `h1`.
     deleted the profile: the store wipes its copy, throws
     `ProfileDeletedError`, and the session goes back to setup, still signed in.
     A watched entry is written by `markedEntry` (a mark keeps the entry's
-    `position`, an unmark drops it) or `playedEntry` (`position`, with
+    `position` and its playlist's `video` and `progress`, an unmark drops
+    them) or `playedEntry` (`position`, for a playlist also the `video`
+    playing and the `progress` through it, with
     `watched` true only when the player reported the end);
     `SyncStore.setProgress` changes only that entry of the merged file
     (merging everything again only when another device's entry is as new)
@@ -200,7 +202,11 @@ values, named by the page's `h1`.
     itself does not.
   - `progress.ts` — what a watched entry means: `isWatchedEntry` (marked, or
     a position in the last 10 seconds of a video longer than that),
-    `resumePosition`, `progressFraction` (the card's bar).
+    `resumePosition`, `progressFraction` (the card's bar), and
+    `playlistStart` (the video of a playlist to start at and how far in: the
+    entry's `video` when the player's list still has it, else the first), and
+    `playlistProgress` (how far through a playlist the player is, by video
+    count: what is saved as the entry's `progress` and fills a playlist's bar).
   - `phrases.ts` — `phrasesToPattern` / `patternToPhrases` (null = not
     phrases) / `phrasePatternOnly`. `compileFilter` applies a pattern only
     when it reads back as phrases.
@@ -281,14 +287,17 @@ values, named by the page's `h1`.
     `autoplayAdvances` (not in Watched), `emptiedBySelection` (which empty
     text a page shows).
   - `playback.ts` — `Playback`: one item in one YouTube player, with no DOM:
-    starts a video at `resumeAt`, saves its position (every 5 s on the
+    starts a video at `resumeAt` and a playlist at `playlistStart` (the
+    player only cues a playlist, so `ready` can read its videos and then
+    load it at one of them), saves its position, and for a playlist the
+    video playing (every 5 s on the
     device; with an upload on pause, on leaving and, at once, when the tab is
     hidden), marks it at the player's reported end and calls `onended`.
     A video the player reports an error for (`failed`, from the embed's
     `onError`) is over at once, unmarked, so what comes next plays as after
     any end; a playlist's player skips such a video itself.
-    Nothing is saved for a live broadcast or a playlist; a playlist is marked
-    when its last video ends. `cover(true)` pauses it and `cover(false)`
+    Nothing is saved for a live broadcast; a playlist is marked when its
+    last video ends, and never by a position. `cover(true)` pauses it and `cover(false)`
     plays again what that paused; `ontoggle` reports a pause or play that
     was not `cover`'s. Tested with a fake player (`playback.test.ts`).
   - `player.ts` / `player.svelte.ts` — the one player, with no DOM
@@ -317,7 +326,7 @@ values, named by the page's `h1`.
     `SvelteSet` and a `SvelteMap` changed one id at a time, so a save
     redraws only that id's card;
     `recordProgress` saves the player's position, `resumeAt` is where a video
-    opens), mid-load 401 silent retry, and reload
+    opens and `playlistStart` where a playlist does), mid-load 401 silent retry, and reload
     on returning to the tab or when the browser is online again, both only
     while a load's error shows: a load that worked is run again only when
     asked (a load costs quota). Filter edits only re-filter; a channel that

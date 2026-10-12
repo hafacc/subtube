@@ -398,6 +398,13 @@ class SharedFixturesTest {
             "watched" -> assertEquals(expected?.booleanOrNull, isWatchedEntry(entry, duration))
             "resume" -> assertEquals(expected?.content?.toDouble(), resumePosition(entry, duration))
             "bar" -> assertEquals(expected?.content?.toDouble(), progressFraction(entry, duration))
+            "playlistVideo" -> assertEquals(expected?.content?.toInt(), playlistStart(entry, case["videos"].texts()).index)
+            "playlistPosition" -> assertEquals(expected?.content?.toDouble(), playlistStart(entry, case["videos"].texts()).position)
+            "playlistProgress" -> {
+                fun whole(key: String): Int = (case[key] as? JsonPrimitive)?.content?.toInt() ?: 0
+                val position = (case["position"] as? JsonPrimitive)?.content?.toDouble() ?: 0.0
+                assertEquals(expected?.content?.toDouble(), playlistProgress(whole("index"), whole("count"), position, duration))
+            }
             else -> error("unknown op in ${case.name}")
         }
     }

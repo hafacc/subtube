@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import fixture from "../../../shared/fixtures/watch-progress.json";
 import {
   isWatchedEntry,
+  playlistProgress,
+  playlistStart,
   progressFraction,
   resumePosition,
   type WatchEntry,
@@ -12,6 +14,10 @@ interface ProgressCase {
   op: string;
   entry?: WatchEntry;
   duration?: number;
+  videos?: string[];
+  index?: number;
+  count?: number;
+  position?: number;
   expected: boolean | number | null;
 }
 
@@ -23,6 +29,17 @@ function result(testCase: ProgressCase): boolean | number | null {
     return resumePosition(entry, duration);
   } else if (testCase.op === "bar") {
     return progressFraction(entry, duration);
+  } else if (testCase.op === "playlistVideo") {
+    return playlistStart(entry, testCase.videos ?? []).index;
+  } else if (testCase.op === "playlistPosition") {
+    return playlistStart(entry, testCase.videos ?? []).position;
+  } else if (testCase.op === "playlistProgress") {
+    return playlistProgress(
+      testCase.index ?? 0,
+      testCase.count ?? 0,
+      testCase.position ?? 0,
+      duration ?? 0,
+    );
   } else {
     throw new Error(`unknown op ${testCase.op}`);
   }

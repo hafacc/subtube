@@ -318,8 +318,8 @@ class SyncStore(
      * player reported the end. It is kept on this device at once and goes to
      * Drive with the next upload, which this starts only when [upload] is set.
      */
-    fun setProgress(id: String, position: Long, ended: Boolean, upload: Boolean) {
-        edit(upload) { file -> file.copy(watched = file.watched + (id to playedEntry(file.watched[id], clock(), position, ended))) }
+    fun setProgress(id: String, position: Long, ended: Boolean, upload: Boolean, place: PlaylistPlace? = null) {
+        edit(upload) { file -> file.copy(watched = file.watched + (id to playedEntry(file.watched[id], clock(), position, ended, place))) }
     }
 
     /**

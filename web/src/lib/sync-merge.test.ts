@@ -295,6 +295,31 @@ describe("watched entries", () => {
       speed: 2,
     });
   });
+
+  test("a playlist's entry says which of its videos was playing", () => {
+    const inPlaylist = playedEntry(playing, 5, 12, false, {
+      video: "second",
+      progress: 0.25,
+    });
+    expect(inPlaylist).toEqual({
+      at: 5,
+      watched: false,
+      position: 12,
+      video: "second",
+      progress: 0.25,
+      speed: 2,
+    });
+    expect(markedEntry(inPlaylist, 6, true)).toEqual({
+      ...inPlaylist,
+      at: 6,
+      watched: true,
+    });
+    expect(markedEntry(inPlaylist, 6, false)).toEqual({
+      at: 6,
+      watched: false,
+      speed: 2,
+    });
+  });
 });
 
 describe("editedFilter", () => {

@@ -88,16 +88,19 @@ fun entryWatched(entry: JsonObject): Boolean = (entry["watched"] as? JsonPrimiti
  */
 fun markedEntry(prior: JsonObject?, at: Long, watched: Boolean): JsonObject {
     val edited = prior.orEmpty() + mapOf("at" to JsonPrimitive(at), "watched" to JsonPrimitive(watched))
-    return JsonObject(if (watched) edited else edited - "position")
+    return JsonObject(if (watched) edited else edited - "position" - "video" - "progress")
 }
 
 /**
  * A watched entry after its video played to [position] seconds, saved at
  * [at]; [ended] when the player reported the end, which alone marks it
- * watched here.
+ * watched here. A playlist's entry also says where in it that was, [place].
  */
-fun playedEntry(prior: JsonObject?, at: Long, position: Long, ended: Boolean): JsonObject =
-    JsonObject(prior.orEmpty() + mapOf("at" to JsonPrimitive(at), "watched" to JsonPrimitive(ended), "position" to JsonPrimitive(position)))
+fun playedEntry(prior: JsonObject?, at: Long, position: Long, ended: Boolean, place: PlaylistPlace? = null): JsonObject {
+    val played = mapOf("at" to JsonPrimitive(at), "watched" to JsonPrimitive(ended), "position" to JsonPrimitive(position))
+    val inPlaylist = if (place == null) emptyMap() else mapOf("video" to JsonPrimitive(place.video), "progress" to JsonPrimitive(place.progress))
+    return JsonObject(prior.orEmpty() + played + inPlaylist)
+}
 
 /**
  * Read a downloaded file the forgiving way (shared/fixtures/merge.json): null

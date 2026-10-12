@@ -20,6 +20,13 @@ export interface YouTubePlayer {
   playVideo(): void;
   /** Load and play a list of video ids in order, starting at `index`, `startSeconds` into it. */
   loadPlaylist(playlist: string[], index?: number, startSeconds?: number): void;
+  /** Load and play a YouTube playlist, starting at its video at `index`, `startSeconds` into it. */
+  loadPlaylist(options: {
+    list: string;
+    listType: "playlist";
+    index: number;
+    startSeconds: number;
+  }): void;
   /** How far the playing video has played, in seconds. */
   getCurrentTime(): number;
   /** The playing video's length in seconds; 0 until it is known. */

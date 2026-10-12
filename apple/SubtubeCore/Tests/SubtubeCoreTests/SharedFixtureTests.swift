@@ -758,6 +758,15 @@ private func channelGroups(_ testCase: JSONObject) -> [String: [String]] {
         } else {
           #expect(fraction == nil && expected == .null, name(testCase))
         }
+      case "playlistVideo", "playlistPosition":
+        let start = playlistStart(given, videos: strings(testCase["videos"]))
+        let isVideo = testCase["op"]?.stringValue == "playlistVideo"
+        #expect((isVideo ? Double(start.index) : start.position) == number(expected), name(testCase))
+      case "playlistProgress":
+        let progress = playlistProgress(
+          index: Int(number(testCase["index"]) ?? 0), count: Int(number(testCase["count"]) ?? 0),
+          position: number(testCase["position"]) ?? 0, durationSeconds: duration)
+        #expect(progress == number(expected), name(testCase))
       default:
         Issue.record("unknown op in \(name(testCase).rawValue)")
       }
@@ -784,6 +793,16 @@ private func channelGroups(_ testCase: JSONObject) -> [String: [String]] {
           at: 9, watched: true, extra: ["setOn": .string("tv"), "position": .integer(42)]))
     #expect(
       markedEntry(played, now: 9, watched: false)
+        == WatchedEntry(at: 9, watched: false, extra: ["setOn": .string("tv")]))
+    let inPlaylist = playedEntry(
+      played, now: 5, position: 12, ended: false,
+      place: PlaylistPlace(video: "second", progress: 0.25))
+    #expect(inPlaylist.video == "second" && inPlaylist.position == 12)
+    #expect(inPlaylist.progress == 0.25)
+    #expect(markedEntry(inPlaylist, now: 9, watched: true).video == "second")
+    #expect(markedEntry(inPlaylist, now: 9, watched: true).progress == 0.25)
+    #expect(
+      markedEntry(inPlaylist, now: 9, watched: false)
         == WatchedEntry(at: 9, watched: false, extra: ["setOn": .string("tv")]))
     #expect(markedEntry(nil, now: 9, watched: true) == WatchedEntry(at: 9, watched: true))
   }

@@ -71,7 +71,11 @@ slightly blue cast (dark page `#121418`, light page white).
   video's playing position, and every client works out from it and the video's
   length whether it is watched (the last 10 seconds of a video longer than
   that); `watched: true` is for marks made without playing and for the
-  player's reported end.
+  player's reported end. A playlist's entry carries which of its videos was
+  playing (`video`) and how far into it, and the playlist starts there; its
+  `progress`, how far through the playlist that is with every video counted
+  as equally long, fills its card's bar. It is watched only once its last
+  video ends.
 - **Topics are YouTube's fifteen video categories**, by category id.
 - **Keep the official IFrame player** so ads serve and views count.
 

@@ -8,7 +8,15 @@ const STATES = { PLAYING: 1, PAUSED: 2, ENDED: 0 };
 
 type Call =
   | { load: string[]; start: number | undefined }
-  | { id: string; position: number; ended: boolean; upload: string }
+  | { list: string; index: number; start: number }
+  | {
+      id: string;
+      position: number;
+      ended: boolean;
+      upload: string;
+      place?: { video: string; progress: number };
+      duration?: number;
+    }
   | { marked: string }
   | "ended"
   | "toggled"
@@ -22,6 +30,7 @@ function playing(
     resumeAt?: number;
     liveStatus?: LiveStatus;
     playlist?: string[];
+    playlistStart?: { index: number; position: number };
   } = {},
 ): {
   playback: Playback;
@@ -41,13 +50,18 @@ function playing(
     liveStatus: options.liveStatus,
   };
   const feed: PlaybackFeed = {
-    recordProgress: (id, position, _duration, ended, upload) => {
-      calls.push({ id, position, ended, upload });
+    recordProgress: (id, position, duration, ended, upload, place) => {
+      if (place === undefined) {
+        calls.push({ id, position, ended, upload });
+      } else {
+        calls.push({ id, position, ended, upload, place, duration });
+      }
     },
     setWatched: (id) => {
       calls.push({ marked: id });
     },
     resumeAt: () => options.resumeAt ?? 0,
+    playlistStart: () => options.playlistStart ?? { index: 0, position: 0 },
     findItem: () => (item.kind === "video" ? entry : undefined),
   };
   const player = {
@@ -63,12 +77,29 @@ function playing(
     getIframe: () => {
       throw new Error("no iframe in tests");
     },
-    loadPlaylist: (playlist: string[], _index?: number, start?: number) => {
-      calls.push({ load: playlist, start });
+    loadPlaylist: (
+      playlist:
+        | string[]
+        | { list: string; index: number; startSeconds: number },
+      _index?: number,
+      start?: number,
+    ) => {
+      if (Array.isArray(playlist)) {
+        calls.push({ load: playlist, start });
+      } else {
+        calls.push({
+          list: playlist.list,
+          index: playlist.index,
+          start: playlist.startSeconds,
+        });
+      }
     },
     getCurrentTime: () => player.time,
     getDuration: () => 600,
-    getVideoData: () => ({ video_id: item.id, title: "Title" }),
+    getVideoData: () => ({
+      video_id: options.playlist?.[player.index] ?? item.id,
+      title: "Title",
+    }),
     getPlaylist: () => options.playlist ?? null,
     getPlaylistIndex: () => player.index,
   };
@@ -153,11 +184,12 @@ describe("Playback of a video", () => {
 });
 
 describe("Playback under a cover", () => {
-  const PLAYLIST_ITEM: RouteItem = { kind: "playlist", id: "PL1" };
+  // a live broadcast saves no position, so only the cover's own calls show
+  const LIVE = { liveStatus: "live" } as const;
   const BUFFERING = 3;
 
   test("pauses a playing video and plays it again once uncovered", () => {
-    const { playback, player, calls } = playing(PLAYLIST_ITEM);
+    const { playback, player, calls } = playing(VIDEO, LIVE);
     playback.stateChanged(STATES.PLAYING, player);
     playback.cover(true);
     playback.stateChanged(STATES.PAUSED, player);
@@ -167,7 +199,7 @@ describe("Playback under a cover", () => {
   });
 
   test("leaves a video the user paused alone", () => {
-    const { playback, player, calls } = playing(PLAYLIST_ITEM);
+    const { playback, player, calls } = playing(VIDEO, LIVE);
     playback.stateChanged(STATES.PLAYING, player);
     playback.stateChanged(STATES.PAUSED, player);
     playback.cover(true);
@@ -176,7 +208,7 @@ describe("Playback under a cover", () => {
   });
 
   test("pauses a video that starts while covered", () => {
-    const { playback, player, calls } = playing(PLAYLIST_ITEM);
+    const { playback, player, calls } = playing(VIDEO, LIVE);
     playback.cover(true);
     playback.stateChanged(STATES.PLAYING, player);
     playback.stateChanged(STATES.PAUSED, player);
@@ -185,7 +217,7 @@ describe("Playback under a cover", () => {
   });
 
   test("reports a pause and a play that are not its own", () => {
-    const { playback, player, calls } = playing(PLAYLIST_ITEM);
+    const { playback, player, calls } = playing(VIDEO, LIVE);
     playback.stateChanged(STATES.PLAYING, player);
     playback.stateChanged(STATES.PAUSED, player);
     playback.stateChanged(BUFFERING, player);
@@ -196,7 +228,7 @@ describe("Playback under a cover", () => {
   });
 
   test("the first play is not reported", () => {
-    const { playback, player, calls } = playing(PLAYLIST_ITEM);
+    const { playback, player, calls } = playing(VIDEO, LIVE);
     playback.stateChanged(BUFFERING, player);
     playback.stateChanged(STATES.PLAYING, player);
     expect(calls).toEqual([]);
@@ -219,13 +251,14 @@ describe("Playback the player reports an error for", () => {
       playlist: ["a", "b"],
     });
     playback.ready(player);
+    calls.length = 0;
     playback.failed();
     expect(calls).toEqual([]);
   });
 });
 
 describe("Playback of a playlist", () => {
-  test("lets the player load its own list and saves no position", () => {
+  test("has the player cue its own list, then starts at its first video", () => {
     const { playback, player, calls } = playing(PLAYLIST, {
       playlist: ["a", "b"],
     });
@@ -233,11 +266,49 @@ describe("Playback of a playlist", () => {
       listType: "playlist",
       list: "PL1",
     });
+    expect(playback.playerVars.autoplay).toBeUndefined();
     playback.ready(player);
+    expect(calls).toEqual([{ list: "PL1", index: 0, start: 0 }]);
+  });
+
+  test("starts at the video that was playing, where it was left", () => {
+    const { playback, player, calls } = playing(PLAYLIST, {
+      playlist: ["a", "b"],
+      playlistStart: { index: 1, position: 42 },
+    });
+    playback.ready(player);
+    expect(calls).toEqual([{ list: "PL1", index: 1, start: 42 }]);
+  });
+
+  test("saves its playing video, how far into it and through the list, with no length", () => {
+    const { playback, player, calls } = playing(PLAYLIST, {
+      playlist: ["a", "b"],
+    });
+    player.index = 1;
     playback.stateChanged(STATES.PLAYING, player);
+    player.time = 150;
     playback.tick();
+    player.time = 300;
     playback.stateChanged(STATES.PAUSED, player);
-    expect(calls).toEqual(["toggled"]);
+    expect(calls).toEqual([
+      {
+        id: "PL1",
+        position: 150,
+        ended: false,
+        upload: "later",
+        place: { video: "b", progress: 0.625 },
+        duration: 0,
+      },
+      "toggled",
+      {
+        id: "PL1",
+        position: 300,
+        ended: false,
+        upload: "soon",
+        place: { video: "b", progress: 0.75 },
+        duration: 0,
+      },
+    ]);
   });
 
   test("is marked only when its last video ends", () => {

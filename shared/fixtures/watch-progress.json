@@ -1,5 +1,5 @@
 {
-  "description": "How far a video has been played, and when it is watched. Drive carries the position; every client works out the rest. In each case `entry` is the video's merged watched entry (absent when it has none) and `duration` the video's length in seconds as the client knows it (absent or 0 when unknown); `op` says what is checked. An entry's `position` counts only when it is a number that is not negative; anything else reads as no position. `watched`: whether the video is watched; `expected` is a boolean. It is watched when the entry's `watched` is true, or when it has a position, `duration` is greater than 10 and `position` >= `duration` - 10 (within the last 10 seconds of its length). So a video of 10 seconds or less, or of unknown length, is watched only by `watched: true`, and an old entry with `watched: true` and no position is watched as before. `resume`: where the video starts when opened; `expected` is in seconds. 0 when it is watched by the rule above or has no position; otherwise its position. `bar`: the progress bar along the bottom of the video's thumbnail; `expected` is the filled fraction from 0 to 1, or null for no bar. 1 when it is watched by the rule above; otherwise null without a position or without a `duration` greater than 0; otherwise `position` / `duration`. A fraction of 0 draws nothing. A playlist has no position and no bar: only `watched` counts for it. What a client writes, always under the item's id in its own file with `at` set to now, keeping any unknown fields the entry had: (1) while a video plays in its own player, `watched: false` and `position` as the player reports it — often on the device (every few seconds), and to Drive with the usual delayed upload only on pause, on leaving the player and when the app goes to the background, never every few seconds; nothing is written for a live broadcast, or before playback starts. (2) when the player reports the end, `watched: true` and `position` as reported; nothing more is written for that video until it plays again, and playing it again writes (1), which is how moving back in a watched video makes it unwatched with the new position. (3) a mark made without playing — setup's starting point, a playlist's last video ending, a mark made by hand — `watched: true`, leaving `position` as it was. (4) an unmark made by hand: `watched: false` and `position` removed. Leaving a video part-way therefore keeps its position and leaves it in the feed. The unwatched counts count every video that is not watched by the rule above, so a part-watched one counts.",
+  "description": "How far a video has been played, and when it is watched. Drive carries the position; every client works out the rest. In each case `entry` is the video's merged watched entry (absent when it has none) and `duration` the video's length in seconds as the client knows it (absent or 0 when unknown); `op` says what is checked. An entry's `position` counts only when it is a number that is not negative; anything else reads as no position. `watched`: whether the video is watched; `expected` is a boolean. It is watched when the entry's `watched` is true, or when it has a position, `duration` is greater than 10 and `position` >= `duration` - 10 (within the last 10 seconds of its length). So a video of 10 seconds or less, or of unknown length, is watched only by `watched: true`, and an old entry with `watched: true` and no position is watched as before. `resume`: where the video starts when opened; `expected` is in seconds. 0 when it is watched by the rule above or has no position; otherwise its position. `bar`: the progress bar along the bottom of the video's thumbnail; `expected` is the filled fraction from 0 to 1, or null for no bar. 1 when it is watched by the rule above; otherwise, with a `duration` greater than 0, null without a position and else `position` / `duration`; otherwise, with no `duration` greater than 0, the entry's `progress` when that is a number from 0 to 1, and null when it is anything else or absent, which is how a playlist's bar is filled. A fraction of 0 draws nothing. A playlist has no length, and only `watched: true` makes it watched; its entry's `position` is how far into `video`, the id of the video of the playlist that was playing. `playlistVideo` and `playlistPosition`: where a playlist starts when opened. `videos` are the ids of the playlist's videos as the player loaded them, in order; `expected` is the place in `videos` to start at, counted from 0, and how far into that video in seconds. The place is that of the entry's `video` when the entry is not `watched: true` and its `video` is a string among `videos`, and the seconds are then the entry's position, or 0 without one; in every other case the playlist starts at place 0 from 0 seconds, so a playlist whose video was since removed starts over. `playlistProgress`: the `progress` a client writes for a playlist, how far through it the player is, counting every video as equally long. `index` is the place of the playing video among the `count` videos the player loaded, counted from 0, and `position` and `duration` are how far into that video and its length in seconds as the player reports them; `expected` is (`index` + part) / `count`, where part is `position` / `duration` held between 0 and 1, or 0 when `duration` is not greater than 0; the result is held between 0 and 1, and is 0 when `count` is not greater than 0. What a client writes, always under the item's id in its own file with `at` set to now, keeping any unknown fields the entry had: (1) while a video plays in its own player, `watched: false` and `position` as the player reports it, and for a playlist also `video`, the id of its video that is playing, and `progress` by the `playlistProgress` rule — often on the device (every few seconds), and to Drive with the usual delayed upload only on pause, on leaving the player and when the app goes to the background, never every few seconds; nothing is written for a live broadcast, or before playback starts. A playlist's video ending writes nothing unless it is the last. (2) when the player reports the end, `watched: true` and `position` as reported; nothing more is written for that video until it plays again, and playing it again writes (1), which is how moving back in a watched video makes it unwatched with the new position. (3) a mark made without playing — setup's starting point, a playlist's last video ending, a mark made by hand — `watched: true`, leaving `position`, `video` and `progress` as they were. (4) an unmark made by hand: `watched: false` and `position`, `video` and `progress` removed. Leaving a video part-way therefore keeps its position and leaves it in the feed. The unwatched counts count every video that is not watched by the rule above, so a part-watched one counts.",
   "cases": [
     {
       "name": "watched: no entry",
@@ -512,6 +512,489 @@
       },
       "duration": 600,
       "expected": null
+    },
+    {
+      "name": "watched: a playlist part-way is not watched",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 595,
+        "video": "second"
+      },
+      "expected": false
+    },
+    {
+      "name": "bar: a playlist without progress has no bar",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second"
+      },
+      "expected": null
+    },
+    {
+      "name": "playlistVideo: no entry starts at the first video",
+      "op": "playlistVideo",
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistPosition: no entry starts at the first video",
+      "op": "playlistPosition",
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistVideo: starts at the video that was playing",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 1
+    },
+    {
+      "name": "playlistPosition: starts at the video that was playing",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 95
+    },
+    {
+      "name": "playlistVideo: a fractional position",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95.5,
+        "video": "third"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 2
+    },
+    {
+      "name": "playlistPosition: a fractional position",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95.5,
+        "video": "third"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 95.5
+    },
+    {
+      "name": "playlistVideo: a video without a position starts from its beginning",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "video": "third"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 2
+    },
+    {
+      "name": "playlistPosition: a video without a position starts from its beginning",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "video": "third"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistVideo: a watched playlist starts over",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true,
+        "position": 95,
+        "video": "second"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistPosition: a watched playlist starts over",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true,
+        "position": 95,
+        "video": "second"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistVideo: a video no longer in the playlist starts over",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "gone"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistPosition: a video no longer in the playlist starts over",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "gone"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistVideo: a position without a video starts over",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistPosition: a position without a video starts over",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistVideo: a video that is not a string starts over",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": 1
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistPosition: a video that is not a string starts over",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": 1
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistVideo: a position that is not a number reads as none",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": "95",
+        "video": "second"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 1
+    },
+    {
+      "name": "playlistPosition: a position that is not a number reads as none",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": "95",
+        "video": "second"
+      },
+      "videos": [
+        "first",
+        "second",
+        "third"
+      ],
+      "expected": 0
+    },
+    {
+      "name": "playlistVideo: nothing loaded starts at the first video",
+      "op": "playlistVideo",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second"
+      },
+      "videos": [],
+      "expected": 0
+    },
+    {
+      "name": "playlistPosition: nothing loaded starts at the first video",
+      "op": "playlistPosition",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second"
+      },
+      "videos": [],
+      "expected": 0
+    },
+    {
+      "name": "bar: a playlist's progress fills its bar",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second",
+        "progress": 0.25
+      },
+      "expected": 0.25
+    },
+    {
+      "name": "bar: a watched playlist's bar is full",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": true,
+        "position": 95,
+        "video": "second",
+        "progress": 0.25
+      },
+      "expected": 1
+    },
+    {
+      "name": "bar: progress that is not a number reads as none",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second",
+        "progress": "0.25"
+      },
+      "expected": null
+    },
+    {
+      "name": "bar: progress over 1 reads as none",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second",
+        "progress": 1.5
+      },
+      "expected": null
+    },
+    {
+      "name": "bar: negative progress reads as none",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second",
+        "progress": -0.25
+      },
+      "expected": null
+    },
+    {
+      "name": "bar: a video's length wins over progress",
+      "op": "bar",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 150,
+        "progress": 0.75
+      },
+      "duration": 600,
+      "expected": 0.25
+    },
+    {
+      "name": "watched: progress of 1 does not make a playlist watched",
+      "op": "watched",
+      "entry": {
+        "at": 1759500000000,
+        "watched": false,
+        "position": 95,
+        "video": "second",
+        "progress": 1
+      },
+      "expected": false
+    },
+    {
+      "name": "playlistProgress: the start of the first video",
+      "op": "playlistProgress",
+      "index": 0,
+      "count": 10,
+      "position": 0,
+      "duration": 60,
+      "expected": 0
+    },
+    {
+      "name": "playlistProgress: half-way into the third of ten",
+      "op": "playlistProgress",
+      "index": 2,
+      "count": 10,
+      "position": 30,
+      "duration": 60,
+      "expected": 0.25
+    },
+    {
+      "name": "playlistProgress: the start of the second of four",
+      "op": "playlistProgress",
+      "index": 1,
+      "count": 4,
+      "position": 0,
+      "duration": 60,
+      "expected": 0.25
+    },
+    {
+      "name": "playlistProgress: a video of unknown length counts from its start",
+      "op": "playlistProgress",
+      "index": 3,
+      "count": 4,
+      "position": 30,
+      "duration": 0,
+      "expected": 0.75
+    },
+    {
+      "name": "playlistProgress: a position past the video's length counts as its end",
+      "op": "playlistProgress",
+      "index": 1,
+      "count": 4,
+      "position": 90,
+      "duration": 60,
+      "expected": 0.5
+    },
+    {
+      "name": "playlistProgress: the end of the last video",
+      "op": "playlistProgress",
+      "index": 3,
+      "count": 4,
+      "position": 60,
+      "duration": 60,
+      "expected": 1
+    },
+    {
+      "name": "playlistProgress: a place past the end is full",
+      "op": "playlistProgress",
+      "index": 5,
+      "count": 4,
+      "position": 0,
+      "duration": 60,
+      "expected": 1
+    },
+    {
+      "name": "playlistProgress: a place before the start is empty",
+      "op": "playlistProgress",
+      "index": -1,
+      "count": 4,
+      "position": 0,
+      "duration": 60,
+      "expected": 0
+    },
+    {
+      "name": "playlistProgress: nothing loaded is empty",
+      "op": "playlistProgress",
+      "index": 0,
+      "count": 0,
+      "position": 30,
+      "duration": 60,
+      "expected": 0
     }
   ]
 }

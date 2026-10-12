@@ -8,6 +8,7 @@ import {
   updateJson,
 } from "./drive";
 import { ShownError } from "./errors";
+import type { PlaylistPlace } from "./progress";
 import { readJson, readText, writeJson, writeText } from "./storage";
 import {
   channelsFor,
@@ -462,7 +463,7 @@ export class SyncStore {
 
   /**
    * Save how far a video has been played; `ended` when its player reported
-   * the end. It goes to Drive with the next upload, which this starts only
+   * the end, and for a playlist its `place` in it. It goes to Drive with the next upload, which this starts only
    * when `upload` is set; without, local storage gets it within
    * `LOCAL_WRITE_DELAY_MS`, or at the next {@link flush} or {@link close}.
    */
@@ -471,12 +472,14 @@ export class SyncStore {
     position: number,
     ended: boolean,
     upload: boolean,
+    place?: PlaylistPlace,
   ): void {
     const entry = playedEntry(
       this.own.watched[id],
       Date.now(),
       position,
       ended,
+      place,
     );
     this.own.watched[id] = entry;
     this.edits += 1;
