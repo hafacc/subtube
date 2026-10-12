@@ -49,6 +49,25 @@ side by side; setup's sign-in screen has the line "By signing in, you agree
 to SubTube's Terms and Privacy Policy." under its button. Their wording is
 approved text; don't reword it.
 
+## Delete page (`src/routes/delete/`)
+
+https://subtube.hafa.cc/delete, the address the stores ask for: sign in and
+delete the profile in any browser, with no extension. It is laid out as
+`ExtensionRequired` and `GetApp` are: the brand over one card (a trash badge,
+the title, the text, one button, and the footer's "Privacy policy" and
+"Terms"), with the feed's Sunflower check disk once deleted. "Sign in with
+Google" sends the browser to Google (`signInUrl` in `lib/web-sign-in.ts`:
+the extension's web client, `oauthClientId` in `config.ts`, the app-folder
+scope only, always the account chooser), which returns to the page with a
+token after the `#`; the page takes it only when its `state` is the one it
+kept in sessionStorage, keeps it in memory, and shows the account's address
+from Drive's `about`. "Delete profile" is `deleteEverything`: every file in
+the Drive folder, then Google's grant withdrawn; a file that can't be deleted
+leaves the grant so the button can be pressed again. A device finds its file
+gone at its next load and clears its own copy. The page's address
+(`/delete` on the site and on `http://localhost:3000`) must be an authorized
+redirect URI of that client. Its wording is approved text.
+
 ## YouTube attribution (`YouTubeAttribution.svelte`)
 
 The text "Videos from YouTube", small and muted, a link to youtube.com; no
@@ -90,7 +109,8 @@ lets in the site's own files, the inline
 theme script by its hash, `https://www.youtube.com` for the IFrame API script
 and the player's frame, pictures from `*.ytimg.com`, `*.ggpht.com` and
 `*.googleusercontent.com`, and requests to `https://www.googleapis.com`
-(YouTube and Drive); `'self'` covers the dev server's module scripts and its
+(YouTube and Drive) and `https://oauth2.googleapis.com` (the delete page
+withdrawing the grant); `'self'` covers the dev server's module scripts and its
 reload socket, and `style-src` has `'unsafe-inline'` for the `style:`
 attributes and the dev server's style tags. `src/lib/csp.test.ts` fails when
 the theme script in `src/app.html` and its hash in `vite.config.ts` drift. A new host the app loads from (a picture

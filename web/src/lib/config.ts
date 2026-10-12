@@ -16,6 +16,10 @@
 export const extensionId: string =
   import.meta.env.VITE_EXTENSION_ID || "gobcnmccpjhlgpnohehgkahhknkfbmfo";
 
+/** The web OAuth client the extension signs in with; the delete page signs in with it too, by a redirect to itself. */
+export const oauthClientId =
+  "932619996481-qtf3mtbe40o315ptk6rm7ieuvn61akkm.apps.googleusercontent.com";
+
 /** The privacy policy, a page of its own beside the app (`src/routes/(policy)/privacy`), built with no script. */
 export const privacyUrl = "/privacy";
 

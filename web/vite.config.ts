@@ -25,7 +25,11 @@ export default defineConfig({
             "https://*.ggpht.com",
             "https://*.googleusercontent.com",
           ],
-          "connect-src": ["self", "https://www.googleapis.com"],
+          "connect-src": [
+            "self",
+            "https://www.googleapis.com",
+            "https://oauth2.googleapis.com",
+          ],
           "frame-src": ["https://www.youtube.com"],
           "object-src": ["none"],
           "base-uri": ["self"],
