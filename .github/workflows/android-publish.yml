@@ -1,9 +1,9 @@
 # Publish a tagged Android release in two jobs: `bundle` builds the signed bundle, keeps it as
 # the run's artifact and creates the GitHub release; `play` uploads that same bundle to Play's
-# internal testing track as a draft. Started by android-cut.yml. If Play refuses, re-run the
-# failed job: it uploads the bundle already built. An app's first publish fails at Play, which
-# wants that bundle uploaded by hand: take it from the artifact. Roll the draft out and promote
-# it in the Play Console.
+# internal testing track, rolled out to testers. Started by android-cut.yml. If Play refuses,
+# re-run the failed job: it uploads the bundle already built. An app's first publish fails at
+# Play, which wants that bundle uploaded by hand: take it from the artifact. Promote it in the
+# Play Console.
 name: android-publish
 
 on:
@@ -93,6 +93,13 @@ jobs:
       - name: upload to Play
         env:
           ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-        run: >-
-          ./gradlew :app:publishReleaseBundle --release-status draft
-          --artifact-dir "$RUNNER_TEMP/bundle"
+        # Play refuses a rolled-out release while the app has never passed review; a draft is rolled out by hand.
+        run: |
+          publish() {
+            ./gradlew :app:publishReleaseBundle --release-status "$1" \
+              --artifact-dir "$RUNNER_TEMP/bundle"
+          }
+          if ! publish completed; then
+            echo "::warning::Play refused a rolled-out release; uploading a draft to roll out by hand."
+            publish draft
+          fi
