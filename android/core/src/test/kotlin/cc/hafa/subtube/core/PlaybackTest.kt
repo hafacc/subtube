@@ -7,8 +7,9 @@ import kotlin.test.assertEquals
 private class RecordingFeed(private val item: FeedItem?) : PlaybackFeed {
     val saved = ArrayList<String>()
 
-    override fun recordProgress(id: String, position: Double, playerDuration: Double, ended: Boolean, upload: ProgressUpload) {
-        saved.add("$id ${position.toInt()}/${playerDuration.toInt()} ${if (ended) "ended " else ""}${upload.name.lowercase()}")
+    override fun recordProgress(id: String, position: Double, playerDuration: Double, ended: Boolean, upload: ProgressUpload, place: PlaylistPlace?) {
+        val inVideo = if (place == null) "" else " in ${place.video} ${place.progress}"
+        saved.add("$id ${position.toInt()}/${playerDuration.toInt()} ${if (ended) "ended " else ""}${upload.name.lowercase()}$inVideo")
     }
 
     override fun setWatched(id: String, watched: Boolean) {
@@ -16,6 +17,8 @@ private class RecordingFeed(private val item: FeedItem?) : PlaybackFeed {
     }
 
     override fun findItem(id: String): FeedItem? = item
+
+    override fun playlistStart(id: String, videos: List<String>): PlaylistStart = PlaylistStart(videos.lastIndex, 42.0)
 }
 
 class PlaybackTest {
@@ -125,16 +128,44 @@ class PlaybackTest {
     }
 
     @Test
-    fun aPlaylistSavesNoPositionAndIsMarkedOnlyWhenItsLastVideoEnds() {
+    fun aPlaylistIsMarkedOnlyWhenItsLastVideoEnds() {
+        val feed = RecordingFeed(playlist())
+        val playback = of(feed, isPlaylist = true)
+        playback.stateChanged(PlayerState.PLAYING, 0.0, 100.0, "a", 0, 2)
+        playback.stateChanged(PlayerState.ENDED, 100.0, 100.0, "a", 0, 2)
+        assertEquals(emptyList(), feed.saved)
+        assertEquals(0, ended)
+        playback.stateChanged(PlayerState.ENDED, 100.0, 100.0, "b", 1, 2)
+        assertEquals(listOf("PL1 watched=true"), feed.saved)
+        assertEquals(1, ended)
+    }
+
+    @Test
+    fun aPlaylistSavesItsPlayingVideoHowFarIntoItAndThroughTheListWithNoLength() {
+        val feed = RecordingFeed(playlist())
+        val playback = of(feed, isPlaylist = true)
+        playback.stateChanged(PlayerState.PLAYING, 0.0, 100.0, "a", 0, 2)
+        playback.positionChanged(25.0, 100.0, "a", 0, 2)
+        playback.tick()
+        playback.positionChanged(25.0, 100.0, "b", 1, 2)
+        playback.tick()
+        playback.stateChanged(PlayerState.PAUSED, 50.5, 100.0, "b", 1, 2)
+        assertEquals(listOf("PL1 25/0 later in a 0.125", "PL1 25/0 later in b 0.625", "PL1 50/0 soon in b 0.7525"), feed.saved)
+    }
+
+    @Test
+    fun aPlaylistWhoseVideoIsNotKnownSavesNothing() {
         val feed = RecordingFeed(playlist())
         val playback = of(feed, isPlaylist = true)
         playback.stateChanged(PlayerState.PLAYING, 0.0, 100.0)
+        playback.positionChanged(5.0, 100.0)
         playback.tick()
-        playback.stateChanged(PlayerState.ENDED, 100.0, 100.0, lastOfPlaylist = false)
         assertEquals(emptyList(), feed.saved)
-        assertEquals(0, ended)
-        playback.stateChanged(PlayerState.ENDED, 100.0, 100.0, lastOfPlaylist = true)
-        assertEquals(listOf("PL1 watched=true"), feed.saved)
-        assertEquals(1, ended)
+    }
+
+    @Test
+    fun aPlaylistStartsWhereItsFeedSays() {
+        val playback = of(RecordingFeed(playlist()), isPlaylist = true)
+        assertEquals(PlaylistStart(1, 42.0), playback.playlistStart(listOf("a", "b")))
     }
 }

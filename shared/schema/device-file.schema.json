@@ -25,7 +25,7 @@
       }
     },
     "watched": {
-      "description": "The last watched mark this device made for each video or playlist, keyed by its YouTube id, with how far a video has been played. An entry is dropped when the device writes once both its `at` and its `seen` are 30 days old or more (shared/fixtures/prune.json).",
+      "description": "The last watched mark this device made for each video or playlist, keyed by its YouTube id, with how far a video, or a playlist's video, has been played. An entry is dropped when the device writes once both its `at` and its `seen` are 30 days old or more (shared/fixtures/prune.json).",
       "type": "object",
       "propertyNames": {
         "minLength": 1
@@ -78,13 +78,24 @@
           "maximum": 9007199254740991
         },
         "watched": {
-          "description": "true: the item is watched whatever else the entry holds — a mark made without playing (setup's starting point), a playlist whose last video ended, or a video whose player reported the end. false: an explicit unmark, or a video being played, which is then watched or not by its `position` (shared/fixtures/watch-progress.json).",
+          "description": "true: the item is watched whatever else the entry holds — a mark made without playing (setup's starting point), a playlist whose last video ended, or a video whose player reported the end. false: an explicit unmark, or a video or playlist being played; a video is then watched or not by its `position` (shared/fixtures/watch-progress.json).",
           "type": "boolean"
         },
         "position": {
-          "description": "How far the video has been played, in seconds from its start; may be fractional. Optional: an entry without it has no position, and a playlist never has one. A reader works out from it and the video's length whether the video is watched, where it resumes and how full its progress bar is (shared/fixtures/watch-progress.json).",
+          "description": "How far the video has been played, in seconds from its start; may be fractional. In a playlist's entry it is how far into `video`. Optional: an entry without it has no position. For a video, a reader works out from it and the video's length whether the video is watched, where it resumes and how full its progress bar is (shared/fixtures/watch-progress.json).",
           "type": "number",
           "minimum": 0
+        },
+        "video": {
+          "description": "In a playlist's entry, the YouTube id of the video of the playlist that was playing, which `position` is into; the playlist starts there when opened (shared/fixtures/watch-progress.json). Optional: an entry without it starts at the playlist's first video, and a video's entry never has one.",
+          "type": "string",
+          "minLength": 1
+        },
+        "progress": {
+          "description": "In a playlist's entry, how far through the playlist `video` and `position` are, from 0 to 1, counting every video as equally long; it fills the playlist's progress bar (shared/fixtures/watch-progress.json). Optional: an entry without it has no bar until the playlist is watched, and a video's entry never has one.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         },
         "seen": {
           "description": "When this device last had the item among the items of a full load, in milliseconds since the Unix epoch (UTC). Optional: an entry without it has not been in a load since it was saved. Set after a load, at most once a day per entry, without changing `at`; it takes no part in merging, where `at` alone orders entries (shared/fixtures/merge.json). It keeps the entry from being dropped (shared/fixtures/prune.json).",

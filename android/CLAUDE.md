@@ -22,7 +22,12 @@ every client shares is in `../shared/`.
     phrases) / `phrasePatternOnly`.
   - `Progress.kt` — what a watched entry means: `isWatchedEntry` (marked, or
     a position in the last 10 seconds of a video longer than that),
-    `resumePosition`, `progressFraction` (the card's bar).
+    `resumePosition`, `progressFraction` (the card's bar), `entryVideo` (the
+    video of a playlist that was playing) and `playlistStart` (the video to
+    start a playlist at and how far in: that one when the player's list
+    still has it, else the first), and `entryProgress` / `playlistProgress`
+    (how far through a playlist the player is by video count, which fills a
+    playlist's bar).
   - `SyncMerge.kt` — the Drive device file kept as raw JSON entries:
     `readDeviceFile` (forgiving reader), merge (newest `at`, tie → greater
     device id), `channelsFor`. A watched entry's optional `seen`
@@ -43,9 +48,10 @@ every client shares is in `../shared/`.
     takes a folder listing the caller already has), ignores non-`device-<id>.json` names,
     never overwrites an own file it can't read. `setWatched` with several ids
     and `setFilters` are one edit, so one upload. A watched entry is written
-    by `markedEntry` (a mark keeps the entry's `position`, an unmark drops
-    it) or `playedEntry` (`position`, with `watched` true only when the
-    player reported the end); `setProgress` keeps a position on the device at
+    by `markedEntry` (a mark keeps the entry's `position` and its
+    playlist's `video`, an unmark drops them) or `playedEntry` (`position`,
+    for a playlist also the `video` playing, with `watched` true only when
+    the player reported the end); `setProgress` keeps a position on the device at
     once and starts an upload only when told to; `watchedEntry(id)` is what
     `Progress.kt` reads. `noteLoaded(ids)`, which the view model calls with
     each full load's items (not a single channel's fetch), refreshes `seen`,
@@ -227,14 +233,15 @@ every client shares is in `../shared/`.
   - `Autoplay.kt` — `nextUnwatched`: the next unwatched entry after the one
     that ended, in the order shown.
   - `Playback.kt` — `Playback`: one entry in one player, with no Android:
-    saves a video's position (`tick` every 5 s on the device; with an upload
+    saves a video's position, and for a playlist the video playing with no
+    length (`tick` every 5 s on the device; with an upload
     on pause, on leaving and, at once, when the app leaves the screen; a
     second already saved is not saved again, so a paused player never makes
     its position newer than another device's), marks
     it at the player's reported end and calls `onEnded`, which `failed` (the
     player can't play the video) calls without marking. Nothing is saved for
-    a live broadcast or a playlist; a playlist is marked when its last video
-    ends.
+    a live broadcast; a playlist is marked when its last video
+    ends, and `playlistStart` is where it starts.
 - `:app` — `cc.hafa.subtube`, minSdk 26, compile/target 37.
   - `SubtubeApp.kt` — the app-wide clients over one `OkHttpClient`, whose
     dispatcher allows 10 requests a host (OkHttp's 5 is under the 6
@@ -304,7 +311,8 @@ every client shares is in `../shared/`.
     `afterEnd`, with the same request for a next card. `playerFramed` is
     whether the minimized player's frame shows (never for a card), `playerCovers` how many sheets and dialogs are
     open. The view model is the player's `PlaybackFeed` (`recordProgress`,
-    `setWatched`, `findItem`), and `resumeAt` is where a video starts.
+    `setWatched`, `findItem`, `playlistStart`), and `resumeAt` is where a
+    video starts.
     `PlayerFlowTest` (Robolectric, no screen) covers these moves.
     The daily limit shows as the notice banner ("SubTube has reached
     YouTube's daily limit…") in place of the partial-load one, and as the
@@ -497,7 +505,11 @@ every client shares is in `../shared/`.
     The same view takes each next entry by loading a new page. The page
     reports as JSON messages through `SubtubePlayer.postMessage`
     (`PlayerBridge`), each carrying the page's token, a random UUID made per
-    load (`PlayerPage.load`); any other token is dropped. Where the WebView
+    load (`PlayerPage.load`); any other token is dropped. A playlist is
+    only cued: once ready the page reports its videos ("playlist"), and
+    `PlayerPage.playlistReady` answers with the page's
+    `startPlaylist(index, seconds)`; its state and position reports carry
+    the playing video's id, its place in the list and the list's length. Where the WebView
     has message listeners (androidx.webkit's `addWebMessageListener`, asked
     of `WebViewFeature`), only the page's own origin and main frame get the
     object, so the YouTube frames inside cannot call it; an older WebView

@@ -66,6 +66,8 @@ private fun watchedProblems(path: String, entry: JsonElement): List<String> = en
     val seconds = (position as? JsonPrimitive)?.takeUnless(JsonPrimitive::isString)?.doubleOrNull
     if (position != null && (seconds == null || seconds < 0)) problems.add("$path.position is not a number of seconds")
     if ("seen" in entry && !entry["seen"].isWholeNumber(0, MAX_SAFE_INTEGER)) problems.add("$path.seen is not a whole number from 0 to 2^53-1")
+    if ("video" in entry && entryVideo(entry).isNullOrEmpty()) problems.add("$path.video is not a video id")
+    if ("progress" in entry && entryProgress(entry) == null) problems.add("$path.progress is not a number from 0 to 1")
     problems
 }
 

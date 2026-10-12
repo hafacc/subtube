@@ -21,7 +21,14 @@ import {
 } from "./groups";
 import { loadFraction } from "./load-progress";
 import { platform } from "./platform";
-import { isWatchedEntry, progressFraction, resumePosition } from "./progress";
+import {
+  isWatchedEntry,
+  type PlaylistPlace,
+  type PlaylistStart,
+  playlistStart,
+  progressFraction,
+  resumePosition,
+} from "./progress";
 import type { Router } from "./router.svelte";
 import type { Session } from "./session.svelte";
 import { readSettings, type Settings } from "./settings";
@@ -1250,7 +1257,8 @@ export class FeedController {
    * Save how far a video has been played: `position` of `playerDuration`
    * seconds, and whether the player reported the end. It is always kept on
    * this device; `upload` says whether Drive gets it after the usual pause
-   * ("soon"), at once ("now"), or only with the next upload ("later").
+   * ("soon"), at once ("now"), or only with the next upload ("later"). For a
+   * playlist, `place` is where in it the player is.
    */
   recordProgress(
     id: string,
@@ -1258,12 +1266,14 @@ export class FeedController {
     playerDuration: number,
     ended: boolean,
     upload: "later" | "soon" | "now",
+    place?: PlaylistPlace,
   ): void {
     this.store.setProgress(
       id,
       Math.max(0, Math.floor(position)),
       ended,
       upload !== "later",
+      place,
     );
     if (upload === "now") {
       this.store.flush();
@@ -1274,6 +1284,11 @@ export class FeedController {
   /** Where a video starts when opened, in seconds. */
   resumeAt(id: string): number {
     return resumePosition(this.store.watchedEntry(id), this.lengthOf(id));
+  }
+
+  /** Where a playlist starts when opened, among the `videos` its player loaded. */
+  playlistStart(id: string, videos: readonly string[]): PlaylistStart {
+    return playlistStart(this.store.watchedEntry(id), videos);
   }
 
   /** Every loaded item with this id, wherever it was loaded. */

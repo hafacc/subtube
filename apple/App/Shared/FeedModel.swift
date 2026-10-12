@@ -1165,14 +1165,19 @@ final class FeedModel {
 
   /// Save how far a video has been played: `position` of `playerDuration`
   /// seconds, and whether the player reported the end. It is always kept on
-  /// this device; `upload` says when Drive gets it.
+  /// this device; `upload` says when Drive gets it. For a playlist, `place`
+  /// is where in it the player is.
   func recordProgress(
-    _ id: String, position: Double, playerDuration: Double, ended: Bool, upload: ProgressUpload
+    _ id: String, position: Double, playerDuration: Double, ended: Bool, upload: ProgressUpload,
+    place: PlaylistPlace? = nil
   ) {
     let whole = position.isFinite ? max(0, Int(position.rounded(.down))) : 0
-    edit(id) { prior, at in playedEntry(prior, now: at, position: whole, ended: ended) }
+    edit(id) { prior, at in
+      playedEntry(prior, now: at, position: whole, ended: ended, place: place)
+    }
     write { store in
-      await store.setProgress(id, position: whole, ended: ended, upload: upload != .later)
+      await store.setProgress(
+        id, position: whole, ended: ended, upload: upload != .later, place: place)
       if upload == .now {
         // started, not waited for: the queue must not stand behind an upload
         _ = await store.startFlush()
@@ -1185,6 +1190,11 @@ final class FeedModel {
   /// Where a video starts when opened, in seconds.
   func resumeAt(_ id: String) -> Double {
     resumePosition(entries[id], durationSeconds: length(of: id))
+  }
+
+  /// Where a playlist starts when opened, among the `videos` its player loaded.
+  func playlistStart(_ id: String, videos: [String]) -> PlaylistStart {
+    SubtubeCore.playlistStart(entries[id], videos: videos)
   }
 
   private func play(_ item: FeedItem, place: PlayerPlace, page: String?, queue: PlayQueue) {

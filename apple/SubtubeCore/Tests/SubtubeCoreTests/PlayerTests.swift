@@ -70,17 +70,50 @@ import Testing
         == [.markWatched, .ended])
   }
 
-  @Test func aPlaylistIsMarkedOnlyWhenItsLastVideoEnds() {
+  @Test func aPlaylistSavesItsPlayingVideoHowFarIntoItAndThroughTheListWithNoLength() {
+    var playback = Playback(content: .playlist("PL1"))
+    _ = playback.stateChanged(
+      state: YouTubePlayerState.playing, position: 0, duration: 60, playlistIndex: 1,
+      playlistLength: 2, video: "b")
+    #expect(
+      playback.timeReported(
+        position: 4, duration: 60, clock: 0, playlistIndex: 1, playlistLength: 2, video: "b")
+        == [])
+    #expect(
+      playback.timeReported(
+        position: 15, duration: 60, clock: 5, playlistIndex: 1, playlistLength: 2, video: "b")
+        == [
+          .saveProgress(
+            position: 15, duration: 0, ended: false, upload: .later,
+            place: PlaylistPlace(video: "b", progress: 0.625))
+        ])
+    #expect(
+      playback.stateChanged(
+        state: YouTubePlayerState.paused, position: 30, duration: 60, playlistIndex: 1,
+        playlistLength: 2, video: "b") == [
+          .saveProgress(
+            position: 30, duration: 0, ended: false, upload: .soon,
+            place: PlaylistPlace(video: "b", progress: 0.75))
+        ])
+  }
+
+  @Test func aPlaylistWhoseVideoIsNotKnownSavesNothing() {
     var playback = Playback(content: .playlist("PL1"))
     _ = playback.stateChanged(
       state: YouTubePlayerState.playing, position: 0, duration: 60, playlistIndex: 0,
       playlistLength: 2)
-    #expect(playback.timeReported(position: 9, duration: 60, clock: 0) == [])
+    #expect(playback.save(upload: .soon) == [])
+  }
+
+  @Test func aPlaylistIsMarkedOnlyWhenItsLastVideoEnds() {
+    var playback = Playback(content: .playlist("PL1"))
+    _ = playback.stateChanged(
+      state: YouTubePlayerState.playing, position: 0, duration: 60, playlistIndex: 0,
+      playlistLength: 2, video: "a")
     #expect(
       playback.stateChanged(
         state: YouTubePlayerState.ended, position: 60, duration: 60, playlistIndex: 0,
-        playlistLength: 2) == [])
-    #expect(playback.save(upload: .soon) == [])
+        playlistLength: 2, video: "a") == [])
     #expect(
       playback.stateChanged(
         state: YouTubePlayerState.ended, position: 60, duration: 60, playlistIndex: 1,
