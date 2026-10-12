@@ -689,10 +689,11 @@ starts `android-publish.yml` on that tag. That one has two jobs. `bundle`
 restores the upload keystore, builds the signed bundle, keeps it as the
 run's artifact (`subtube-android-v<version>`) and makes the GitHub release
 with notes since the previous `android-v` tag. `play` uploads that same
-bundle as a draft (`:app:publishReleaseBundle --artifact-dir`, Gradle Play
-Publisher, track `internal`); if Play refuses, re-run the failed job and it
-uploads the bundle already built. Roll the draft out and promote it in the
-Play Console.
+bundle (`:app:publishReleaseBundle --artifact-dir`, Gradle Play
+Publisher, track `internal`) rolled out to testers; when Play refuses that,
+as it does until the app has passed its first review, the job warns and
+uploads a draft to roll out by hand. If that fails too, re-run the failed
+job and it uploads the bundle already built. Promote it in the Play Console.
 Both workflows and `build.yml` install Java 25, the version
 `gradle/gradle-daemon-jvm.properties` says the build runs on.
 
