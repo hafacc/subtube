@@ -14,18 +14,12 @@ on:
 permissions: {}
 
 jobs:
-  gate:
-    uses: ./.github/workflows/build.yml
-    with:
-      only: android shared
-    permissions:
-      contents: read
-      pull-requests: read # build.yml asks for it; unused here
-
   cut:
-    needs: gate
-    runs-on: ubuntu-latest
-    # one cut at a time across the four cut workflows; the others wait their turn
+    uses: ./.github/workflows/cut-apps.yml
+    with:
+      bump: ${{ inputs.bump }}
+      android: true
+    # one cut at a time across every cut workflow, held from before the tests until the push
     concurrency:
       group: cut
       cancel-in-progress: false
@@ -33,44 +27,4 @@ jobs:
     permissions:
       contents: write # push the bump + tag
       actions: write # start the publish
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: main # the branch tip, not the dispatch SHA
-      - name: bump version
-        id: bump
-        env:
-          bump: ${{ inputs.bump }}
-        # android/app/build.gradle.kts is the version source of truth
-        run: |
-          gradle=android/app/build.gradle.kts
-          current=$(sed -nE 's/^ *versionName = "([^"]+)"/\1/p' "$gradle")
-          code=$(sed -nE 's/^ *versionCode = ([0-9]+)/\1/p' "$gradle")
-          IFS=. read -r major minor patch <<< "$current"
-          case "$bump" in
-            major) version="$((major + 1)).0.0" ;;
-            minor) version="$major.$((minor + 1)).0" ;;
-            *) version="$major.$minor.$((patch + 1))" ;;
-          esac
-          # Play rejects a versionCode it has already seen, so it only ever goes up
-          sed -i -E \
-            -e "s/^( *versionName = )\"[^\"]+\"/\1\"$version\"/" \
-            -e "s/^( *versionCode = )[0-9]+/\1$((code + 1))/" \
-            "$gradle"
-          grep -F "versionName = \"$version\"" "$gradle"
-          grep -F "versionCode = $((code + 1))" "$gradle"
-          echo "tag=android-v$version" >> "$GITHUB_OUTPUT"
-      - name: commit, tag and start the publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          tag: ${{ steps.bump.outputs.tag }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -am "android ${tag#android-}"
-          # branch first, tag second (never --follow-tags): a moved main is rejected before the tag exists
-          git push origin HEAD:main
-          git tag -a "$tag" -m "android ${tag#android-}"
-          git push origin "$tag"
-          # a tag pushed with this token doesn't fire on:push, so start it directly
-          gh workflow run android-publish.yml --ref main -f tag="$tag"
+      pull-requests: read # build.yml asks for it; unused here

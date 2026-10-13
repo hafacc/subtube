@@ -10,6 +10,10 @@ on:
         description: jobs to run, space separated; all of them when empty
         type: string
         default: ""
+      ref:
+        description: commit to build; the caller's own when empty
+        type: string
+        default: ""
 
 jobs:
   # which of the jobs below run: on a pull request those whose folder it touches
@@ -69,6 +73,8 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun lint
@@ -84,6 +90,8 @@ jobs:
         working-directory: extension
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun lint
@@ -99,6 +107,8 @@ jobs:
         working-directory: shared
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun tools/check.ts
@@ -113,6 +123,8 @@ jobs:
         working-directory: android
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -129,4 +141,6 @@ jobs:
         working-directory: apple/SubtubeCore
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - run: swift test

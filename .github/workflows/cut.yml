@@ -1,0 +1,62 @@
+# Cut a release of every chosen app in one go, each with the same bump, and publish main's
+# web app. The apps are tested and tagged together by cut-apps.yml; the web app tests itself.
+name: cut
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: semver bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      android:
+        description: Android app
+        type: boolean
+        default: true
+      ios:
+        description: iOS app
+        type: boolean
+        default: true
+      macos:
+        description: macOS app
+        type: boolean
+        default: true
+      extension:
+        description: Chrome extension (each release goes through store review)
+        type: boolean
+        default: false
+      web:
+        description: deploy the web app
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  cut:
+    if: inputs.android || inputs.ios || inputs.macos || inputs.extension
+    uses: ./.github/workflows/cut-apps.yml
+    with:
+      bump: ${{ inputs.bump }}
+      android: ${{ inputs.android }}
+      ios: ${{ inputs.ios }}
+      macos: ${{ inputs.macos }}
+      extension: ${{ inputs.extension }}
+    # one cut at a time across every cut workflow, held from before the tests until the push
+    concurrency:
+      group: cut
+      cancel-in-progress: false
+      queue: max
+    permissions:
+      contents: write # push the bumps + tags
+      actions: write # start the publishes
+      pull-requests: read # build.yml asks for it; unused here
+
+  web:
+    if: inputs.web
+    uses: ./.github/workflows/web-deploy.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
