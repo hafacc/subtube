@@ -15,10 +15,10 @@ permissions: {}
 
 jobs:
   cut:
-    uses: ./.github/workflows/cut-apps.yml
+    uses: ./.github/workflows/cut-app.yml
     with:
+      app: android
       bump: ${{ inputs.bump }}
-      android: true
     # one cut at a time across every cut workflow, held from before the tests until the push
     concurrency:
       group: cut
@@ -28,3 +28,4 @@ jobs:
       contents: write # push the bump + tag
       actions: write # start the publish
       pull-requests: read # build.yml asks for it; unused here
+      checks: read # see that Xcode Cloud started
