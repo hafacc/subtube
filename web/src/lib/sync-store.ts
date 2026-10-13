@@ -1,3 +1,4 @@
+import { SYNC_PREFIX, UPLOADED_PREFIX } from "./account-entries";
 import {
   createJson,
   type DriveFile,
@@ -142,8 +143,8 @@ export class SyncStore {
     private readonly onDeleted: () => void = () => undefined,
     private readonly renew: (() => Promise<string>) | null = null,
   ) {
-    this.localKey = `subtube.sync.${accountId}`;
-    this.uploadedKey = `subtube.uploaded.${accountId}`;
+    this.localKey = SYNC_PREFIX + accountId;
+    this.uploadedKey = UPLOADED_PREFIX + accountId;
     this.lockName = `subtube.save.${accountId}`;
     this.own = this.readStored() ?? emptyDeviceFile();
     this.merged = this.own;

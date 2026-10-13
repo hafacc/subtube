@@ -1,3 +1,4 @@
+import { PENDING_START_PREFIX } from "./account-entries";
 import { type StartFrom, startMarks } from "./chips";
 import { readJson, writeJson } from "./storage";
 import type { FeedItem } from "./types";
@@ -67,8 +68,6 @@ export function applyStart(
     };
   }
 }
-
-const PENDING_START_PREFIX = "subtube.startFrom.";
 
 function isPending(value: unknown): value is PendingStart {
   const pending = value as Partial<PendingStart> | null;

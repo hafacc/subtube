@@ -7,7 +7,7 @@
 </svelte:head>
 
 <h1>SubTube privacy policy</h1>
-<p class="updated">Last updated 9 October 2026</p>
+<p class="updated">Last updated 13 October 2026</p>
 
 <p>
   SubTube shows new videos from the YouTube channels you subscribe to. It has no
@@ -20,10 +20,6 @@
     Your YouTube subscriptions and the public details of those channels' videos,
     through YouTube API Services. SubTube can't change anything on your YouTube
     account.
-  </li>
-  <li>
-    The name and picture of your YouTube channel, to show which account is
-    signed in.
   </li>
   <li>
     The name, email address and picture of your Google account, to show which

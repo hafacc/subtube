@@ -273,8 +273,8 @@ values, named by the page's `h1`.
     `writeText`, `readJson`, `writeJson`, `keysWith`); a read that fails
     finds nothing and a write that fails is dropped.
   - `errors.ts` — `ShownError`: an error whose message is the text shown
-    (daily limit, missing permission, sign in again, the extension, no
-    YouTube channel). `shownMessage(caught)` gives that message, and for
+    (daily limit, missing permission, sign in again, the extension).
+    `shownMessage(caught)` gives that message, and for
     anything else — a request that got no answer, a status Google answered
     with, an OAuth code — the one text "Couldn't reach Google. Check your
     connection and try again."; the detail goes to the console only. A
@@ -442,6 +442,19 @@ values, named by the page's `h1`.
     Auto-play moving on inside the open player and a card playing in place
     are not going somewhere.
   - `session.svelte.ts` — account, token state, the account's `SyncStore`.
+    The account is the Google account as Drive's `about` reports it
+    (`Account`: `id`, its `permissionId`; `name`, `photo`, `email`), kept
+    as `subtube.account` and brought up to date at each silent renewal. A
+    Google account needs no YouTube channel of its own. Everything kept per
+    account is filed under that id, through the key prefixes in
+    `account-entries.ts`. Earlier versions filed it under the account's
+    YouTube channel id: an account kept with its Google id is refiled when
+    the session starts (`readAccount`, `moveAccountEntries`); one kept
+    without is signed out, and at a sign-in, only while entries are still
+    filed under a channel id (`oldAccountIds`), the account's own channel
+    is asked for once (`fetchOwnChannelId`) and a match is refiled. An
+    account with no channel, or a lookup that fails, changes nothing and
+    the sign-in goes on.
   - `router.ts` / `router.svelte.ts` — `?channel=x&v=y|list=y`; the item
     is in the URL only while the player is large. Minimizing drops it by
     going back (`Router.close`), so Back from large minimizes, Back while
@@ -757,11 +770,12 @@ page, moved by CSS); `PlayerHost`; tooltips, which are `title` attributes.
 
 - Biome reflows Svelte markup and adds whitespace between inline nodes.
 - Svelte `.svelte.ts` modules don't support TS parameter properties.
-- Settings shows the Google account's name, email and photo (`photoLink`;
-  the YouTube channel's picture when it has none or before Drive answers),
-  which Drive's `about` answers under the app-folder scope (no email or
-  profile scope is requested); the privacy policy says so of the name and
-  email. The account button in the heading keeps the channel's picture.
+- Settings and the account button in the heading show the Google account's
+  name, email and photo (`photoLink`; the name's first letter when it has
+  none), which Drive's `about` answers under the app-folder scope (no email
+  or profile scope is requested); the privacy policy says so. The policy
+  also still lists the name and picture of the YouTube channel, which the
+  app no longer reads.
 - Sign out only forgets the account on this browser; Google's grant stays
   (other devices stay signed in, no consent screen next time), so an
   interactive sign-in always asks Google for the account chooser. Only

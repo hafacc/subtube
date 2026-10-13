@@ -20,10 +20,6 @@ final class AppModel {
   private static let themeKey = "subtube.theme"
   private static let perAccountKey = "subtube.onboarded.perAccount"
 
-  private static func onboardedKey(_ accountId: String) -> String {
-    "subtube.onboarded.\(accountId)"
-  }
-
   let auth = GoogleAuth()
   private(set) var phase: Phase = .checking
   private(set) var signingIn = false
@@ -89,11 +85,11 @@ final class AppModel {
     }
     do {
       if let saved = UserDefaults.standard.data(forKey: Self.accountKey),
-        let account = try? JSONDecoder().decode(ChannelSummary.self, from: saved)
+        let account = await keptAccount(saved)
       {
         // the mark was one per device before it was kept per account
         if introSeen, !UserDefaults.standard.bool(forKey: Self.perAccountKey) {
-          markOnboarded(account.channelId)
+          markOnboarded(account.id)
         }
         UserDefaults.standard.set(true, forKey: Self.perAccountKey)
         try await open(account)
@@ -137,32 +133,79 @@ final class AppModel {
     }
   }
 
+  /// The account a start finds kept. One kept by an earlier version, under
+  /// its YouTube channel, is filed under its Google id with everything kept
+  /// for it; until Drive says which id that is, it stays where it was.
+  private func keptAccount(_ saved: Data) async -> Account? {
+    if let account = try? JSONDecoder().decode(Account.self, from: saved) {
+      return account
+    } else if let old = try? JSONDecoder().decode(ChannelSummary.self, from: saved) {
+      if let user = try? await driveUser(), let account = Account(user) {
+        moveAccountEntries(from: old.channelId, to: account.id, directory: FeedModel.storeDirectory)
+        keep(account)
+        return account
+      } else {
+        return Account(
+          id: old.channelId, name: old.title, photo: old.thumbnail.isEmpty ? nil : old.thumbnail)
+      }
+    } else {
+      return nil
+    }
+  }
+
+  private func keep(_ account: Account) {
+    UserDefaults.standard.set(try? JSONEncoder().encode(account), forKey: Self.accountKey)
+  }
+
+  private func driveUser() async throws -> DriveUser {
+    do {
+      return try await DriveClient(accessToken: await auth.validToken()).about()
+    } catch GoogleAPIError.tokenExpired {
+      return try await DriveClient(accessToken: await auth.refreshedToken()).about()
+    }
+  }
+
   private func openAccount() async throws {
-    let account = try await YouTubeClient(accessToken: await auth.validToken()).myChannel()
-    UserDefaults.standard.set(try JSONEncoder().encode(account), forKey: Self.accountKey)
+    guard let account = Account(try await driveUser()) else {
+      throw GoogleAPIError.http(status: 200, body: "Drive gave no id for the account")
+    }
+    await adoptOldEntries(account.id)
+    keep(account)
     try await open(account)
+  }
+
+  /// Entries an earlier version filed under a YouTube channel id become the
+  /// account's when that channel is its own. Asked only while such entries
+  /// are left, and a sign-in goes on whatever the answer.
+  private func adoptOldEntries(_ accountId: String) async {
+    let oldIds = oldAccountIds(directory: FeedModel.storeDirectory)
+    guard !oldIds.isEmpty else { return }
+    let channelId = try? await YouTubeClient(accessToken: await auth.validToken()).ownChannelId()
+    if let channelId, oldIds.contains(channelId) {
+      moveAccountEntries(from: channelId, to: accountId, directory: FeedModel.storeDirectory)
+    }
   }
 
   /// Show an account's feed, or setup when it hasn't finished that here and
   /// no other device has.
-  private func open(_ account: ChannelSummary) async throws {
+  private func open(_ account: Account) async throws {
     let defaults = UserDefaults.standard
-    var done = defaults.bool(forKey: Self.onboardedKey(account.channelId))
+    var done = defaults.bool(forKey: onboardedKey(account.id))
     if !done {
       done = try await isSetUpElsewhere()
       if done {
-        markOnboarded(account.channelId)
+        markOnboarded(account.id)
       }
     }
     onboarded = done
-    if let feed, feed.account.channelId == account.channelId {
+    if let feed, feed.account.id == account.id {
       feed.reconnected(items: done)
     } else {
       phase = .signedIn(makeFeed(account))
     }
   }
 
-  private func makeFeed(_ account: ChannelSummary) -> FeedModel {
+  private func makeFeed(_ account: Account) -> FeedModel {
     let feed = FeedModel(account: account, auth: auth)
     feed.onProfileDeleted = { [weak self, weak feed] in
       if let feed {
@@ -177,14 +220,14 @@ final class AppModel {
   private func profileDeletedElsewhere(_ deleted: FeedModel) {
     guard !deletingProfile, feed === deleted else { return }
     let account = deleted.account
-    setOnboarded(false, account.channelId)
+    setOnboarded(false, account.id)
     deleted.player = nil
     Task {
       // a failed check leaves setup showing, which asks again at sign-in
       let elsewhere = (try? await isSetUpElsewhere()) ?? false
       if feed === deleted, !deletingProfile {
         if elsewhere {
-          setOnboarded(true, account.channelId)
+          setOnboarded(true, account.id)
         }
         phase = .signedIn(makeFeed(account))
       }
@@ -204,13 +247,13 @@ final class AppModel {
       deleteError = Strings.deleteProfileFailed
       return
     }
-    let accountId = feed.account.channelId
+    let accountId = feed.account.id
     await signOut(revoke: true)
-    UserDefaults.standard.removeObject(forKey: Self.onboardedKey(accountId))
+    UserDefaults.standard.removeObject(forKey: onboardedKey(accountId))
   }
 
   private func markOnboarded(_ accountId: String) {
-    UserDefaults.standard.set(true, forKey: Self.onboardedKey(accountId))
+    UserDefaults.standard.set(true, forKey: onboardedKey(accountId))
     UserDefaults.standard.set(true, forKey: Self.introSeenKey)
     introSeen = true
   }
@@ -220,7 +263,7 @@ final class AppModel {
     if value {
       markOnboarded(accountId)
     } else {
-      UserDefaults.standard.removeObject(forKey: Self.onboardedKey(accountId))
+      UserDefaults.standard.removeObject(forKey: onboardedKey(accountId))
     }
   }
 
@@ -238,7 +281,7 @@ final class AppModel {
 
   func finishOnboarding() {
     if let feed {
-      setOnboarded(true, feed.account.channelId)
+      setOnboarded(true, feed.account.id)
     }
   }
 

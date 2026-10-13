@@ -3,10 +3,11 @@ package cc.hafa.subtube.data
 import android.content.Context
 import android.util.AtomicFile
 import androidx.core.content.edit
-import cc.hafa.subtube.core.ChannelSummary
+import cc.hafa.subtube.core.Account
 import cc.hafa.subtube.core.PendingStart
 import cc.hafa.subtube.core.decodePendingStart
 import cc.hafa.subtube.core.encodePendingStart
+import cc.hafa.subtube.core.isChannelId
 import cc.hafa.subtube.core.SyncStorage
 import java.io.File
 import java.io.FileNotFoundException
@@ -39,6 +40,9 @@ class FileSyncStorage(context: Context) : SyncStorage {
     override fun remove(key: String) {
         file(key).delete()
     }
+
+    /** Every key something is saved under. */
+    fun keys(): List<String> = directory.list().orEmpty().filter { name -> name.endsWith(".json") }.map { name -> name.removeSuffix(".json") }
 }
 
 /** The app's colour theme. */
@@ -64,35 +68,74 @@ class AccountPrefs(context: Context) {
         }
     }
 
-    /** The account last signed in, or null when signed out. */
-    var account: ChannelSummary?
+    /** The account last signed in, or null when signed out; saving one drops what an earlier version kept of it. */
+    var account: Account?
         get() {
-            val channelId = prefs.getString(ACCOUNT_ID_KEY, null) ?: return null
-            return ChannelSummary(
-                channelId = channelId,
-                title = prefs.getString(ACCOUNT_TITLE_KEY, null).orEmpty(),
-                thumbnail = prefs.getString(ACCOUNT_THUMBNAIL_KEY, null).orEmpty(),
-                handle = prefs.getString(ACCOUNT_HANDLE_KEY, null),
+            val id = prefs.getString(ACCOUNT_GOOGLE_ID_KEY, null) ?: return null
+            return Account(
+                id = id,
+                name = prefs.getString(ACCOUNT_NAME_KEY, null).orEmpty(),
+                photo = prefs.getString(ACCOUNT_PHOTO_KEY, null),
+                email = prefs.getString(ACCOUNT_EMAIL_KEY, null),
             )
         }
         set(value) {
             prefs.edit {
+                remove(OLD_ACCOUNT_ID_KEY).remove(OLD_ACCOUNT_TITLE_KEY).remove(OLD_ACCOUNT_THUMBNAIL_KEY).remove(OLD_ACCOUNT_HANDLE_KEY)
                 if (value == null) {
-                    remove(ACCOUNT_ID_KEY).remove(ACCOUNT_TITLE_KEY).remove(ACCOUNT_THUMBNAIL_KEY).remove(ACCOUNT_HANDLE_KEY)
+                    remove(ACCOUNT_GOOGLE_ID_KEY).remove(ACCOUNT_NAME_KEY).remove(ACCOUNT_PHOTO_KEY).remove(ACCOUNT_EMAIL_KEY)
                 } else {
-                    putString(ACCOUNT_ID_KEY, value.channelId)
-                        .putString(ACCOUNT_TITLE_KEY, value.title)
-                        .putString(ACCOUNT_THUMBNAIL_KEY, value.thumbnail)
-                        .putString(ACCOUNT_HANDLE_KEY, value.handle)
+                    putString(ACCOUNT_GOOGLE_ID_KEY, value.id)
+                        .putString(ACCOUNT_NAME_KEY, value.name)
+                        .putString(ACCOUNT_PHOTO_KEY, value.photo)
+                        .putString(ACCOUNT_EMAIL_KEY, value.email)
                 }
             }
         }
+
+    /**
+     * The account an earlier version kept signed in, filed under its YouTube
+     * channel id (here its [Account.id]) with that channel's name and picture;
+     * null once [account] is saved.
+     */
+    val oldAccount: Account?
+        get() {
+            val channelId = prefs.getString(OLD_ACCOUNT_ID_KEY, null) ?: return null
+            return Account(
+                id = channelId,
+                name = prefs.getString(OLD_ACCOUNT_TITLE_KEY, null).orEmpty(),
+                photo = prefs.getString(OLD_ACCOUNT_THUMBNAIL_KEY, null)?.takeIf(String::isNotEmpty),
+            )
+        }
+
+    /** The YouTube channel ids that entries of earlier versions are still filed under. */
+    fun oldAccountIds(): Set<String> =
+        prefs.all.keys.flatMap { key -> listOf(SET_UP_KEY_PREFIX, START_KEY_PREFIX).filter(key::startsWith).map(key::removePrefix) }
+            .filterTo(HashSet(), ::isChannelId)
+
+    /** File what is kept here under [oldId] under [newId]; what [newId] already has stays. */
+    fun moveAccountEntries(oldId: String, newId: String) {
+        val done = isSetUpDone(oldId)
+        val pending = prefs.getString(START_KEY_PREFIX + oldId, null)
+        prefs.edit {
+            if (done) {
+                putBoolean(SET_UP_KEY_PREFIX + newId, true)
+                if (prefs.getString(OLD_ACCOUNT_ID_KEY, null) == oldId) {
+                    remove(OLD_SET_UP_KEY)
+                }
+            }
+            if (pending != null && !prefs.contains(START_KEY_PREFIX + newId)) {
+                putString(START_KEY_PREFIX + newId, pending)
+            }
+            remove(SET_UP_KEY_PREFIX + oldId).remove(START_KEY_PREFIX + oldId)
+        }
+    }
 
     /** Whether first run was finished on this install for the account; each account has its own mark, and signing out leaves them. */
     fun isSetUpDone(accountId: String): Boolean =
         prefs.getBoolean(SET_UP_KEY_PREFIX + accountId, false) ||
             // the one mark an earlier version kept, which was the signed-in account's
-            (prefs.getBoolean(OLD_SET_UP_KEY, false) && prefs.getString(ACCOUNT_ID_KEY, null) == accountId)
+            (prefs.getBoolean(OLD_SET_UP_KEY, false) && prefs.getString(OLD_ACCOUNT_ID_KEY, null) == accountId)
 
     /** Mark first run finished for the account, or not. */
     fun setSetUpDone(accountId: String, done: Boolean) {
@@ -121,10 +164,16 @@ class AccountPrefs(context: Context) {
     private companion object {
         const val START_KEY_PREFIX = "subtube.startFrom."
         const val DEVICE_KEY = "subtube.device"
-        const val ACCOUNT_ID_KEY = "account.id"
-        const val ACCOUNT_TITLE_KEY = "account.title"
-        const val ACCOUNT_THUMBNAIL_KEY = "account.thumbnail"
-        const val ACCOUNT_HANDLE_KEY = "account.handle"
+        const val ACCOUNT_GOOGLE_ID_KEY = "account.googleId"
+        const val ACCOUNT_NAME_KEY = "account.name"
+        const val ACCOUNT_PHOTO_KEY = "account.photo"
+        const val ACCOUNT_EMAIL_KEY = "account.email"
+
+        // an earlier version's account: its YouTube channel
+        const val OLD_ACCOUNT_ID_KEY = "account.id"
+        const val OLD_ACCOUNT_TITLE_KEY = "account.title"
+        const val OLD_ACCOUNT_THUMBNAIL_KEY = "account.thumbnail"
+        const val OLD_ACCOUNT_HANDLE_KEY = "account.handle"
         const val SET_UP_KEY_PREFIX = "setUpDone."
         const val OLD_SET_UP_KEY = "setUpDone"
         const val THEME_KEY = "theme"

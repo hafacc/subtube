@@ -69,11 +69,11 @@ fun SettingsScreen(viewModel: SubtubeViewModel) {
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         val user = viewModel.user
-                        LaunchedEffect(account.channelId) { viewModel.loadUser() }
-                        ChannelAvatar(user?.displayName ?: account.title, user?.photoLink ?: account.thumbnail, size = 48.dp)
+                        LaunchedEffect(account.id) { viewModel.loadUser() }
+                        ChannelAvatar(user?.displayName ?: account.name, user?.photoLink ?: account.photo.orEmpty(), size = 48.dp)
                         Column {
-                            Text(user?.displayName ?: account.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                            user?.emailAddress?.let { email ->
+                            Text(user?.displayName ?: account.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            (user?.emailAddress ?: account.email)?.let { email ->
                                 Text(email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }

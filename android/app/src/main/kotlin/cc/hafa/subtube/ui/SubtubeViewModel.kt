@@ -18,6 +18,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import cc.hafa.subtube.R
 import cc.hafa.subtube.auth.AuthorizeOutcome
+import cc.hafa.subtube.core.Account
 import cc.hafa.subtube.core.ChannelFilter
 import cc.hafa.subtube.core.ChipTitle
 import cc.hafa.subtube.core.CompiledFilter
@@ -26,7 +27,6 @@ import cc.hafa.subtube.core.GroupSelections
 import cc.hafa.subtube.core.ChannelItems
 import cc.hafa.subtube.core.ChannelKind
 import cc.hafa.subtube.core.ChannelSort
-import cc.hafa.subtube.core.ChannelSummary
 import cc.hafa.subtube.core.ContentMode
 import cc.hafa.subtube.core.DailyLimitException
 import cc.hafa.subtube.core.DriveFile
@@ -37,7 +37,6 @@ import cc.hafa.subtube.core.FeedItem
 import cc.hafa.subtube.core.FeedLoader
 import cc.hafa.subtube.core.FeedSort
 import cc.hafa.subtube.core.InsufficientScopeException
-import cc.hafa.subtube.core.NoYouTubeChannelException
 import cc.hafa.subtube.core.PlaybackFeed
 import cc.hafa.subtube.core.Playlist
 import cc.hafa.subtube.core.PlaylistPlace
@@ -68,7 +67,10 @@ import cc.hafa.subtube.core.afterPageChange
 import cc.hafa.subtube.core.cardHolds
 import cc.hafa.subtube.core.expanded
 import cc.hafa.subtube.core.minimized
+import cc.hafa.subtube.core.moveSyncEntries
+import cc.hafa.subtube.core.oldSyncAccountIds
 import cc.hafa.subtube.core.played
+import cc.hafa.subtube.core.toAccount
 import cc.hafa.subtube.core.PlayerPlace
 import cc.hafa.subtube.core.Playing
 import cc.hafa.subtube.core.ScreenBox
@@ -119,6 +121,7 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -131,6 +134,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -148,6 +153,9 @@ private class SignInNeededException : Exception("Google sign-in needed")
 /** How long after full screen ends a card's player is left in its card, while the window settles back. */
 private const val AFTER_FULLSCREEN_MS = 500L
 
+/** How long a start waits for Drive to say who an account kept by an earlier version is. */
+private const val REFILE_TIMEOUT_MS = 15_000L
+
 /** Text for a banner or an error line. */
 data class UiMessage(
     /** The text's string resource. */
@@ -161,8 +169,8 @@ sealed interface Session {
     /** No account; first run or after signing out. */
     data object SignedOut : Session
 
-    /** Signed in as [account], the YouTube channel that keys this account's data. */
-    data class SignedIn(val account: ChannelSummary) : Session
+    /** Signed in as [account], whose id keys what this device keeps for it. */
+    data class SignedIn(val account: Account) : Session
 }
 
 /** A place in the app's back stack. */
@@ -248,7 +256,7 @@ private val ChannelFilter.fetchKey: FetchKey
 /** Made-up data for [SubtubeViewModel.showDemo]. */
 data class DemoData(
     /** Null shows the app signed out. */
-    val account: ChannelSummary?,
+    val account: Account?,
     /** The Google account Settings shows. */
     val user: DriveUser,
     /** The account's YouTube subscriptions. */
@@ -602,19 +610,94 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         val account = app.prefs.account
+        val old = if (account == null) app.prefs.oldAccount else null
         if (account != null) {
-            startSession(account)
-        }
-        if (account != null && app.prefs.isSetUpDone(account.channelId)) {
-            backStack.add(Screen.Feed)
-            loadFeed()
+            showKept(account)
+            openKept(account)
+        } else if (old != null) {
+            // its screen shows at once; its store opens when Drive has said who the account is
+            showKept(old)
+            session = Session.SignedIn(old)
+            loading = backStack.lastOrNull() == Screen.Feed
+            viewModelScope.launch {
+                val refiled = refiled(old)
+                if (!demo) {
+                    openKept(refiled)
+                }
+            }
         } else {
             backStack.add(Screen.SetUp)
-            if (account != null) {
-                // first run was cut short after signing in
-                setUpStep = SetUpStep.CHANNELS
-                loadSetUpChannels()
-            }
+        }
+    }
+
+    /** The screen a kept account starts on. */
+    private fun showKept(account: Account) {
+        if (app.prefs.isSetUpDone(account.id)) {
+            backStack.add(Screen.Feed)
+        } else {
+            backStack.add(Screen.SetUp)
+            // first run was cut short after signing in
+            setUpStep = SetUpStep.CHANNELS
+        }
+    }
+
+    private fun openKept(account: Account) {
+        startSession(account)
+        if (app.prefs.isSetUpDone(account.id)) {
+            loadFeed()
+        } else {
+            loadSetUpChannels()
+        }
+    }
+
+    /**
+     * An account an earlier version kept, under its YouTube channel: filed
+     * under its Google id with everything kept for it. Until Drive says which
+     * id that is, it stays where it was.
+     */
+    private suspend fun refiled(old: Account): Account {
+        val account = try {
+            withTimeoutOrNull(REFILE_TIMEOUT_MS) { withToken { token -> app.drive.about(token) } }?.toAccount()
+        } catch (caught: CancellationException) {
+            throw caught
+        } catch (caught: Exception) {
+            Log.w(LOG_TAG, "the kept account's id wasn't read", caught)
+            null
+        }
+        return if (account == null) {
+            old
+        } else {
+            moveAccountEntries(old.id, account.id)
+            app.prefs.account = account
+            account
+        }
+    }
+
+    private suspend fun moveAccountEntries(oldId: String, newId: String) {
+        withContext(Dispatchers.IO) { moveSyncEntries(FileSyncStorage(app), oldId, newId) }
+        app.prefs.moveAccountEntries(oldId, newId)
+    }
+
+    /**
+     * Entries an earlier version filed under a YouTube channel id become the
+     * account's when that channel is its own. Asked only while such entries
+     * are left, and a sign-in goes on whatever the answer.
+     */
+    private suspend fun adoptOldEntries(token: String, accountId: String) {
+        val oldIds = app.prefs.oldAccountIds() + withContext(Dispatchers.IO) { oldSyncAccountIds(FileSyncStorage(app).keys()) }
+        if (oldIds.isEmpty()) {
+            return
+        }
+        val channelId = try {
+            app.youtube.fetchOwnChannelId(token)
+        } catch (caught: CancellationException) {
+            throw caught
+        } catch (caught: Exception) {
+            Log.w(LOG_TAG, "the account's own channel wasn't read", caught)
+            null
+        }
+        if (channelId != null && channelId in oldIds) {
+            moveAccountEntries(channelId, accountId)
         }
     }
 
@@ -672,9 +755,9 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun startSession(account: ChannelSummary) {
+    private fun startSession(account: Account) {
         val syncStore = SyncStore(
-            accountId = account.channelId,
+            accountId = account.id,
             deviceId = app.prefs.deviceId,
             getToken = { app.auth.silentToken() ?: throw SignInNeededException() },
             replaceToken = { refused -> app.auth.replaceRejected(refused) ?: throw TokenExpiredException() },
@@ -698,8 +781,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     /** Drop everything kept on this device for the account's profile. */
     private fun forgetProfile() {
         (session as? Session.SignedIn)?.let { signedIn ->
-            app.prefs.setSetUpDone(signedIn.account.channelId, false)
-            app.prefs.keepPendingStart(signedIn.account.channelId, null)
+            app.prefs.setSetUpDone(signedIn.account.id, false)
+            app.prefs.keepPendingStart(signedIn.account.id, null)
         }
         clearFeed()
         loadFailed = false
@@ -777,7 +860,6 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         is SignInNeededException -> UiMessage(R.string.sign_in_again, offersSignIn = true)
         is TokenExpiredException -> UiMessage(R.string.session_ended, offersSignIn = true)
         is InsufficientScopeException -> UiMessage(R.string.needs_permissions, offersSignIn = true)
-        is NoYouTubeChannelException -> UiMessage(R.string.no_youtube_channel)
         is DailyLimitException -> UiMessage(R.string.daily_limit)
         else -> {
             if (caught !is IOException) {
@@ -798,7 +880,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
             } catch (caught: CancellationException) {
                 throw caught
             } catch (_: Exception) {
-                // the channel's name stays
+                // the kept name stays
             }
         }
     }
@@ -936,9 +1018,10 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private suspend fun finishSignIn(token: String) {
-        val account = app.youtube.fetchMyChannel(token)
+        val account = app.drive.about(token).toAccount() ?: throw IOException("Drive gave no id for the account")
+        adoptOldEntries(token, account.id)
         val current = session
-        if (current !is Session.SignedIn || current.account.channelId != account.channelId) {
+        if (current !is Session.SignedIn || current.account.id != account.id) {
             clearFeed()
             startSession(account)
         }
@@ -946,7 +1029,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         session = Session.SignedIn(account)
         signingIn = false
         error = null
-        if (app.prefs.isSetUpDone(account.channelId)) {
+        if (app.prefs.isSetUpDone(account.id)) {
             if (backStack.lastOrNull() == Screen.SetUp) {
                 backStack.clear()
                 backStack.add(Screen.Feed)
@@ -1176,8 +1259,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         if (!demo) {
             (session as? Session.SignedIn)?.let { signedIn ->
                 val channelsOn = channels.values.filter(ChannelFilter::enabled).map(ChannelFilter::channelId)
-                app.prefs.keepPendingStart(signedIn.account.channelId, pendingStart(setUpStart, System.currentTimeMillis(), channelsOn))
-                app.prefs.setSetUpDone(signedIn.account.channelId, true)
+                app.prefs.keepPendingStart(signedIn.account.id, pendingStart(setUpStart, System.currentTimeMillis(), channelsOn))
+                app.prefs.setSetUpDone(signedIn.account.id, true)
             }
         }
         backStack.clear()
@@ -1548,7 +1631,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
      * channel that was on then and isn't among them keeps waiting for a later load.
      */
     private fun markBeforeStart(fetched: Collection<String>, fresh: List<FeedItem>) {
-        val accountId = (session as? Session.SignedIn)?.account?.channelId
+        val accountId = (session as? Session.SignedIn)?.account?.id
         val pending = accountId?.let(app.prefs::pendingStart)
         if (accountId != null && pending != null) {
             val applied = applyStart(pending, fetched, fresh)

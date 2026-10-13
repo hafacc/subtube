@@ -435,8 +435,8 @@
                     class:open={showSettings}
                   >
                     <Avatar
-                      title={account.title}
-                      thumbnail={account.thumbnail}
+                      title={account.name}
+                      thumbnail={account.photo ?? ""}
                       size={28}
                       tint
                     />

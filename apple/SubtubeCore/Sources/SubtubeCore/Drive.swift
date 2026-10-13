@@ -16,6 +16,8 @@ public struct DriveUser: Codable, Sendable, Hashable {
   public var displayName: String
   /// The account's address, when Drive gives it.
   public var emailAddress: String?
+  /// The account's id in Drive, the same for every app and device.
+  public var permissionId: String?
   /// Avatar URL, or nil.
   public var photoLink: String?
 }

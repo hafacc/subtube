@@ -80,7 +80,7 @@ struct NuxView: View {
   private func finish() {
     if let feed = app.feed {
       keepPendingStart(
-        accountId: feed.account.channelId,
+        accountId: feed.account.id,
         PendingStart(
           start: startFrom, cutoff: epochMilliseconds(),
           channels: feed.channels.filter(\.enabled).map(\.channelId)))

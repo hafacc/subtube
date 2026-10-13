@@ -79,7 +79,7 @@ private actor HeldFetches {
   }
 
   /// End a started fetch with an error.
-  func fail(_ channelId: String, _ error: GoogleAPIError = .noChannel) {
+  func fail(_ channelId: String, _ error: GoogleAPIError = .http(status: 500, body: "")) {
     held.removeValue(forKey: channelId)?.resume(throwing: error)
   }
 

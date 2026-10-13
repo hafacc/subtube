@@ -15,6 +15,13 @@ let tokenAnswer: (message: { interactive?: boolean }) => unknown = () => ({
 });
 let extensionAnswers = true;
 let driveFiles: { id: string; name: string; modifiedTime: string }[] = [];
+let channelsStatus = 200;
+let channelLookups = 0;
+
+/** The YouTube channel of the fake account `who`; "N" has none. */
+function channelOf(who: string): string {
+  return `UC${who.padEnd(22, "x")}`;
+}
 
 const realFetch = globalThis.fetch;
 afterAll(() => {
@@ -23,11 +30,22 @@ afterAll(() => {
   delete (globalThis as { chrome?: unknown }).chrome;
 });
 
-(globalThis as { localStorage?: unknown }).localStorage = {
-  getItem: (key: string) => kept.get(key) ?? null,
-  setItem: (key: string, value: string) => void kept.set(key, value),
-  removeItem: (key: string) => void kept.delete(key),
-};
+// its own keys are what is kept, as with the browser's, so the keys can be listed
+(globalThis as { localStorage?: unknown }).localStorage = new Proxy(
+  {
+    getItem: (key: string) => kept.get(key) ?? null,
+    setItem: (key: string, value: string) => void kept.set(key, value),
+    removeItem: (key: string) => void kept.delete(key),
+  },
+  {
+    ownKeys: () => [...kept.keys()],
+    getOwnPropertyDescriptor: (_target, key) => ({
+      value: kept.get(String(key)),
+      enumerable: true,
+      configurable: true,
+    }),
+  },
+);
 (globalThis as { chrome?: unknown }).chrome = {
   runtime: {
     sendMessage(
@@ -54,9 +72,11 @@ globalThis.fetch = (async (
   const token = new Headers(init?.headers).get("Authorization") ?? "";
   const who = token.replace("Bearer token-", "");
   if (url.pathname.endsWith("/youtube/v3/channels")) {
-    return Response.json({
-      items: [{ id: `UC${who}`, snippet: { title: who, thumbnails: {} } }],
-    });
+    channelLookups += 1;
+    return Response.json(
+      { items: who === "N" ? [] : [{ id: channelOf(who) }] },
+      { status: channelsStatus },
+    );
   } else if (url.pathname.endsWith("/drive/v3/about")) {
     return Response.json({
       user: {
@@ -85,6 +105,8 @@ beforeEach(() => {
   signedInAs = "A";
   extensionAnswers = true;
   driveFiles = [];
+  channelsStatus = 200;
+  channelLookups = 0;
   tokenAnswer = () => ({ accessToken: `token-${signedInAs}`, expiresIn: 3600 });
   forgetToken();
 });
@@ -93,17 +115,21 @@ describe("Session", () => {
   test("setup done is kept per account: a second account starts setup", async () => {
     const session = new Session();
     expect(await session.signIn()).toBe(true);
-    expect(session.account?.channelId).toBe("UCA");
+    expect(session.account).toEqual({
+      id: "gA",
+      name: "A",
+      email: "A@example.com",
+    });
     expect(session.setupDone).toBe(false);
     session.finishSetup();
     expect(session.setupDone).toBe(true);
     await session.signOut();
     expect(session.account).toBeNull();
-    expect(setupDoneFor("UCA")).toBe(true);
+    expect(setupDoneFor("gA")).toBe(true);
 
     signedInAs = "B";
     expect(await session.signIn()).toBe(true);
-    expect(session.account?.channelId).toBe("UCB");
+    expect(session.account?.id).toBe("gB");
     expect(session.setupDone).toBe(false);
     await session.signOut();
 
@@ -114,15 +140,101 @@ describe("Session", () => {
   });
 
   test("the browser-wide mark of earlier versions becomes the stored account's", () => {
-    kept.set(
-      "subtube.account",
-      JSON.stringify({ channelId: "UCA", title: "A", thumbnail: "" }),
-    );
+    kept.set("subtube.account", JSON.stringify({ id: "gA", name: "A" }));
     kept.set("subtube.setupDone", "true");
     const session = new Session();
     expect(session.setupDone).toBe(true);
     expect(kept.has("subtube.setupDone")).toBe(false);
-    expect(setupDoneFor("UCA")).toBe(true);
+    expect(setupDoneFor("gA")).toBe(true);
+    session.store?.close();
+  });
+
+  test("an account with no YouTube channel signs in, and nothing asks for one", async () => {
+    signedInAs = "N";
+    const session = new Session();
+    expect(await session.signIn()).toBe(true);
+    expect(session.account?.id).toBe("gN");
+    expect(channelLookups).toBe(0);
+    session.store?.close();
+  });
+
+  test("an account kept under its channel is filed under its Google id, with everything kept for it", () => {
+    const channelId = channelOf("A");
+    kept.set(
+      "subtube.account",
+      JSON.stringify({
+        channelId,
+        title: "A's channel",
+        thumbnail: "https://example.com/a.jpg",
+        googleId: "gA",
+        email: "A@example.com",
+      }),
+    );
+    kept.set("subtube.setupDone", "true");
+    kept.set(`subtube.sync.${channelId}`, '{"kept":"edits"}');
+    kept.set(`subtube.uploaded.${channelId}`, "file-1");
+    kept.set(`subtube.startFrom.${channelId}`, '{"kept":"start"}');
+    const session = new Session();
+    expect(session.account).toEqual({
+      id: "gA",
+      name: "A's channel",
+      photo: "https://example.com/a.jpg",
+      email: "A@example.com",
+    });
+    expect(session.setupDone).toBe(true);
+    expect(JSON.parse(kept.get("subtube.account") ?? "")).toEqual(
+      session.account,
+    );
+    expect(kept.get("subtube.sync.gA")).toBe('{"kept":"edits"}');
+    expect(kept.get("subtube.uploaded.gA")).toBe("file-1");
+    expect(kept.get("subtube.startFrom.gA")).toBe('{"kept":"start"}');
+    expect([...kept.keys()].filter((key) => key.includes(channelId))).toEqual(
+      [],
+    );
+    session.store?.close();
+  });
+
+  test("entries left under a channel move at that account's next sign-in, and no one else's", async () => {
+    const channelId = channelOf("A");
+    // kept before the Google id was: nothing says whose it is until a sign-in
+    kept.set(
+      "subtube.account",
+      JSON.stringify({ channelId, title: "A", thumbnail: "" }),
+    );
+    kept.set(`subtube.setupDone.${channelId}`, "1");
+    kept.set(`subtube.uploaded.${channelId}`, "file-1");
+    const session = new Session();
+    expect(session.account).toBeNull();
+    expect(setupDoneFor(channelId)).toBe(true);
+
+    signedInAs = "B";
+    expect(await session.signIn()).toBe(true);
+    expect(session.setupDone).toBe(false);
+    expect(setupDoneFor(channelId)).toBe(true);
+    await session.signOut();
+
+    signedInAs = "A";
+    expect(await session.signIn()).toBe(true);
+    expect(session.setupDone).toBe(true);
+    expect(kept.get("subtube.uploaded.gA")).toBe("file-1");
+    expect(setupDoneFor(channelId)).toBe(false);
+
+    channelLookups = 0;
+    await session.signOut();
+    expect(await session.signIn()).toBe(true);
+    expect(channelLookups).toBe(0);
+    session.store?.close();
+  });
+
+  test("a sign-in goes on when the channel can't be asked for", async () => {
+    const channelId = channelOf("A");
+    kept.set(`subtube.setupDone.${channelId}`, "1");
+    channelsStatus = 500;
+    const session = new Session();
+    expect(await session.signIn()).toBe(true);
+    expect(session.account?.id).toBe("gA");
+    expect(session.setupDone).toBe(false);
+    expect(setupDoneFor(channelId)).toBe(true);
     session.store?.close();
   });
 
@@ -145,7 +257,7 @@ describe("Session", () => {
     await session.deleteProfile();
     expect(messages.at(-1)?.type).toBe("revoke");
     expect(session.account).toBeNull();
-    expect(setupDoneFor("UCA")).toBe(false);
+    expect(setupDoneFor("gA")).toBe(false);
   });
 
   test("a sign-in the user calls off shows nothing", async () => {

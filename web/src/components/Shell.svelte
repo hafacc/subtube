@@ -30,7 +30,7 @@
 </script>
 
 {#if hasExtension && session.account && session.store && session.setupDone}
-  {#key session.account.channelId}
+  {#key session.account.id}
     <Feed {session} store={session.store} {router} />
   {/key}
 {:else if hasExtension && session.account && session.store}

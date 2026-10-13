@@ -23,7 +23,7 @@ private enum LoadDepth: Comparable {
 @MainActor @Observable
 final class FeedModel {
 
-  let account: ChannelSummary
+  let account: Account
   private let auth: GoogleAuth
   private let store: SyncStore
   private let probe = ShortsProbe()
@@ -182,12 +182,14 @@ final class FeedModel {
   /// Called when a load finds the profile was deleted from another device.
   var onProfileDeleted: (() -> Void)?
 
-  init(account: ChannelSummary, auth: GoogleAuth) {
+  /// Where each account's not-yet-uploaded edits are kept.
+  static let storeDirectory = URL.applicationSupportDirectory.appendingPathComponent("subtube")
+
+  init(account: Account, auth: GoogleAuth) {
     self.account = account
     self.auth = auth
-    let directory = URL.applicationSupportDirectory.appendingPathComponent("subtube")
     let store = SyncStore(
-      accountId: account.channelId, tokens: auth, directory: directory, deviceId: deviceId())
+      accountId: account.id, tokens: auth, directory: Self.storeDirectory, deviceId: deviceId())
     self.store = store
     let (calls, continuation) = AsyncStream.makeStream(
       of: (@Sendable (SyncStore) async -> Void).self)
@@ -716,10 +718,10 @@ final class FeedModel {
   /// before its starting point watched, as one edit; a channel that was on
   /// then and isn't among them keeps waiting for its first fetch.
   private func markBeforeStart(_ fetched: Set<String>, _ fetchedItems: [FeedItem]) {
-    guard let pending = pendingStart(accountId: account.channelId) else { return }
+    guard let pending = pendingStart(accountId: account.id) else { return }
     let (marks, remaining) = applyPendingStart(pending, fetched: fetched, items: fetchedItems)
     if remaining != pending {
-      keepPendingStart(accountId: account.channelId, remaining)
+      keepPendingStart(accountId: account.id, remaining)
     }
     let ids = marks.filter { entries[$0]?.watched != true }
     if !ids.isEmpty {
@@ -1363,7 +1365,7 @@ private enum FetchMark {
     /// Google sign-in (launch with `-demo`). Nothing loads or syncs.
     static func demo(auth: GoogleAuth) -> FeedModel {
       let feed = FeedModel(
-        account: ChannelSummary(channelId: "UCdemo", title: "Your Name", thumbnail: ""), auth: auth)
+        account: Account(id: "demo", name: "Your Name"), auth: auth)
       feed.offline = true
       feed.channelsLoaded = true
       let names = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"]

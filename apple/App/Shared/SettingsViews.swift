@@ -8,11 +8,11 @@ struct AccountSummary: View {
   var body: some View {
     HStack(spacing: 12) {
       Avatar(
-        url: feed.user?.photoLink ?? feed.account.thumbnail,
-        title: feed.user?.displayName ?? feed.account.title, size: 44)
+        url: feed.user?.photoLink ?? feed.account.photo ?? "",
+        title: feed.user?.displayName ?? feed.account.name, size: 44)
       VStack(alignment: .leading, spacing: 2) {
-        Text(feed.user?.displayName ?? feed.account.title).font(.headline)
-        if let email = feed.user?.emailAddress {
+        Text(feed.user?.displayName ?? feed.account.name).font(.headline)
+        if let email = feed.user?.emailAddress ?? feed.account.email {
           Text(email).font(.callout).foregroundStyle(.secondary)
         }
       }
