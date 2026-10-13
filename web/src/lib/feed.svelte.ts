@@ -523,7 +523,7 @@ export class FeedController {
     this.session = session;
     this.store = store;
     this.router = router;
-    this.accountId = session.account?.channelId ?? "";
+    this.accountId = session.account?.id ?? "";
     this.settings = readSettings(store.settings());
   }
 

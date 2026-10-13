@@ -248,9 +248,15 @@ class ShortsListTest {
             server.takeRequest().url.queryParameter("fields"),
         )
 
-        server.enqueue(MockResponse.Builder().body("""{"items":[{"id":"UCme","snippet":{"title":"Me"}}]}""").build())
-        youtube.fetchMyChannel("token")
-        assertEquals("items(id,snippet(title,customUrl,$thumbnails))", server.takeRequest().url.queryParameter("fields"))
+        server.enqueue(MockResponse.Builder().body("""{"items":[{"id":"UCme"}]}""").build())
+        assertEquals("UCme", youtube.fetchOwnChannelId("token"))
+        assertEquals("items(id)", server.takeRequest().url.queryParameter("fields"))
+    }
+
+    @Test
+    fun anAccountWithNoChannelOfItsOwnHasNoChannelId() = runTest {
+        server.enqueue(MockResponse.Builder().body("""{"kind":"youtube#channelListResponse"}""").build())
+        assertEquals(null, youtube.fetchOwnChannelId("token"))
     }
 
     @Test

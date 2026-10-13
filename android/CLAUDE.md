@@ -353,7 +353,19 @@ every client shares is in `../shared/`.
     device's own doesn't count, since setup writes it before it is through)
     ends first run and opens the feed, and a failed listing shows the step's
     error with "Refresh" beside it (`retrySetUpChannels`), or "Sign in" when
-    only that helps, as Apple's does. "Setup done" is kept per account (`AccountPrefs.isSetUpDone`):
+    only that helps, as Apple's does. The account is the Google account as
+    Drive's `about` reports it (`Account`: `id`, its `permissionId`; `name`,
+    `photo`, `email`), kept by `AccountPrefs.account`, and needs no YouTube
+    channel of its own; everything the device keeps per account is filed
+    under that id. Earlier versions filed it under the account's YouTube
+    channel id: a start that finds such an account kept
+    (`AccountPrefs.oldAccount`) shows its screen at once, asks Drive who it
+    is and refiles it (`refiled`, `moveAccountEntries`), or opens it where it
+    was when Drive doesn't answer within 15 s; a sign-in, only while entries
+    are still filed under a channel id (`oldAccountIds`,
+    `oldSyncAccountIds`), asks for the account's own channel once
+    (`fetchOwnChannelId`) and refiles a match, going on whatever the answer.
+    "Setup done" is kept per account (`AccountPrefs.isSetUpDone`):
     signing out leaves the marks, and signing in as an account without one
     runs first run from "Choose channels", wherever the sign-in was started.
     "Sign out" uploads what is unsent (`saveUnsent`; nothing when all of it
@@ -363,8 +375,8 @@ every client shares is in `../shared/`.
     chooser. Signing out cancels a running load.
     Settings' account card shows the Google account's name, address and
     picture from Drive's `about` (`loadUser`; `DriveUser.photoLink`, which
-    needs no further permission), and the YouTube channel's name and picture
-    until that answers or where it has none, as Apple's does.
+    needs no further permission), and the kept account's until that
+    answers, as Apple's does.
     Settings' "Delete profile" calls the store, revokes Google's grant, then
     signs out to the first setup screen; a profile deleted from another device restarts first run at
     the channel step, still signed in. `sessionEpoch` keeps a load or a single

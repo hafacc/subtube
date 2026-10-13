@@ -2,7 +2,7 @@ package cc.hafa.subtube
 
 import android.content.Intent
 import cc.hafa.subtube.core.ChannelFilter
-import cc.hafa.subtube.core.ChannelSummary
+import cc.hafa.subtube.core.Account
 import cc.hafa.subtube.core.ContentMode
 import cc.hafa.subtube.core.DriveUser
 import cc.hafa.subtube.core.FeedItem
@@ -172,7 +172,7 @@ internal fun demoData(
 ): DemoData {
     val signedOut = screen == "setup" && step <= SetUpStep.SIGN_IN
     return DemoData(
-        account = if (signedOut) null else ChannelSummary(channelId = "UCdemo", title = "Your Name", thumbnail = "", handle = null),
+        account = if (signedOut) null else Account(id = "demo", name = "Your Name"),
         user = DriveUser("Your Name", "you@example.com"),
         subscriptions = CHANNEL_NAMES.filter { name -> name != "Eight" }.map { name -> Subscription("UC$name", "Channel $name", "") },
         channels = CHANNEL_NAMES.map(::demoChannel),

@@ -90,7 +90,7 @@ class SyncStoreTest {
                         .body(otherDevice)
                         .build()
                     request.method == "GET" && path == "/drive/v3/about" -> MockResponse.Builder()
-                        .body("""{"user":{"displayName":"Ada","emailAddress":"ada@example.com","photoLink":"https://example.com/ada.jpg"}}""")
+                        .body("""{"user":{"displayName":"Ada","emailAddress":"ada@example.com","permissionId":"42","photoLink":"https://example.com/ada.jpg"}}""")
                         .build()
                     request.method == "DELETE" && path.startsWith("/drive/v3/files/") -> {
                         val fileId = path.substringAfterLast('/')
@@ -360,8 +360,9 @@ class SyncStoreTest {
     @Test
     fun theAccountIsReadWithItsPicture() = runBlocking {
         val user = DriveClient(OkHttpClient(), server.url("/")).about("token")
-        assertEquals(DriveUser("Ada", "ada@example.com", "https://example.com/ada.jpg"), user)
-        assertEquals("user(displayName,emailAddress,photoLink)", server.takeRequest().url.queryParameter("fields"))
+        assertEquals(DriveUser("Ada", "ada@example.com", "https://example.com/ada.jpg", "42"), user)
+        assertEquals(Account(id = "42", name = "Ada", photo = "https://example.com/ada.jpg", email = "ada@example.com"), user.toAccount())
+        assertEquals("user(displayName,emailAddress,permissionId,photoLink)", server.takeRequest().url.queryParameter("fields"))
     }
 
     @Test

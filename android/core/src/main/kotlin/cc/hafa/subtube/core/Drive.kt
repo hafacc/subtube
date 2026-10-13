@@ -34,6 +34,8 @@ data class DriveUser(
     val emailAddress: String? = null,
     /** The account's picture, when it has one. */
     val photoLink: String? = null,
+    /** The account's id in Drive, the same for every app and device. */
+    val permissionId: String? = null,
 )
 
 @Serializable
@@ -60,7 +62,7 @@ class DriveClient(
     suspend fun about(token: String): DriveUser {
         val url = apiBase.newBuilder()
             .addPathSegments("drive/v3/about")
-            .addQueryParameter("fields", "user(displayName,emailAddress,photoLink)")
+            .addQueryParameter("fields", "user(displayName,emailAddress,permissionId,photoLink)")
             .build()
         val body = http.googleCall(Request.Builder().url(url).build(), token, GoogleApi.DRIVE, "Google Drive about")
         return json.decodeFromString<AboutResponse>(body).user

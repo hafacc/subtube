@@ -21,18 +21,6 @@ fun uploadsPlaylistId(channelId: String): String = "UU" + channelId.drop(2)
  */
 fun shortsPlaylistId(channelId: String): String = "UUSH" + channelId.drop(2)
 
-/** A channel as subtube lists it outside the feed. */
-data class ChannelSummary(
-    /** The `UC…` channel id. */
-    val channelId: String,
-    /** The channel's name. */
-    val title: String,
-    /** Avatar URL; empty when YouTube gave none. */
-    val thumbnail: String,
-    /** The `@handle`, when YouTube reports one. */
-    val handle: String?,
-)
-
 /** A video's duration, broadcast kind and category id, which playlistItems doesn't report. */
 data class VideoDetails(
     /** Length in seconds; 0 for live or upcoming. */
@@ -59,7 +47,7 @@ private const val UPLOAD_FIELDS =
     "items(snippet(title,description,publishedAt,videoOwnerChannelId,videoOwnerChannelTitle,$THUMBNAIL_FIELDS),contentDetails(videoId,videoPublishedAt))"
 private const val SHORT_ID_FIELDS = "items(contentDetails(videoId))"
 private const val PLAYLIST_FIELDS = "items(id,snippet(title,description,publishedAt,channelId,channelTitle,$THUMBNAIL_FIELDS),contentDetails(itemCount))"
-private const val CHANNEL_FIELDS = "items(id,snippet(title,customUrl,$THUMBNAIL_FIELDS))"
+private const val CHANNEL_ID_FIELDS = "items(id)"
 
 @Serializable
 private data class Thumbnail(val url: String)
@@ -144,16 +132,10 @@ private data class PlaylistResource(
 private data class PlaylistListResponse(val items: List<PlaylistResource> = emptyList())
 
 @Serializable
-private data class ChannelSnippet(val title: String = "", val customUrl: String? = null, val thumbnails: Thumbnails = Thumbnails())
+private data class ChannelId(val id: String)
 
 @Serializable
-private data class ChannelResource(val id: String, val snippet: ChannelSnippet = ChannelSnippet())
-
-@Serializable
-private data class ChannelListResponse(val items: List<ChannelResource>? = null)
-
-private fun ChannelResource.toSummary(): ChannelSummary =
-    ChannelSummary(channelId = id, title = decodeHtmlEntities(snippet.title), thumbnail = snippet.thumbnails.best, handle = snippet.customUrl)
+private data class ChannelIdListResponse(val items: List<ChannelId>? = null)
 
 /**
  * A finished broadcast (a stream replay or aired premiere) reports
@@ -366,12 +348,7 @@ class YouTubeClient(
         }
     }
 
-    /** The signed-in account's own channel: its id keys everything stored for the account. */
-    suspend fun fetchMyChannel(token: String): ChannelSummary {
-        val data = get<ChannelListResponse>("channels", mapOf("part" to "snippet", "mine" to "true", "fields" to CHANNEL_FIELDS), token)
-        return data.items?.firstOrNull()?.toSummary() ?: throw NoYouTubeChannelException()
-    }
+    /** The id of the signed-in account's own channel, which earlier versions filed its entries under; null when it has none. */
+    suspend fun fetchOwnChannelId(token: String): String? =
+        get<ChannelIdListResponse>("channels", mapOf("part" to "id", "mine" to "true", "fields" to CHANNEL_ID_FIELDS), token).items?.firstOrNull()?.id
 }
-
-/** The Google account has no YouTube channel, so there's no account id to key its data by. */
-class NoYouTubeChannelException : Exception("This Google account has no YouTube channel.")

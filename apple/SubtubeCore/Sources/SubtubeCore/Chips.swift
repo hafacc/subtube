@@ -258,7 +258,7 @@ public func applyPendingStart(
   }
 }
 
-private func pendingStartKey(_ accountId: String) -> String {
+func pendingStartKey(_ accountId: String) -> String {
   "subtube.startFrom.\(accountId)"
 }
 

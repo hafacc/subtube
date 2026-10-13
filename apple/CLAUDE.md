@@ -198,7 +198,17 @@ the pbxproj.
   as nothing; a Keychain that won't keep the token fails the sign-in).
 - `App/Shared/` — SwiftUI shared by both apps: `AppModel` (sign-in, first
   run, theme; the web authentication session is started by `SignInButton`;
-  "setup done" is kept per account, `subtube.onboarded.<channel id>`, and
+  the account is the Google account as Drive's `about` reports it —
+  `Account`: `id`, its `permissionId`; `name`, `photo`, `email` — kept as
+  `subtube.account`, and needs no YouTube channel of its own; everything a
+  device keeps per account is filed under that id; earlier versions filed it
+  under the account's YouTube channel id: a start that finds such an account
+  kept asks Drive who it is and refiles it (`keptAccount`,
+  `moveAccountEntries`), or opens it where it was until Drive answers, and a
+  sign-in, only while entries are still filed under a channel id
+  (`oldAccountIds`), asks for the account's own channel once
+  (`ownChannelId`) and refiles a match, going on whatever the answer;
+  "setup done" is kept per account, `subtube.onboarded.<account id>`, and
   `introSeen` says whether any account finished it here, which opens setup
   on its sign-in screen; an account without the mark gets setup unless the
   Drive app folder holds another device's file — this device's own, written
@@ -208,8 +218,8 @@ the pbxproj.
   local state, then signs out and revokes the grant; a load that finds this
   device's uploaded file gone — `SyncError.profileDeleted` — wipes local
   state and restarts setup, unless a fresh listing shows another device set
-  the account up again; a sign-in the app can't use — no YouTube channel, a
-  permission left off — is not kept),
+  the account up again; a sign-in the app can't use — a permission left
+  off — is not kept),
   `FeedModel` (the feed: `shown` is everything fetched that passes the
   filters, the watched chip — `watchedMode`, kept for the visit — and the
   time and topic chips, in the `feedSort` order, the random one under a seed

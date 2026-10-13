@@ -123,7 +123,7 @@ function loaded(
       synced[name] = { at: 1, value };
     },
   } as unknown as SyncStore;
-  const session = { account: { channelId: "UCme" } } as unknown as Session;
+  const session = { account: { id: "me" } } as unknown as Session;
   const router = { route: { channel: page, item: null } } as unknown as Router;
   const feed = new FeedController(session, store, router);
   feed.channels = new Map([
@@ -1054,7 +1054,7 @@ describe("FeedController loads", () => {
       flush: () => undefined,
     } as unknown as SyncStore;
     const session = {
-      account: { channelId: "UCme" },
+      account: { id: "me" },
       ready: true,
       tokenLost: () => {
         lost += 1;

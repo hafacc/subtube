@@ -269,7 +269,7 @@
   function finish(): void {
     if (session.account) {
       keepPendingStart(
-        session.account.channelId,
+        session.account.id,
         pendingStart(
           startFrom,
           Date.now(),
@@ -278,7 +278,7 @@
             .map((channel) => channel.channelId),
         ),
       );
-      handOffPrefetched(session.account.channelId, prefetch);
+      handOffPrefetched(session.account.id, prefetch);
     }
     session.finishSetup();
   }
