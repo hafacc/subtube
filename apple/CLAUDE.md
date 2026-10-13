@@ -2,7 +2,8 @@
 
 One Xcode project, `SubTube.xcodeproj`, committed and opened directly (no
 generator). One target and one shared scheme, both `SubTube`, build the Mac
-app (macOS 15+, native, not Catalyst) and the iPhone and iPad app (iOS 18+),
+app (macOS 15+, native, not Catalyst) and the iPhone app (iOS 18+; iPhone
+only, so an iPad runs it at phone size: there is no iPad layout),
 bundle id `cc.hafa.subtube`, signing automatic with the team in
 `Config/Signing.xcconfig`. The target depends on the local Swift package
 `SubtubeCore`, whose tests run from the scheme (⌘U) or `swift test`.
