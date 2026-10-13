@@ -573,7 +573,7 @@ every client shares is in `../shared/`.
     the mark (decided for every client). The card holding the player also
     has no `animateItem`, because the player cannot follow a card that
     slides. A watched card is dimmed (thumbnail at half opacity, title
-    lighter and grey) unless the player has its entry or the watched chip
+    lighter and grey), the card of the player's entry too, unless the watched chip
     is on Watched. `MarkWatchedTest` presses the
     strip and swipes the card in the real activity.
   - `ui/Loading.kt` — how loading looks: `Modifier.shimmer` (the one shimmer:
