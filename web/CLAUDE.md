@@ -512,7 +512,7 @@ values, named by the page's `h1`.
   `app.css`, the same box selected or not; `.chip.round` is the icon-only one. `FeedCard` draws a 4px Sunflower
   bar along the bottom of the thumbnail, `bars`' fraction wide; a watched card
   is dimmed (`.dimmed`: thumbnail and bar at half opacity, title lighter and
-  grey) unless it is `playing` or `dims` is off, which `Feed` sets while the
+  grey), the card of what the player plays too, unless `dims` is off, which `Feed` sets while the
   watched filter shows only watched ones. **The bar marks**: `.mark`, a plain button beside the
   thumbnail button in `.picture` (not Bits' `Toggle`: its name changes with
   the state, "Mark watched" / "Mark unwatched", also its `title`), calls

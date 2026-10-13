@@ -399,8 +399,8 @@ the pbxproj.
   on a Mac `ItemCard` has 12 pt corners, the channel's avatar (28 pt, not on
   a channel's own page) left of a two-line title, and "Channel · date" under
   the title; on every platform a watched card is dimmed — thumbnail at half
-  opacity, title lighter and secondary — except the card of the item the
-  player has, and not while the watched filter shows only watched items;
+  opacity, title lighter and secondary — the card of the item the
+  player has too, and not while the watched filter shows only watched items;
   under the pointer
   the card lies on a rounded plate and a 44 pt Sunflower disk with an ink
   triangle is on its thumbnail, both fading over 0.15 s, not under reduced
