@@ -20,7 +20,7 @@
     body: string;
     badgeSmall: string;
     badgeLarge: string;
-    url: string | null;
+    url: string;
     footer: string;
   }
 
@@ -71,17 +71,10 @@
     <div class="wordmark"><Logo hull={28.8} /> SubTube</div>
     <h1>{offer.heading}</h1>
     <p class="lead">{offer.body}</p>
-    {#if offer.url}
-      <a class="badge" href={offer.url}>
-        <span class="small">{offer.badgeSmall}</span>
-        <span class="large">{offer.badgeLarge}</span>
-      </a>
-    {:else}
-      <span class="badge" aria-disabled="true">
-        <span class="small">{offer.badgeSmall}</span>
-        <span class="large">{offer.badgeLarge}</span>
-      </span>
-    {/if}
+    <a class="badge" href={offer.url}>
+      <span class="small">{offer.badgeSmall}</span>
+      <span class="large">{offer.badgeLarge}</span>
+    </a>
   </div>
   <p class="footer">
     {offer.footer}
@@ -147,10 +140,6 @@
 
   .badge:hover {
     color: #ffffff;
-  }
-
-  .badge[aria-disabled="true"] {
-    opacity: 0.5;
   }
 
   .small {
