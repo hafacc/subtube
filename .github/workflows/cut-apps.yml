@@ -1,0 +1,170 @@
+# Cut releases of the chosen apps: test main's tip, then bump, commit and tag each app on top
+# of exactly that commit and start what publishes it. Called by cut.yml and the *-cut workflows.
+# The calling job holds the `cut` lock from before the tests until the push, so
+# no other cut lands in between; a main that moved for any other reason is refused by the
+# push, before any tag exists.
+name: cut-apps
+
+on:
+  workflow_call:
+    inputs:
+      bump:
+        description: semver bump (patch, minor or major)
+        type: string
+        default: patch
+      android:
+        type: boolean
+        default: false
+      ios:
+        type: boolean
+        default: false
+      macos:
+        type: boolean
+        default: false
+      extension:
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.pin.outputs.sha }}
+      only: ${{ steps.pin.outputs.only }}
+    steps:
+      - id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          android: ${{ inputs.android }}
+          apple: ${{ inputs.ios || inputs.macos }}
+          extension: ${{ inputs.extension }}
+        # main's tip now, not the dispatch SHA: a cut that waited its turn starts from the cuts before it
+        run: |
+          echo "sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" >> "$GITHUB_OUTPUT"
+          only=""
+          for job in android apple extension; do
+            if [ "${!job}" = true ]; then
+              only="$only $job"
+            fi
+          done
+          if [ "$android" = true ] || [ "$apple" = true ]; then
+            only="$only shared"
+          fi
+          echo "only=${only# }" >> "$GITHUB_OUTPUT"
+
+  gate:
+    needs: pin
+    uses: ./.github/workflows/build.yml
+    with:
+      only: ${{ needs.pin.outputs.only }}
+      ref: ${{ needs.pin.outputs.sha }}
+    permissions:
+      contents: read
+      pull-requests: read # build.yml asks for it; unused here
+
+  cut:
+    needs: [pin, gate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the bumps and tags
+      actions: write # start the publishes
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.pin.outputs.sha }} # the commit the gate tested
+      - uses: oven-sh/setup-bun@v2
+        if: inputs.extension
+      - run: bun install --frozen-lockfile
+        if: inputs.extension
+        working-directory: extension
+      - name: bump, commit and tag
+        id: bump
+        env:
+          bump: ${{ inputs.bump }}
+          android: ${{ inputs.android }}
+          ios: ${{ inputs.ios }}
+          macos: ${{ inputs.macos }}
+          extension: ${{ inputs.extension }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          next() {
+            IFS=. read -r major minor patch <<< "$1"
+            case "$bump" in
+              major) echo "$((major + 1)).0.0" ;;
+              minor) echo "$major.$((minor + 1)).0" ;;
+              *) echo "$major.$minor.$((patch + 1))" ;;
+            esac
+          }
+
+          release() {
+            git commit -am "$1 v$2"
+            git tag -a "$1-v$2" -m "$1 v$2"
+            echo "$1=$1-v$2" >> "$GITHUB_OUTPUT"
+          }
+
+          # apple/Config/Versions.xcconfig is the version source of truth, one line per platform
+          apple() {
+            config=apple/Config/Versions.xcconfig
+            key="MARKETING_VERSION[sdk=$2*]"
+            version=$(next "$(grep -F "$key = " "$config" | sed 's/.* = //')")
+            sed -i "s/^MARKETING_VERSION\\[sdk=$2\\*\\] = .*/$key = $version/" "$config"
+            grep -Fx "$key = $version" "$config"
+            release "$1" "$version"
+          }
+
+          if [ "$android" = true ]; then
+            # android/app/build.gradle.kts is the version source of truth
+            gradle=android/app/build.gradle.kts
+            version=$(next "$(sed -nE 's/^ *versionName = "([^"]+)"/\1/p' "$gradle")")
+            code=$(sed -nE 's/^ *versionCode = ([0-9]+)/\1/p' "$gradle")
+            # Play rejects a versionCode it has already seen, so it only ever goes up
+            sed -i -E \
+              -e "s/^( *versionName = )\"[^\"]+\"/\1\"$version\"/" \
+              -e "s/^( *versionCode = )[0-9]+/\1$((code + 1))/" \
+              "$gradle"
+            grep -F "versionName = \"$version\"" "$gradle"
+            grep -F "versionCode = $((code + 1))" "$gradle"
+            release android "$version"
+          fi
+          if [ "$ios" = true ]; then
+            apple ios iphone
+          fi
+          if [ "$macos" = true ]; then
+            apple macos macosx
+          fi
+          if [ "$extension" = true ]; then
+            # manifest.json is the version source of truth; package.json's version is unused (private, unpublished)
+            manifest=extension/manifest.json
+            version=$(next "$(jq -r .version "$manifest")")
+            jq --arg version "$version" '.version = $version' "$manifest" > manifest.tmp
+            mv manifest.tmp "$manifest"
+            (cd extension && bunx biome format --write manifest.json)
+            release extension "$version"
+          fi
+      - name: push and start the publishes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          android: ${{ steps.bump.outputs.android }}
+          ios: ${{ steps.bump.outputs.ios }}
+          macos: ${{ steps.bump.outputs.macos }}
+          extension: ${{ steps.bump.outputs.extension }}
+        run: |
+          # branch first, tags second (never --follow-tags): a main that is no longer the tested commit is rejected before a tag exists
+          git push origin HEAD:main
+          # Xcode Cloud watches the repository itself, so a token-pushed ios or macos tag starts its build
+          for tag in $android $ios $macos $extension; do
+            git push origin "$tag"
+          done
+          # a tag pushed with this token doesn't fire on:push, so start these directly
+          if [ -n "$android" ]; then
+            gh workflow run android-publish.yml --ref main -f tag="$android"
+          fi
+          if [ -n "$extension" ]; then
+            gh workflow run ext-release.yml --ref main -f tag="$extension"
+          fi
