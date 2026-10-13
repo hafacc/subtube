@@ -110,10 +110,9 @@ struct ItemCard: View {
     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
   }
 
-  /// Whether the card is drawn as watched; never the card of the item the
-  /// player has, and never while only watched items are shown.
+  /// Whether the card is drawn as watched; never while only watched items are shown.
   private var isDimmed: Bool {
-    watched && session == nil && feed.watchedMode != .watched
+    watched && feed.watchedMode != .watched
   }
 
   #if os(macOS)

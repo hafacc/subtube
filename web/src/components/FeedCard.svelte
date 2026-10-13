@@ -179,7 +179,7 @@
 <div
   class="card"
   class:swiping
-  class:dimmed={dims && watched && !playing}
+  class:dimmed={dims && watched}
   data-card={feedItemId(item)}
   onpointerdown={pressed}
   onpointermove={moved}

@@ -341,8 +341,8 @@ private fun ErrorBanner(message: String, offersSignIn: Boolean, signingIn: Boole
  * the card sideways ([SwipeToMark]) marks the entry watched or unwatched,
  * calling [onMark] with the new state, and never plays it. [player], when given,
  * stands in place of the thumbnail, bar and all. A null action leaves that part untappable.
- * A watched card is dimmed, thumbnail and title, unless it is [playing] or
- * [dims] is off, as it is where only watched entries are listed.
+ * A watched card is dimmed, thumbnail and title, also while it is [playing],
+ * unless [dims] is off, as it is where only watched entries are listed.
  */
 @Composable
 internal fun FeedCard(
@@ -359,7 +359,7 @@ internal fun FeedCard(
     dims: Boolean = true,
 ) {
     val markLabel = stringResource(if (watched) R.string.mark_unwatched else R.string.mark_watched)
-    val dimmed = dims && watched && !playing
+    val dimmed = dims && watched
     SwipeToMark(watched = watched, onMark = onMark.takeIf { enabled && player == null }, modifier = modifier.fillMaxWidth()) { held ->
         Card(
             shape = CardShape,
