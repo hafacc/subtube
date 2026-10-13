@@ -81,10 +81,10 @@ slightly blue cast (dark page `#121418`, light page white).
 
 ## Status
 
-All four clients build and pass the shared fixtures. The web app and
-extension work with real sign-in; the Apple and Android apps are not yet
-verified with real tokens. Waiting on the user: store listings, the Apple team. The old Firebase project
-(subtube-dev) is still deployed for the old site until this ships.
+All four clients build, pass the shared fixtures and work with real
+sign-in. The extension is on the Chrome Web Store. Waiting on the user: the
+App Store and Google Play listings. The old Firebase backend in subtube-dev is
+shut down; its functions are still listed but only return errors.
 
 Future work: auto-generate a per-channel pattern from a few picked videos; a
 paginated feed (older uploads beyond the first page per channel); build the

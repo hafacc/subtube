@@ -29,7 +29,7 @@ export const termsUrl = "/terms";
 /** Where the "Videos from YouTube" attribution links. */
 export const youtubeUrl = "https://www.youtube.com/";
 
-/** The extension's Chrome Web Store page; the listing isn't published yet. */
+/** The extension's Chrome Web Store page. */
 export const chromeWebStoreUrl =
   "https://chromewebstore.google.com/detail/gobcnmccpjhlgpnohehgkahhknkfbmfo";
 
