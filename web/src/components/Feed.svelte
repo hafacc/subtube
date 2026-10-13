@@ -101,6 +101,8 @@
 
   const account = $derived(session.account);
   const route = $derived(router.route);
+  // the page alone: opening or closing the player changes the route, not the page
+  const pageChannel = $derived(router.route.channel);
   // enough skeleton cards to fill a large window
   const SKELETONS = Array.from({ length: 24 }, (_, index) => index);
 
@@ -282,7 +284,7 @@
   });
 
   $effect(() => {
-    void router.route.channel;
+    void pageChannel;
     void feed.feed;
     void narrow;
     untrack(() => player.pageChanged());
@@ -306,15 +308,14 @@
   });
 
   $effect(() => {
-    void router.route.channel;
+    void pageChannel;
     void feed.channels;
     untrack(() => void feed.ensureChannelItems());
   });
 
   // going to another page leaves the group editor, unsaved edits and all
   $effect(() => {
-    void router.route.channel;
-    const channel = router.route.channel;
+    const channel = pageChannel;
     untrack(() => {
       drawn = CARD_CHUNK;
       groupEdit = null;
