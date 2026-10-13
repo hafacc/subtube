@@ -549,45 +549,12 @@ export async function fetchShortIds(
   }
 }
 
-interface ChannelListResponse {
-  items?: Array<{
-    id: string;
-    snippet: {
-      title: string;
-      thumbnails: { default?: { url: string }; medium?: { url: string } };
-    };
-  }>;
-}
-
-function toInfo(
-  item: NonNullable<ChannelListResponse["items"]>[number],
-): ChannelInfo {
-  return {
-    channelId: item.id,
-    title: decodeHtmlEntities(item.snippet.title),
-    thumbnail: channelPicture(item.snippet.thumbnails),
-  };
-}
-
-/** The signed-in Google account has no YouTube channel, which keys everything kept for an account. */
-export class NoChannelError extends ShownError {
-  constructor() {
-    super("This Google account has no YouTube channel.");
-    this.name = "NoChannelError";
-  }
-}
-
-/** The signed-in account's own channel: its id keys everything stored for the account. */
-export async function fetchMyChannel(token: string): Promise<ChannelInfo> {
-  const data = await apiGet<ChannelListResponse>(
+/** The id of the signed-in account's own YouTube channel, which earlier versions filed its entries under; null when it has none. */
+export async function fetchOwnChannelId(token: string): Promise<string | null> {
+  const data = await apiGet<{ items?: Array<{ id: string }> }>(
     "/channels",
-    { part: "snippet", mine: "true" },
+    { part: "id", mine: "true" },
     token,
   );
-  const mine = data.items?.[0];
-  if (mine) {
-    return toInfo(mine);
-  } else {
-    throw new NoChannelError();
-  }
+  return data.items?.[0]?.id ?? null;
 }

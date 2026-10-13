@@ -67,10 +67,10 @@ class SyncStore(
     private val replaceToken: suspend (refused: String) -> String = { getToken() },
 ) {
     private val ownName = deviceFileName(deviceId)
-    private val localKey = "subtube.sync.$accountId"
+    private val localKey = syncKey(accountId)
 
     // present once this device's file has been uploaded
-    private val uploadedKey = "subtube.uploaded.$accountId"
+    private val uploadedKey = uploadedKey(accountId)
     private val lock = Any()
     private val saveMutex = Mutex()
 

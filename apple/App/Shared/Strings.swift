@@ -372,7 +372,6 @@ enum Strings {
       "Couldn't load the YouTube player. Check your connection or any content blockers, then try again."
   )
   static let signInAgain = String(localized: "Sign in again to continue.")
-  static let noYouTubeChannel = String(localized: "This Google account has no YouTube channel.")
   static let dailyLimit = String(
     localized: "SubTube has reached YouTube's daily limit. Try again after midnight Pacific time.")
   static let couldntReachGoogle = String(
@@ -388,7 +387,6 @@ enum Strings {
     case AuthError.signInRequired: signedOut
     case GoogleAPIError.tokenExpired: sessionEnded
     case GoogleAPIError.insufficientScope: needsPermissions
-    case GoogleAPIError.noChannel: noYouTubeChannel
     case GoogleAPIError.dailyLimit: dailyLimit
     default: isCancellation(error) ? nil : couldntReachGoogle
     }

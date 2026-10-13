@@ -1,15 +1,6 @@
-<script module lang="ts">
-  import type { DriveUser } from "../lib/drive";
-
-  // by account channel id, so reopening the popover doesn't ask again
-  const users = new Map<string, DriveUser>();
-</script>
-
 <script lang="ts">
   import { AlertDialog, Popover } from "bits-ui";
-  import { withToken } from "../lib/auth";
   import { privacyUrl, termsUrl } from "../lib/config";
-  import { fetchDriveUser } from "../lib/drive";
   import type { Account } from "../lib/session.svelte";
   import Avatar from "./Avatar.svelte";
   import Icon from "./Icon.svelte";
@@ -20,7 +11,7 @@
     onsignout,
     ondelete,
   }: {
-    /** the signed-in account's channel */
+    /** the signed-in account */
     account: Account;
     /** when Drive last answered, in epoch milliseconds */
     lastSynced: number | null;
@@ -33,8 +24,6 @@
   const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 
   let now = $state(Date.now());
-  // svelte-ignore state_referenced_locally
-  let user: DriveUser | null = $state(users.get(account.channelId) ?? null);
   let confirming = $state(false);
   let deleting = $state(false);
   let deleteFailed = $state(false);
@@ -65,21 +54,9 @@
     }
   }
 
-  /** Runs while the popover is on the page: asks who the account is and keeps "Last synced" current. */
+  /** Runs while the popover is on the page: keeps "Last synced" current. */
   function shown(): () => void {
     now = Date.now();
-    if (!user) {
-      const channelId = account.channelId;
-      void (async () => {
-        try {
-          const found = await withToken(fetchDriveUser);
-          users.set(channelId, found);
-          user = found;
-        } catch {
-          // the channel's name stays
-        }
-      })();
-    }
     const timer = setInterval(() => {
       now = Date.now();
     }, 30_000);
@@ -100,15 +77,15 @@
     >
       <div class="who">
         <Avatar
-          title={user?.displayName ?? account.title}
-          thumbnail={user?.photoLink ?? account.thumbnail}
+          title={account.name}
+          thumbnail={account.photo ?? ""}
           size={40}
           tint
         />
         <span class="names">
-          <span class="name">{user?.displayName ?? account.title}</span>
-          {#if user?.emailAddress}
-            <span class="secondary handle">{user.emailAddress}</span>
+          <span class="name">{account.name}</span>
+          {#if account.email}
+            <span class="secondary handle">{account.email}</span>
           {/if}
         </span>
       </div>

@@ -59,6 +59,9 @@ slightly blue cast (dark page `#121418`, light page white).
   `device-<id>.json`, reads everyone's, merges newest-`at`-per-key (ties → greater
   device id). Saved filters carry no channel identity; YouTube supplies it.
   The only channels are the user's YouTube subscriptions.
+- **An account is the Google account**, by Drive's id for it
+  (`permissionId` from Drive's `about`); what a device keeps per account is
+  filed under that id. It needs no YouTube channel of its own.
 - **Shorts from YouTube's own lists** (`UUSH` beside `UU`), not a probe; a probe
   of `/shorts/{id}` is only the fallback where a platform can make one.
 - **Filter patterns** are a small regex subset that JavaScript, ICU and Java read

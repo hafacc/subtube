@@ -48,7 +48,6 @@
     <string name="needs_permissions">SubTube needs both permissions Google asks for. Sign in again and allow them.</string>
     <string name="partial_results">Some channels couldn\'t be loaded; showing partial results.</string>
     <string name="daily_limit">SubTube has reached YouTube\'s daily limit. Try again after midnight Pacific time.</string>
-    <string name="no_youtube_channel">This Google account has no YouTube channel.</string>
     <string name="cant_reach_google">Couldn\'t reach Google. Check your connection and try again.</string>
     <string name="dismiss">Dismiss</string>
     <string name="videos_from_youtube">Videos from YouTube</string>

@@ -30,6 +30,16 @@ public enum SyncError: Error, Sendable {
   case ownFileUnreadable
 }
 
+/// The file an account's not-yet-uploaded edits are kept in.
+func syncFileName(_ accountId: String) -> String {
+  "sync-\(accountId).json"
+}
+
+/// The file that exists once an account's Drive file of this device was seen.
+func uploadedFileName(_ accountId: String) -> String {
+  "uploaded-\(accountId)"
+}
+
 /// The channel filters, watched marks and settings, synced through the Drive
 /// app folder. Each device writes only its own file and reads everyone's, so two
 /// devices never write the same file. Edits apply in memory at once, are kept
@@ -75,7 +85,7 @@ public actor SyncStore {
   public private(set) var lastSyncedAt: Date?
 
   /// - Parameters:
-  ///   - accountId: the YouTube channel id of the signed-in account.
+  ///   - accountId: the signed-in Google account's id (``Account/id``).
   ///   - directory: where the not-yet-uploaded edits are kept.
   public init(
     accountId: String,
@@ -86,8 +96,8 @@ public actor SyncStore {
   ) {
     self.deviceId = deviceId
     ownName = "device-\(deviceId).json"
-    localURL = directory.appendingPathComponent("sync-\(accountId).json")
-    uploadedURL = directory.appendingPathComponent("uploaded-\(accountId)")
+    localURL = directory.appendingPathComponent(syncFileName(accountId))
+    uploadedURL = directory.appendingPathComponent(uploadedFileName(accountId))
     uploadedBefore = FileManager.default.fileExists(atPath: uploadedURL.path)
     self.tokens = tokens
     self.session = session

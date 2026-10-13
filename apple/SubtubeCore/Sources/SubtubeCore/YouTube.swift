@@ -12,8 +12,6 @@ public enum GoogleAPIError: Error, Sendable, Equatable {
   case insufficientScope
   /// The playlist doesn't exist; a channel with no Shorts has no Shorts list.
   case playlistNotFound(String)
-  /// The Google account has no YouTube channel to key its data by.
-  case noChannel
   /// YouTube refused the request because the app's daily quota is used up;
   /// asking again today can't work.
   case dailyLimit
@@ -170,26 +168,6 @@ private struct PlaylistListResponse: Decodable {
     var contentDetails: ContentDetails
   }
   var items: [Item]
-}
-
-private struct ChannelListResponse: Decodable {
-  struct Item: Decodable {
-    struct Snippet: Decodable {
-      var title: String
-      var thumbnails: Thumbnails
-    }
-    var id: String
-    var snippet: Snippet
-
-    var summary: ChannelSummary {
-      ChannelSummary(
-        channelId: id,
-        title: decodeHTMLEntities(snippet.title),
-        thumbnail: snippet.thumbnails.best
-      )
-    }
-  }
-  var items: [Item]?
 }
 
 /// A finished broadcast reports `liveBroadcastContent` "none" but carries an
@@ -454,14 +432,14 @@ public struct YouTubeClient: Sendable {
     }
   }
 
-  /// The signed-in account's own channel; its id keys everything stored for
-  /// the account.
-  public func myChannel() async throws -> ChannelSummary {
-    let page: ChannelListResponse = try await get("channels", ["part": "snippet", "mine": "true"])
-    if let mine = page.items?.first {
-      return mine.summary
-    } else {
-      throw GoogleAPIError.noChannel
+  /// The id of the signed-in account's own channel, which earlier versions
+  /// filed its entries under; nil when it has none.
+  public func ownChannelId() async throws -> String? {
+    struct Page: Decodable {
+      struct Item: Decodable { var id: String }
+      var items: [Item]?
     }
+    let page: Page = try await get("channels", ["part": "id", "mine": "true"])
+    return page.items?.first?.id
   }
 }
