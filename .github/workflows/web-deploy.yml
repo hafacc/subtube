@@ -1,7 +1,9 @@
-# Publish main's web app to GitHub Pages; started by hand, like a cut of the extension.
+# Publish main's web app to GitHub Pages; started by hand, like a cut of the extension, or by cut.yml.
 name: web-deploy
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  workflow_call:
 
 permissions: {}
 
