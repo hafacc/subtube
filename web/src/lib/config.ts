@@ -33,20 +33,12 @@ export const youtubeUrl = "https://www.youtube.com/";
 export const chromeWebStoreUrl =
   "https://chromewebstore.google.com/detail/gobcnmccpjhlgpnohehgkahhknkfbmfo";
 
-/**
- * The iPhone and iPad app on the App Store, or null before it is listed.
- * TODO: the App Store listing.
- */
-export const appStoreUrl: string | null = null;
+/** The iPhone and iPad app on the App Store. */
+export const appStoreUrl = "https://apps.apple.com/app/id6819027297";
 
-/**
- * The Mac app on the Mac App Store, or null before it is listed.
- * TODO: the Mac App Store listing.
- */
-export const macAppStoreUrl: string | null = null;
+/** The Mac app on the Mac App Store; the same listing as the iPhone app. */
+export const macAppStoreUrl = appStoreUrl;
 
-/**
- * The Android app on Google Play, or null before it is listed.
- * TODO: the Google Play listing.
- */
-export const playStoreUrl: string | null = null;
+/** The Android app on Google Play. */
+export const playStoreUrl =
+  "https://play.google.com/store/apps/details?id=cc.hafa.subtube";
