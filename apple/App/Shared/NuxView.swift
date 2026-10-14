@@ -28,8 +28,6 @@ struct NuxView: View {
     self.app = app
     if app.feed != nil {
       _step = State(initialValue: .channels)
-    } else if app.introSeen {
-      _step = State(initialValue: .signIn)
     } else {
       _step = State(initialValue: .intro)
     }

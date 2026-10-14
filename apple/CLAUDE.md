@@ -210,8 +210,8 @@ the pbxproj.
   (`oldAccountIds`), asks for the account's own channel once
   (`ownChannelId`) and refiles a match, going on whatever the answer;
   "setup done" is kept per account, `subtube.onboarded.<account id>`, and
-  `introSeen` says whether any account finished it here, which opens setup
-  on its sign-in screen; an account without the mark gets setup unless the
+  setup with no one signed in always opens on its first screen; an account
+  without the mark gets setup unless the
   Drive app folder holds another device's file — this device's own, written
   by a setup not finished, doesn't count (`setUpElsewhere`); Sign Out
   uploads, forgets the account here and leaves Google's grant alone, so
