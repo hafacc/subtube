@@ -800,8 +800,8 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         loadSetUpChannels()
     }
 
-    /** Forget the account and show first run at [step]; whether it finished first run here is remembered for its next sign-in. */
-    private fun forgetAccount(step: SetUpStep) {
+    /** Forget the account and show first run from its start; whether it finished first run here is remembered for its next sign-in. */
+    private fun forgetAccount() {
         app.prefs.account = null
         sessionEpoch += 1
         syncWatcher?.cancel()
@@ -811,7 +811,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         user = null
         clearFeed()
         session = Session.SignedOut
-        setUpStep = step
+        setUpStep = SetUpStep.INTRO
         backStack.clear()
         backStack.add(Screen.SetUp)
     }
@@ -833,7 +833,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
                 syncStore.deleteProfile()
                 forgetProfile()
                 app.auth.revoke()
-                forgetAccount(SetUpStep.INTRO)
+                forgetAccount()
             } catch (caught: CancellationException) {
                 throw caught
             } catch (caught: Exception) {
@@ -1119,7 +1119,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
             }
             try {
                 app.auth.signOut()
-                forgetAccount(SetUpStep.SIGN_IN)
+                forgetAccount()
             } catch (caught: CancellationException) {
                 throw caught
             } catch (caught: Exception) {
