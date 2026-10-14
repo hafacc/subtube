@@ -19,7 +19,7 @@ import {
   SignInRequiredError,
   shownMessage,
 } from "./errors";
-import { keysWith, readJson, readText, writeJson, writeText } from "./storage";
+import { readJson, readText, writeJson, writeText } from "./storage";
 import { SyncStore } from "./sync-store";
 import { fetchOwnChannelId } from "./youtube";
 
@@ -130,8 +130,6 @@ export class Session {
   error: string | null = $state(null);
   /** whether first-run setup is finished for the account on this browser */
   setupDone = $state(false);
-  /** whether setup was ever finished on this browser, for any account */
-  returning = $state(false);
   /** the account's synced filters and watched marks */
   store: SyncStore | null = $state.raw(null);
   // an interactive sign-in holds a token whose account isn't known yet: no store may use it
@@ -145,7 +143,6 @@ export class Session {
       kept === null ? null : "id" in kept ? kept.id : kept.channelId,
     );
     this.account = readAccount();
-    this.returning = keysWith(SETUP_DONE_PREFIX).length > 0;
     if (this.account) {
       this.setupDone = setupDoneFor(this.account.id);
       this.store = this.openStore(this.account.id);
@@ -315,7 +312,6 @@ export class Session {
     if (this.account) {
       writeText(SETUP_DONE_PREFIX + this.account.id, "1");
       this.setupDone = true;
-      this.returning = true;
     }
   }
 
@@ -338,7 +334,6 @@ export class Session {
     if (accountId && this.store) {
       await this.store.deleteProfile();
       this.forgetLocal(accountId);
-      this.returning = keysWith(SETUP_DONE_PREFIX).length > 0;
       await revokeAccess().catch(() => undefined);
       this.signedOut();
     }

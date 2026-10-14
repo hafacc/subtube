@@ -84,11 +84,11 @@ non-Chromium desktop browsers → `ExtensionRequired` (needs Chrome, links to
 it); Chromium → `Shell`, told whether the extension answered a ping (it times
 out after 500 ms). With the extension: first-run `Nux` until setup is done
 for the account on this browser (`subtube.setupDone.<account>`, one mark per
-account; signing out clears none), then `Feed`; signed out on a browser where
-any account finished setup → Nux opens at its sign-in step, and an account
-with no mark here goes on through setup. Without it there is no warning page: `Nux` runs,
-from its start for a new browser or at its "Add the Chrome extension" step
-when setup was done or an account is known. That step links to the Chrome Web
+account; signing out clears none), then `Feed`; signed out, Nux opens at its
+first step, and an account with no mark here goes on through setup. Without it
+there is no warning page: `Nux` runs, from its start or, when an account is
+known or the extension's page sent it back, at its "Add the Chrome extension"
+step. That step links to the Chrome Web
 Store (`chromeWebStoreUrl`), pings every 1.5 s, and keeps Next disabled until
 the extension answers. A page can only message an extension that was there
 when it loaded, so on coming back to the tab with no answer the step reloads

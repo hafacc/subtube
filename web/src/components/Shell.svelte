@@ -17,15 +17,9 @@
   // svelte-ignore state_referenced_locally
   let hasExtension = $state(extension);
   const resumes = resumesAtExtension();
-  // signed out: a browser that was set up before opens at the step it lacks
+  // signed out, setup opens at its first step, unless it is back from the extension's page
   const signedOutStart = $derived(
-    hasExtension
-      ? session.returning
-        ? "signin"
-        : "intro"
-      : session.returning || session.account || resumes
-        ? "extension"
-        : "intro",
+    !hasExtension && (session.account || resumes) ? "extension" : "intro",
   );
 </script>
 

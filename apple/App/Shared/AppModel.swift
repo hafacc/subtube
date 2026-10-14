@@ -15,7 +15,7 @@ final class AppModel {
   }
 
   private static let accountKey = "subtube.account"
-  /// Set once any account finished the first run here; setup then opens on sign-in.
+  /// Set by earlier versions once any account finished the first run here.
   private static let introSeenKey = "subtube.onboarded"
   private static let themeKey = "subtube.theme"
   private static let perAccountKey = "subtube.onboarded.perAccount"
@@ -30,8 +30,6 @@ final class AppModel {
 
   /// Whether the signed-in account finished the first run on this device.
   private(set) var onboarded = false
-  /// Whether the first run was ever finished on this device, by any account.
-  private(set) var introSeen = UserDefaults.standard.bool(forKey: AppModel.introSeenKey)
 
   var theme: Theme = AppModel.startingTheme {
     didSet { UserDefaults.standard.set(theme.rawValue, forKey: Self.themeKey) }
@@ -63,7 +61,6 @@ final class AppModel {
     #if DEBUG
       if CommandLine.arguments.contains("-demo") {
         onboarded = !CommandLine.arguments.contains("-nux")
-        introSeen = onboarded
         if CommandLine.arguments.contains("-signedOut") {
           phase = .signedOut
         } else {
@@ -88,7 +85,9 @@ final class AppModel {
         let account = await keptAccount(saved)
       {
         // the mark was one per device before it was kept per account
-        if introSeen, !UserDefaults.standard.bool(forKey: Self.perAccountKey) {
+        if UserDefaults.standard.bool(forKey: Self.introSeenKey),
+          !UserDefaults.standard.bool(forKey: Self.perAccountKey)
+        {
           markOnboarded(account.id)
         }
         UserDefaults.standard.set(true, forKey: Self.perAccountKey)
@@ -254,8 +253,6 @@ final class AppModel {
 
   private func markOnboarded(_ accountId: String) {
     UserDefaults.standard.set(true, forKey: onboardedKey(accountId))
-    UserDefaults.standard.set(true, forKey: Self.introSeenKey)
-    introSeen = true
   }
 
   private func setOnboarded(_ value: Bool, _ accountId: String) {
