@@ -43,6 +43,8 @@ struct PlatformMainView: View {
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) {
       _ in feed.quitting()
     }
+    // with Settings still open the app runs on, and the video would play on unseen
+    .onDisappear { feed.player = nil }
   }
 }
 

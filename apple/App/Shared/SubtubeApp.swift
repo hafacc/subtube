@@ -4,6 +4,9 @@ import SwiftUI
 @main
 struct SubtubeApp: App {
   @State private var app = AppModel()
+  #if os(macOS)
+    @NSApplicationDelegateAdaptor private var delegate: MacAppDelegate
+  #endif
 
   #if DEBUG && os(macOS)
     init() {
@@ -57,3 +60,12 @@ struct RootView: View {
     #endif
   }
 }
+
+#if os(macOS)
+  /// Quits once the one window closes.
+  final class MacAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+      true
+    }
+  }
+#endif
