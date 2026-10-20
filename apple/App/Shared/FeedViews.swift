@@ -15,7 +15,8 @@ import SwiftUI
 /// centred on the bar, which shows no track; there `watchedSwipe()` adds
 /// the same toggle to the card's list row. A press there never plays the
 /// item, and the card of the item the player has, in any place, has no such
-/// control: the player's own saves would undo the mark.
+/// control: the player's own saves would undo the mark. Its row still
+/// swipes, and the swipe closes the player before it marks.
 struct ItemCard: View {
   let item: FeedItem
   /// Plays and marks the item, says how far it was watched, and has the

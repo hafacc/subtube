@@ -284,6 +284,7 @@ internal fun FeedList(
                     onOpen = { viewModel.play(item) },
                     onChannel = onChannel?.let { open -> { open(item.channelId) } },
                     onMark = if (isPlaying) null else { marked -> viewModel.setWatched(item.id, marked) },
+                    onSwipe = { marked -> viewModel.swipeMark(item.id, marked) },
                     playing = isPlaying,
                     dims = viewModel.watchedMode != WatchedMode.WATCHED,
                     // the player can't follow a card that slides to a new place, so its card jumps there
@@ -337,9 +338,10 @@ private fun ErrorBanner(message: String, offersSignIn: Boolean, signingIn: Boole
  * One entry as a card: thumbnail, title, then the channel's name and the date
  * on one line. A bar along the thumbnail's bottom edge is [progress] of its
  * width (null or 0 for none). When [onMark] is given (it is not for the entry
- * the player has, in its card or in the corner), pressing the bar or swiping
- * the card sideways ([SwipeToMark]) marks the entry watched or unwatched,
- * calling [onMark] with the new state, and never plays it. [player], when given,
+ * the player has, in its card or in the corner), pressing the bar marks the
+ * entry watched or unwatched, calling [onMark] with the new state, and never
+ * plays it. Swiping the card sideways ([SwipeToMark]) calls [onSwipe] the
+ * same way, also on the card holding the player. [player], when given,
  * stands in place of the thumbnail, bar and all. A null action leaves that part untappable.
  * A watched card is dimmed, thumbnail and title, also while it is [playing],
  * unless [dims] is off, as it is where only watched entries are listed.
@@ -354,13 +356,14 @@ internal fun FeedCard(
     onChannel: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onMark: ((Boolean) -> Unit)? = null,
+    onSwipe: ((Boolean) -> Unit)? = onMark,
     player: (@Composable () -> Unit)? = null,
     playing: Boolean = player != null,
     dims: Boolean = true,
 ) {
     val markLabel = stringResource(if (watched) R.string.mark_unwatched else R.string.mark_watched)
     val dimmed = dims && watched
-    SwipeToMark(watched = watched, onMark = onMark.takeIf { enabled && player == null }, modifier = modifier.fillMaxWidth()) { held ->
+    SwipeToMark(watched = watched, onMark = onSwipe.takeIf { enabled }, still = player != null, modifier = modifier.fillMaxWidth()) { held ->
         Card(
             shape = CardShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -448,9 +451,9 @@ internal fun FeedCard(
  * the finger over a strip that says what letting go would do, and always
  * slides back to its place. Let go at [swipeMarks] or further, it calls
  * [onMark] with the opposite of [watched]; a tick is felt on getting that
- * far. A null [onMark] leaves the card unswipeable. With animation off the
- * card stays put under the finger and only the mark changes. [card] takes
- * the modifier that holds it there.
+ * far. A null [onMark] leaves the card unswipeable. With animation off, or
+ * [still], the card stays put under the finger and only the mark changes.
+ * [card] takes the modifier that holds it there.
  */
 // vetoing every change (the deprecated part) is the only way this box settles back rather than slide its content away
 @Suppress("DEPRECATION")
@@ -459,13 +462,15 @@ private fun SwipeToMark(
     watched: Boolean,
     onMark: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
+    still: Boolean = false,
     card: @Composable (Modifier) -> Unit,
 ) {
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { false },
         positionalThreshold = { distance -> distance * SWIPE_MARK_SHARE },
     )
-    val moves = motionAllowed()
+    // the player is laid over its card by where the card is: a sliding card would carry it off the list
+    val moves = motionAllowed() && !still
     val haptics = LocalHapticFeedback.current
     val currentWatched by rememberUpdatedState(watched)
     val currentOnMark by rememberUpdatedState(onMark)

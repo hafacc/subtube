@@ -61,6 +61,9 @@ class Playback(
     // from the first time the video plays until it ends: while set, its position is worth saving
     private var tracking = false
 
+    // put away by [close]: nothing the player reports is saved any more
+    private var closed = false
+
     // the whole second last saved, and whether an upload was asked for with it; null when nothing saved stands
     private var savedSecond: Long? = null
     private var savedUpload = ProgressUpload.LATER
@@ -94,7 +97,7 @@ class Playback(
         // saving the same second again would only make it newer than what another device saved since
         val alreadySaved = second == savedSecond && (upload == ProgressUpload.LATER || savedUpload != ProgressUpload.LATER)
         val playing = video
-        if (tracking && savesPosition() && !alreadySaved && (!isPlaylist || playing != null)) {
+        if (!closed && tracking && savesPosition() && !alreadySaved && (!isPlaylist || playing != null)) {
             if (isPlaylist) {
                 // a playlist has no length, so its video's is not passed as one
                 val progress = playlistProgress(playlistIndex, playlistCount, position, duration)
@@ -105,6 +108,12 @@ class Playback(
             savedSecond = second
             savedUpload = upload
         }
+    }
+
+    /** Save the position for Drive soon, then nothing more: what the player reports after this is dropped. */
+    fun close() {
+        save(ProgressUpload.SOON)
+        closed = true
     }
 
     /** The regular save while playing, kept on this device only. */
@@ -140,6 +149,9 @@ class Playback(
      * of which ends the playlist.
      */
     fun stateChanged(state: PlayerState, position: Double, duration: Double, video: String? = null, playlistIndex: Int = 0, playlistCount: Int = 0) {
+        if (closed) {
+            return
+        }
         positionChanged(position, duration, video, playlistIndex, playlistCount)
         val lastOfPlaylist = playlistCount > 0 && playlistIndex == playlistCount - 1
         val wasPlaying = playing
