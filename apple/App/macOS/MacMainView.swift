@@ -494,8 +494,9 @@ private struct MacSidebar: View {
   }
 }
 
-/// What heads a page, in the toolbar title's place: the name, large, with
-/// the pencil "Edit Group" and the × "Clear" after it while chips are
+/// What heads a page, in the toolbar title's place: the name, large (on
+/// the feed after the logo, which plays while a load runs), with the
+/// pencil "Edit Group" and the × "Clear" after it while chips are
 /// selected, over the video count.
 private struct MacPageHeading: View {
   let feed: FeedModel
@@ -506,11 +507,17 @@ private struct MacPageHeading: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 8) {
-        Text(title)
-          .font(.largeTitle.bold())
-          .lineLimit(1)
-          .truncationMode(.tail)
-          .accessibilityAddTraits(.isHeader)
+        Group {
+          if feed.selectedChannel == nil {
+            Wordmark(font: .largeTitle.bold(), loading: feed.loading, name: title)
+          } else {
+            Text(title)
+              .font(.largeTitle.bold())
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
+        }
+        .accessibilityAddTraits(.isHeader)
         ChipTitleButtons(
           title: feed.feedTitle, onEdit: { onGroup(.existing($0)) }, onClear: feed.clearFeedChips
         )
