@@ -88,6 +88,21 @@ class PlaybackTest {
     }
 
     @Test
+    fun closingSavesOnceAndDropsLaterReports() {
+        val feed = RecordingFeed(video())
+        val playback = of(feed)
+        playback.stateChanged(PlayerState.PLAYING, 0.0, 600.0)
+        playback.positionChanged(42.0, 600.0)
+        playback.close()
+        playback.positionChanged(43.0, 600.0)
+        playback.tick()
+        playback.save(ProgressUpload.SOON)
+        playback.stateChanged(PlayerState.ENDED, 600.0, 600.0)
+        assertEquals(listOf("v1 42/600 soon"), feed.saved)
+        assertEquals(0, ended)
+    }
+
+    @Test
     fun playingAgainAfterTheEndSavesAgain() {
         val feed = RecordingFeed(video())
         val playback = of(feed)

@@ -322,14 +322,17 @@ private struct IOSFeedRow: View {
 
   var body: some View {
     let hasPlayer = feed.player?.item.id == item.id
+    let watched = feed.watched.contains(item.id)
     ItemCard(item: item, feed: feed, onOpenChannel: onOpenChannel, large: true)
       // never the card that holds the player: nothing is drawn over the video
       .loadingDimmed(feed.loading && !(hasPlayer && feed.player?.place == .card))
       // not while a load runs: the bar's button is off then too
-      .watchedSwipe(
-        watched: feed.watched.contains(item.id), offered: !hasPlayer && !feed.loading
-      ) {
-        feed.toggleWatched(item.id)
+      .watchedSwipe(watched: watched, offered: !feed.loading) {
+        if hasPlayer {
+          // closing saves the position first, so that save can't undo the mark
+          feed.closePlayer()
+        }
+        feed.setWatched(item.id, watched: !watched)
       }
   }
 }
