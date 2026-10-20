@@ -438,7 +438,8 @@ the pbxproj.
   SubtubeCore's `Logo` in a framing's 24 by 24 box, `LogoMark`, that
   logo beside the name, with no image of it in the asset catalog, and sized
   by its body so only the fin and the body take layout room, and `Wordmark`,
-  the logo beside the name with the body four fifths of the name's line;
+  the logo beside the name (the app's, or the feed's title) with the body
+  four fifths of the name's line;
   while `loading` — setup's first screen passes `FeedModel.loading` — the
   logo plays `logoFrame`, a load that begins while the ending plays waits
   for it and then starts from the triangle, and under reduced motion the
@@ -483,7 +484,8 @@ the pbxproj.
   Settings window appears or goes; detail: the toolbar shows no title —
   the window keeps one for the Window menu — and `MacPageHeading` heads the
   page: the name, large and bold ("Feed", the selected groups' and topics'
-  names, or the channel's name), the borderless pencil and × after it while
+  names, or the channel's name; on the feed, not a channel's page, after
+  the logo as `Wordmark` draws it, playing while a load runs), the borderless pencil and × after it while
   chips are selected (a channel's page gets only the ×), and the video count
   under it; then the chip row, the menu's button first, with no line under
   it, then the grid; the heading and the chips stay in place and only the
@@ -539,7 +541,11 @@ the pbxproj.
   and for good: setup and later loads never show it. Tab bar (Feed, Channels under `play.square.stack` as the
   Mac's `ChannelsButton`, Settings; tapping Feed while the feed shows
   scrolls to the top and refreshes, and pull to refresh stays); the Feed and
-  Channels tabs have the standard large title, alone. The Channels list's
+  Channels tabs have the standard large title, alone, except that on iOS 26
+  and later the Feed tab's is `Wordmark` with "Feed" in the
+  `ToolbarItemPlacement.largeTitle` spot, which replaces the title's text
+  (the inline title it shrinks to is still the navigation title) and
+  plays while a load runs. The Channels list's
   first row is its chip row, then `ChannelSearchField`, which narrows what
   the chips keep. The chip row, the menu's button
   first, is the first row of the feed and of a channel's page; a channel's
@@ -702,7 +708,8 @@ macOS and iOS are cut separately; each has its own version line in
   public video on the iPhone 17 simulator (iOS 27) on 2026-10-04.
 - `ToolbarItemPlacement.largeTitle` (iOS 26) made the Channels tab's bar
   drop its large title and show nothing in its place, so no control sits
-  beside a large title.
+  beside a large title; what goes there must carry the title's text itself,
+  as the Feed tab's logo does.
 - A list row scrolled off screen is torn down, so the playing web view
   belongs to its `PlayerSession`, not to the row. Moved from the card's
   holder to the overlay's and back in one update, it kept playing on the

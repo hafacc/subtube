@@ -230,6 +230,7 @@ private struct IOSFeedTab: View {
       )
         .chipTitle(title, usual: Strings.feed, onEdit: { onGroup(.existing($0)) },
           onClear: feed.clearFeedChips)
+        .logoBesideLargeTitle(title.names.isEmpty, name: Strings.feed, loading: feed.loading)
         .navigationDestination(for: ChannelRoute.self) { route in
           IOSChannelPage(app: app, feed: feed, channelId: route.channelId)
         }
@@ -499,6 +500,28 @@ extension View {
           ChipTitleButtons(title: title, onEdit: onEdit, onClear: onClear)
         }
       }
+  }
+
+  /// On iOS 26 and later, while `shown`, the large title as the logo
+  /// before `name`, playing while `loading`; the inline title it shrinks to
+  /// stays the navigation title.
+  @ViewBuilder
+  fileprivate func logoBesideLargeTitle(_ shown: Bool, name: String, loading: Bool)
+    -> some View
+  {
+    if #available(iOS 26.0, *) {
+      toolbar {
+        if shown {
+          // this placement replaces the title's text, so the name comes along
+          ToolbarItem(placement: .largeTitle) {
+            Wordmark(font: .largeTitle.bold(), loading: loading, name: name)
+              .accessibilityAddTraits(.isHeader)
+          }
+        }
+      }
+    } else {
+      self
+    }
   }
 
   /// In a debug build launched with `-bottom`, scroll the list to the row

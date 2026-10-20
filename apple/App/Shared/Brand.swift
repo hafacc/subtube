@@ -309,11 +309,13 @@ extension Path {
   }
 }
 
-/// The logo beside the app's name, its body four fifths of the name's line;
-/// it moves while `loading`.
+/// The logo beside the app's name, or another name, its body four fifths
+/// of the name's line; it moves while `loading`.
 struct Wordmark: View {
   let font: Font
   var loading = false
+  /// The name the logo stands before.
+  var name = Strings.appName
   @State private var lineHeight: CGFloat = 0
 
   private static let bodyShare = 0.8
@@ -321,7 +323,7 @@ struct Wordmark: View {
   var body: some View {
     HStack(spacing: lineHeight * 0.3) {
       LogoMark(height: lineHeight * Self.bodyShare, loading: loading)
-      Text(Strings.appName)
+      Text(name)
         .font(font)
         .lineLimit(1)
         .onGeometryChange(for: CGFloat.self) { proxy in
