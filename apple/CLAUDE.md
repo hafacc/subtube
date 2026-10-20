@@ -130,7 +130,8 @@ the pbxproj.
   fetched, failed or skipped; `FeedLoadSink.progress` reports the counts),
   `Logo` (the logo as `../design/icons/make.py` draws it, in the drawing's
   own coordinates: the yellow outline, the two bubbles, the play triangle
-  and `Logo.beside`, the framing beside the name; `logoFrame`, the logo so
+  and `Logo.beside`, the framing beside the name, and `Logo.alone`, all of
+  it centered as in `sub-play-centred.svg`; `logoFrame`, the logo so
   many seconds into a load — make.py's `motion()`, a step every half
   second, and its `bubbles()`: the two resting bubbles float off, puffs of
   three follow every two seconds, and once the load has ended two last
@@ -433,8 +434,9 @@ the pbxproj.
   haptic, the edge swipe back and VoiceOver's row action are the system's;
   also on the card of the item the player has, in any place, where it
   closes the player first, saving its position, so that save can't undo
-  the mark; not during a load), `Brand` (also `LogoMark`, the logo drawn in a `Canvas` from
-  SubtubeCore's `Logo`, with no image of it in the asset catalog, and sized
+  the mark; not during a load), `Brand` (also `MovingLogo`, the logo drawn in a `Canvas` from
+  SubtubeCore's `Logo` in a framing's 24 by 24 box, `LogoMark`, that
+  logo beside the name, with no image of it in the asset catalog, and sized
   by its body so only the fin and the body take layout room, and `Wordmark`,
   the logo beside the name with the body four fifths of the name's line;
   while `loading` — setup's first screen passes `FeedModel.loading` — the
@@ -525,7 +527,16 @@ the pbxproj.
   uploads nothing; only the app going to the background does
   (`leftForeground`), and quitting writes the playing position to disk
   (`quitting`).
-- `App/iOS/` — tab bar (Feed, Channels under `play.square.stack` as the
+- `App/iOS/` — `LaunchSplash`: the launch screen (`Info-iOS.plist`'s
+  `UILaunchScreen`: `LaunchLogo`, `sub-play-centred.svg` at 192 pt, which
+  `make-icons.sh` writes, on `LaunchPage`, white or black as the feed) is followed by
+  the same logo, a 192 pt `MovingLogo` in `Logo.alone` at the center of
+  the whole screen, safe areas ignored as iOS ignores them, so it doesn't
+  move; it plays, with `LoadProgressBar` on a track 38 pt under its box,
+  laid over so the logo stays put; `RootView` shows it while the sign-in is
+  looked for and, for an account past setup, until the first full load has
+  ended (`FeedModel.fullLoadEnded`, worked or not), then fades it out once
+  and for good: setup and later loads never show it. Tab bar (Feed, Channels under `play.square.stack` as the
   Mac's `ChannelsButton`, Settings; tapping Feed while the feed shows
   scrolls to the top and refreshes, and pull to refresh stays); the Feed and
   Channels tabs have the standard large title, alone. The Channels list's
@@ -579,7 +590,7 @@ system's: the Settings window's selected tab, the text selection and
 insertion point, alerts' default buttons, menus, and the keyboard focus ring
 of ordinary buttons. Icons: `Config/make-icons.sh`
 from `../design/icons/sub-play-centred.svg` (all of the logo centred on the
-tile), the two 16 pt files from `sub-play-centred-small.svg`, which has one
+tile) and the launch screen's `LaunchLogo`, the two 16 pt files from `sub-play-centred-small.svg`, which has one
 large bubble; the logo beside the name is drawn by `LogoMark`, fin and body
 centred.
 
@@ -637,7 +648,8 @@ and `Strings.summary` words each.
   and `-mute`, which mutes the player as soon as it is ready — always pass
   it with `-video:`, `-bottom` (the filter sheet, the feed, the Channels list and Settings
   start scrolled to the end); macOS also `-sidebarCollapsed`; both platforms
-  take `-theme:<light|dark>` (not saved) and `-loading` (the feed as
+  take `-theme:<light|dark>` (not saved), iOS `-splash` (`LaunchSplash`
+  stays; with `-loading` its bar shows) and `-loading` (the feed as
   during a reload, its bar stopped at three channels of eight; with `-empty`,
   as during the first load), `-watched` (the
   watched chip on Watched), `-filterMenu` (the feed's menu opens five

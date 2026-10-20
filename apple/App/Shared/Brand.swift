@@ -211,6 +211,20 @@ struct LogoMark: View {
   /// The body's height.
   var height: CGFloat
   var loading = false
+
+  var body: some View {
+    let side = height / Logo.besideHeight
+    MovingLogo(framing: Logo.beside, loading: loading)
+      .frame(width: side, height: side)
+      .frame(width: side * Logo.besideWidth, height: height)
+  }
+}
+
+/// The logo in its 24 by 24 box as `framing` places it, filling the view;
+/// it moves while `loading`, as `LogoMark` describes.
+struct MovingLogo: View {
+  let framing: LogoFraming
+  var loading = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   /// When the load the logo moves for began; nil while the logo is still.
   @State private var began: Date?
@@ -221,7 +235,6 @@ struct LogoMark: View {
   private static let triangle = Path(closed: Logo.triangle)
 
   var body: some View {
-    let side = height / Logo.besideHeight
     Group {
       if let began, !reduceMotion {
         TimelineView(.animation) { context in
@@ -234,8 +247,6 @@ struct LogoMark: View {
         drawing(.still)
       }
     }
-    .frame(width: side, height: side)
-    .frame(width: side * Logo.besideWidth, height: height)
     .accessibilityHidden(true)
     .onChange(of: loading, initial: true) { _, now in
       if began == nil {
@@ -260,7 +271,6 @@ struct LogoMark: View {
 
   private func drawing(_ frame: LogoFrame) -> some View {
     Canvas { context, size in
-      let framing = Logo.beside
       context.scaleBy(x: size.width / 24, y: size.height / 24)
       context.translateBy(x: framing.across, y: framing.down)
       context.scaleBy(x: framing.scale, y: framing.scale)

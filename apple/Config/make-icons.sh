@@ -41,3 +41,8 @@ for size in 16 32 128 256 512; do
     rsvg-convert -w $px -h $px "$source" -o "$out/mac-$size@${scale}x.png"
   done
 done
+
+# the iPhone launch screen's logo, shown by iOS at this size in points;
+# `LaunchSplash` draws the same box in the same place
+sed 's/<svg /<svg width="192" height="192" /' "$icons/sub-play-centred.svg" \
+  > "$here/App/Resources/Assets.xcassets/LaunchLogo.imageset/launch-logo.svg"

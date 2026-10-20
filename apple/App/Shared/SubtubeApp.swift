@@ -34,9 +34,26 @@ struct SubtubeApp: App {
 }
 
 /// The first run until it's finished and someone is signed in, then the
-/// platform's main screen.
+/// platform's main screen; on iOS `LaunchSplash` over it until the first
+/// feed after launch has loaded.
 struct RootView: View {
   let app: AppModel
+  #if os(iOS)
+    /// Whether the splash has gone; it never comes back.
+    @State private var splashGone = false
+
+    private var showsSplash: Bool {
+      if splashGone {
+        return false
+      } else {
+        switch app.phase {
+        case .checking: return true
+        case .signedOut: return false
+        case .signedIn(let feed): return app.onboarded && !feed.fullLoadEnded
+        }
+      }
+    }
+  #endif
 
   var body: some View {
     Group {
@@ -53,6 +70,21 @@ struct RootView: View {
         }
       }
     }
+    #if os(iOS)
+      .overlay {
+        if showsSplash {
+          LaunchSplash(feed: app.feed)
+            .transition(.opacity)
+        }
+      }
+      // after the bar's run to the end
+      .animation(.easeInOut(duration: 0.35).delay(0.2), value: showsSplash)
+      .onChange(of: showsSplash) { _, shows in
+        if !shows {
+          splashGone = true
+        }
+      }
+    #endif
     .task { await app.start() }
     .preferredColorScheme(app.theme.colorScheme)
     #if os(iOS)

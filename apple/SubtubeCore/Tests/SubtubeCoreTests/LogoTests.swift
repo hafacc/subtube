@@ -38,6 +38,12 @@ import Testing
     #expect(near(Logo.besideHeight, 0.4908))
   }
 
+  @Test func standingAloneAllOfItIsCentered() {
+    #expect(Logo.alone.scale == 1)
+    #expect(near(Logo.alone.across, 0.15))
+    #expect(near(Logo.alone.down, -0.35))
+  }
+
   @Test func theTriangleIsEquilateralAroundItsCenter() {
     #expect(near(Logo.triangleCenter, 13.5147))
     #expect(near(Logo.triangleInradius, 1.8667))
