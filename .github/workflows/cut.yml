@@ -25,7 +25,7 @@ on:
         type: boolean
         default: true
       extension:
-        description: Chrome extension (each release goes through store review)
+        description: Chrome extension
         type: boolean
         default: false
       web:
