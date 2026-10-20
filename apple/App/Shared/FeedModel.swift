@@ -151,6 +151,8 @@ final class FeedModel {
   private(set) var loading = false
   /// How far the running full load is, from 0 to 1; nil when none runs.
   private(set) var loadProgress: Double?
+  /// Whether a full load has ended, worked or not.
+  private(set) var fullLoadEnded = false
   /// Whether the channels are known: a full or a channels-only load finished.
   private(set) var channelsLoaded = false
   /// The demo feed: nothing loads or syncs.
@@ -628,6 +630,9 @@ final class FeedModel {
       loading = false
       loadProgress = nil
       editsDuringLoad = [:]
+      if wantsItems {
+        fullLoadEnded = true
+      }
     }
     let sink = FeedLoadSink(
       channels: { [weak self] loaded in await self?.receiveChannels(loaded) },
@@ -1476,6 +1481,7 @@ private enum FetchMark {
         feed.toggleWatched(feed.shown[index].id)
       }
       feed.fullLoadShown = true
+      feed.fullLoadEnded = !CommandLine.arguments.contains("-splash")
       feed.reorderChannels()
       feed.loading = CommandLine.arguments.contains("-loading")
       if feed.loading {

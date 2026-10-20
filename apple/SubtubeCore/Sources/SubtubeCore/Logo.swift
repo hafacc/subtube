@@ -30,7 +30,7 @@ public struct LogoFraming: Equatable, Sendable {
 /// The logo's drawing, as `design/icons/make.py` has it: a submarine with
 /// YouTube's shape for a body, a tail fin, a slanted tower, two bubbles
 /// over the tail and the play triangle. Everything is in the drawing's own
-/// coordinates, which ``beside`` places in a 24 by 24 box.
+/// coordinates, which ``beside`` and ``alone`` place in a 24 by 24 box.
 public enum Logo {
   /// The outline of body, fin and tower together.
   public static let hull = points(hullPath)
@@ -53,6 +53,11 @@ public enum Logo {
   /// centered down, the tower and bubbles above.
   public static let beside = LogoFraming(
     left: left, top: top, right: right, bottom: bottom, scale: besideScale)
+  /// The framing standing alone, as in `sub-play-centred.svg`: all of the
+  /// logo, bubbles included, centered.
+  public static let alone = LogoFraming(
+    left: left, top: bubbles.map { $0.y - $0.radius }.min() ?? top, right: right,
+    bottom: bottom, scale: 1)
   /// The share of the box's width that fin and body take in ``beside``.
   public static let besideWidth = besideScale * (right - left) / 24
   /// The share of the box's height that the body takes in ``beside``.
