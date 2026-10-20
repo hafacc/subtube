@@ -497,7 +497,7 @@ private struct MacSidebar: View {
 /// What heads a page, in the toolbar title's place: the name, large (on
 /// the feed after the logo, which plays while a load runs), with the
 /// pencil "Edit Group" and the × "Clear" after it while chips are
-/// selected, over the video count.
+/// selected, then the video count on the name's baseline.
 private struct MacPageHeading: View {
   let feed: FeedModel
   let title: String
@@ -505,7 +505,7 @@ private struct MacPageHeading: View {
   let onGroup: (GroupTarget) -> Void
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    HStack(alignment: .firstTextBaseline, spacing: 10) {
       HStack(spacing: 8) {
         Group {
           if feed.selectedChannel == nil {
@@ -527,6 +527,9 @@ private struct MacPageHeading: View {
       Text(Strings.videoCount(feed.shown.count))
         .font(.callout)
         .foregroundStyle(.secondary)
+        .fixedSize()
+        // the name is cut before the count is
+        .layoutPriority(1)
         // a count of the stand-in cards would be none
         .opacity(feed.showsSkeletons ? 0 : 1)
     }
@@ -670,7 +673,9 @@ private struct MacFeedGrid: View {
     VStack(spacing: 0) {
       MacPageHeading(feed: feed, title: title, onGroup: onGroup)
         .padding(.horizontal, Self.margin)
-        .padding(.top, 4)
+        // the logo's tower and bubbles rise about 10 pt above the name's
+        // line; this keeps them under the load bar
+        .padding(.top, 14)
       FeedChipRow(feed: feed, inset: Self.margin, onNewGroup: { onGroup(.new) })
       if showsEmptyState {
         emptyPage
