@@ -1,7 +1,5 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import { prefersReducedMotion } from "svelte/motion";
-  import { fade } from "svelte/transition";
   import type { FeedController } from "../lib/feed.svelte";
   import { feedItemId } from "../lib/feed-item";
   import {
@@ -41,7 +39,7 @@
   let wrapper: HTMLElement | null = $state(null);
   let innerWidth = $state(window.innerWidth);
   let innerHeight = $state(window.innerHeight);
-  // the frame around the video, shown while the last hover, click or tap was on the video; never in a card
+  // the frame around the video, shown while the last hover, click or tap was on the video or where its bar sits; never in a card
   let framed = $state(false);
   let covered = $state(false);
   let reported = $state<{ id: string; data: VideoData } | null>(null);
@@ -228,7 +226,7 @@
   function focusLeft(event: FocusEvent): void {
     const next = event.relatedTarget;
     const stays = next instanceof Node && wrapper?.contains(next) === true;
-    if (!stays && !wrapper?.querySelector("[data-player-video]:hover")) {
+    if (!stays && !wrapper?.matches(":hover")) {
       framed = false;
     }
   }
@@ -236,9 +234,7 @@
   function pointed(event: PointerEvent): void {
     const target = event.target;
     if (wrapper && target instanceof Node && wrapper.contains(target)) {
-      if (target instanceof Element && target.closest("[data-player-video]")) {
-        showFrame();
-      }
+      showFrame();
     } else {
       hideFrame();
     }
@@ -345,7 +341,7 @@
   <section
     bind:this={wrapper}
     class="player"
-    class:framed
+    class:framed={framed}
     class:large={place === "large"}
     class:card={place === "card"}
     class:under={narrow && place !== "large"}
@@ -362,11 +358,9 @@
     style:height={box ? `${box.height}px` : undefined}
     style:clip-path={clip}
   >
-    {#if framed}
-      <div
-        class="frame"
-        transition:fade={{ duration: prefersReducedMotion.current ? 0 : 150 }}
-      >
+    {#if place !== "card"}
+      <!-- there while hidden, so the pointer where the bar sits brings it up -->
+      <div class="frame">
         <div class="bar">
           <span class="title">{title}</span>
           {#if place === "minimized"}
@@ -402,7 +396,7 @@
         </div>
       </div>
     {/if}
-    <div class="video" data-player-video>
+    <div class="video">
       {#key `${playing.item.kind}:${playing.item.id}`}
         <PlayerFrame
           item={playing.item}
@@ -486,6 +480,12 @@
     border-radius: 8px;
     background: var(--page);
     box-shadow: 0 8px 32px var(--shadow);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .framed .frame {
+    opacity: 1;
   }
 
   .large .frame {
@@ -517,7 +517,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .player {
+    .player,
+    .frame {
       transition: none;
     }
   }

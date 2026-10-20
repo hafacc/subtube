@@ -514,7 +514,8 @@ the pbxproj.
   trailing corner, sized by the whole window and only moved left of the
   details panel while that is open, with the
   app in use behind; the frame shows while the pointer is over the video
-  or its bar — a deliberate difference from the web app, which also shows
+  or where its bar sits, drawn or not (the overlay's room for the bar is
+  a hover shape) — a deliberate difference from the web app, which also shows
   it on pause, on a first click and on keyboard focus: the page here
   reports none of those to the overlay
   (the window's toolbar stays above it), `FeedCommands` (Feed menu),

@@ -663,12 +663,14 @@ values, named by the page's `h1`.
   into view and plays there, or large when that page no longer lists it
   (in the one new entry, so Back returns to where Expand was pressed).
   **Frame** (large and minimized only, never in a card): at rest nothing of
-  ours is drawn. While the user's last hover,
-  click or tap was on the video, `.frame` is drawn around the box (inset
+  ours shows. While the user's last hover,
+  click or tap was on the video or where the bar sits, `.frame` is drawn around the box (inset
   -37px/-1px, so the video neither moves nor resizes): a 36px bar with the
   title and "Expand" (minimized) or "Minimize" (large), then "Close"; it
   fades in and out over 0.15 s (not under `prefers-reduced-motion`).
-  It shows on `pointerover` of the video, on the window's `blur` with the
+  At rest `.frame` is still there, transparent, so the pointer where the bar
+  sits brings it up without passing over the video first.
+  It shows on `pointerover` of the video or of the frame, on the window's `blur` with the
   embed focused (the first click inside a cross-origin frame), when the
   player reports a pause or play that is not ours (`Playback`'s
   `ontoggle`), and while the keyboard's focus (`:focus-visible`) is on the
