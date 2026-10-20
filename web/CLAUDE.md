@@ -28,8 +28,12 @@ settings; no CNAME file).
   `sub-play-centred-small.svg`, with one large bubble. In the collapsed
   sidebar, where the name is hidden, the logo is moved down to the same
   place.
-- Dev sign-in: load `../extension/dist` unpacked, then put its id in
-  `web/.env.local` as `VITE_EXTENSION_ID=…` and restart `bun dev`. The
+- Dev sign-in: `bun export` in `../extension` and load its `dist` unpacked.
+  It has the store version's id (the manifest's `key`), so remove the store
+  version first: Chrome keeps that one otherwise, and its packaging drops
+  `http://localhost/*`, so localhost gets "Receiving end does not exist".
+  An unpacked copy under another id needs `VITE_EXTENSION_ID=…` in
+  `web/.env.local` and a restart of `bun dev`. The
   extension's redirect URI must be on the web OAuth client.
 
 ## Privacy policy and terms (`src/routes/(policy)/`)
@@ -81,8 +85,16 @@ hidden in the rail.
 By user agent at load: phone/tablet (incl. iPadOS's desktop UA + touch) →
 `GetApp` (iOS/iPad/Android); desktop Safari → `GetApp platform="mac"`; other
 non-Chromium desktop browsers → `ExtensionRequired` (needs Chrome, links to
-it); Chromium → `Shell`, told whether the extension answered a ping (it times
-out after 500 ms). With the extension: first-run `Nux` until setup is done
+it); Chromium → `Shell`, told whether the extension answered a ping (a missing
+extension is reported at once; the 3 s timeout only bounds one whose worker
+is slow to wake). Chrome restores tabs after a restart before its extensions
+are up, and has no way to ask whether they still are, so a browser the
+extension has answered on before (`subtube.extensionSeen` in localStorage)
+keeps pinging for up to 10 s (`detectExtension` in `lib/platform/detect.ts`)
+with the loading `Logo` in the middle of the page; a page that still has no
+`chrome.runtime` after 2 s reloads once (`subtube.extensionReload` in
+sessionStorage, not again within 30 s), and a wait that ends unanswered
+drops the mark, so the next load checks quickly. With the extension: first-run `Nux` until setup is done
 for the account on this browser (`subtube.setupDone.<account>`, one mark per
 account; signing out clears none), then `Feed`; signed out, Nux opens at its
 first step, and an account with no mark here goes on through setup. Without it
