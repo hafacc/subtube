@@ -9,9 +9,6 @@ import {
 } from "../errors";
 import type { Platform, Token } from "./types";
 
-/** How long to wait for an installed extension to answer a ping. */
-const PING_TIMEOUT_MS = 500;
-
 interface ChromeRuntime {
   sendMessage(
     extensionId: string,
@@ -61,12 +58,18 @@ function toToken(response: ExtensionResponses["token"]): Token {
   }
 }
 
-/** Whether the extension with this id is installed and answering. */
+/** Whether the page can message extensions at all. */
+export function hasRuntime(): boolean {
+  return runtime() !== null;
+}
+
+/** Whether the extension with this id answers a ping within `timeoutMs`. */
 export async function extensionInstalled(
   extensionId: string,
+  timeoutMs: number,
 ): Promise<boolean> {
   const timeout = new Promise<boolean>((resolve) =>
-    setTimeout(() => resolve(false), PING_TIMEOUT_MS),
+    setTimeout(() => resolve(false), timeoutMs),
   );
   const ping = send(extensionId, { type: "ping" }).then(
     () => true,
