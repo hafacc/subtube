@@ -505,8 +505,10 @@ values, named by the page's `h1`.
   filters show — always where there is no pointer to hover with. The open
   page's row is Sunflower with ink text; in the rail a row is
   a 40px box around its icon, so the selected one's highlight stays inside); the feed or a channel's page
-  (`?channel=`) in the middle under its heading (the name at 28px over the
-  video count, which is kept hidden during the first load; at the right
+  (`?channel=`) in the middle under its heading (the name at 28px, then
+  the video count at 14px on its baseline, after the pencil and × when they
+  show; the name is cut before the count is, and the count is kept hidden
+  but in place during the first load; at the right
   the theme button and the account → `Settings`), with no line under it,
   and the feed's `ChipRow`; the cards scroll under both and fade out over
   their top 16px once scrolled (`.content.scrolled`). A page with nothing

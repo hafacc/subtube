@@ -405,11 +405,11 @@
                   <Icon name="close" />
                 </button>
               {/if}
+              <!-- a count of the stand-in cards would be none -->
+              <span class="secondary count" class:unknown={firstLoad}
+                >{videoCount(feed.feed.length)}</span
+              >
             </div>
-            <!-- a count of the stand-in cards would be none -->
-            <span class="secondary subtitle" class:unknown={firstLoad}
-              >{videoCount(feed.feed.length)}</span
-            >
           </div>
           <div class="tools">
             <button
@@ -720,16 +720,17 @@
   .heading {
     flex: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
   }
 
   .titles {
     min-width: 0;
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 4px;
+  }
+
+  .titles .icon-button {
+    align-self: center;
   }
 
   h1 {
@@ -743,11 +744,14 @@
     font-weight: 700;
   }
 
-  .subtitle {
+  /* the title is cut before the count is */
+  .count {
+    flex-shrink: 0;
+    white-space: nowrap;
     font-size: 14px;
   }
 
-  .subtitle.unknown {
+  .count.unknown {
     visibility: hidden;
   }
 
