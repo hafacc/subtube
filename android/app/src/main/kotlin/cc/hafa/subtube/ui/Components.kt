@@ -121,10 +121,15 @@ private const val WORDMARK_BODY = 0.8f
  * The logo beside the name. The logo's fin and body are four fifths of the
  * name's line high and centered on it; only they take up room, so the tower
  * and bubbles rise without making the row taller. While [loading] the logo
- * plays its loading animation ([Logo]).
+ * plays its loading animation ([Logo]). A [title] takes the name's place.
  */
 @Composable
-fun Wordmark(modifier: Modifier = Modifier, fontSize: Int = 22, loading: Boolean = false) {
+fun Wordmark(
+    modifier: Modifier = Modifier,
+    fontSize: Int = 22,
+    loading: Boolean = false,
+    title: (@Composable () -> Unit)? = null,
+) {
     val lineHeight = (fontSize * WORDMARK_LINE_HEIGHT).sp
     val line = with(LocalDensity.current) { lineHeight.toDp() }
     val body = line * WORDMARK_BODY
@@ -132,7 +137,11 @@ fun Wordmark(modifier: Modifier = Modifier, fontSize: Int = 22, loading: Boolean
         Box(Modifier.size(width = body * (LOGO_BODY_WIDTH / LOGO_BODY_HEIGHT), height = body), contentAlignment = Alignment.Center) {
             Logo(loading, Modifier.requiredSize(body / LOGO_BODY_HEIGHT))
         }
-        Text(stringResource(R.string.app_name), fontSize = fontSize.sp, lineHeight = lineHeight, fontWeight = FontWeight.Bold)
+        if (title == null) {
+            Text(stringResource(R.string.app_name), fontSize = fontSize.sp, lineHeight = lineHeight, fontWeight = FontWeight.Bold)
+        } else {
+            title()
+        }
     }
 }
 
