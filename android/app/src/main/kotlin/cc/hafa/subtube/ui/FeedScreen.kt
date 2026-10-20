@@ -46,7 +46,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -130,7 +132,7 @@ fun FeedScreen(viewModel: SubtubeViewModel) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { ChipTitleText(viewModel.feedTitle.names, stringResource(R.string.tab_feed)) },
+                title = { FeedTitle(viewModel.feedTitle.names, viewModel.loading) },
                 actions = { ChipTitleActions(viewModel.feedTitle, onClear = viewModel::clearFeedChips, onEdit = groupEditor::openFor) },
                 scrollBehavior = scrollBehavior,
             )
@@ -158,6 +160,26 @@ fun FeedScreen(viewModel: SubtubeViewModel) {
         }
     }
     groupEditor.Sheet(viewModel)
+}
+
+/**
+ * The feed's title: the logo, playing while [loading], then the name or the selected
+ * chips' [names]. Either is the screen's heading; the logo and name read as "Feed".
+ */
+@Composable
+private fun FeedTitle(names: List<String>, loading: Boolean) {
+    val feed = stringResource(R.string.tab_feed)
+    if (names.isEmpty()) {
+        Wordmark(
+            Modifier.clearAndSetSemantics {
+                heading()
+                contentDescription = feed
+            },
+            loading = loading,
+        )
+    } else {
+        Wordmark(loading = loading, title = { ChipTitleText(names, feed, Modifier.semantics { heading() }) })
+    }
 }
 
 /**

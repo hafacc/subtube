@@ -476,8 +476,8 @@ fun FeedChipRow(viewModel: SubtubeViewModel, topics: List<String>, modifier: Mod
  * joined on one line, cut with an ellipsis; [usual] with none.
  */
 @Composable
-internal fun ChipTitleText(names: List<String>, usual: String) {
-    Text(if (names.isEmpty()) usual else names.joinToString(", "), maxLines = 1, overflow = TextOverflow.Ellipsis)
+internal fun ChipTitleText(names: List<String>, usual: String, modifier: Modifier = Modifier) {
+    Text(if (names.isEmpty()) usual else names.joinToString(", "), modifier, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
 /** How long a top bar action takes to come or go. */

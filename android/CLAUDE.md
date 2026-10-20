@@ -246,7 +246,10 @@ every client shares is in `../shared/`.
   - `SubtubeApp.kt` — the app-wide clients over one `OkHttpClient`, whose
     dispatcher allows 10 requests a host (OkHttp's 5 is under the 6
     channels fetched at once, and Drive shares googleapis.com).
-  - `MainActivity.kt` — edge-to-edge, Navigation 3 `NavDisplay` over
+  - `MainActivity.kt` — the launch splash (`core-splashscreen`, theme
+    `Theme.Subtube.Starting` in `res/values/splash.xml`: the launcher icon's
+    foreground on its tile color over the page color, on every Android
+    version; gone at the first frame, never held for the feed), edge-to-edge, Navigation 3 `NavDisplay` over
     `SubtubeViewModel.backStack` (predictive back comes from Navigation 3).
     The manifest's `configChanges` names every change Compose follows by
     itself (rotation and size, dark theme, density, font size, language,
@@ -405,7 +408,9 @@ every client shares is in `../shared/`.
     Refresh button: pulling the list down refreshes, and
     so does tapping the Feed tab while the feed is showing, which also scrolls
     it to the top. The
-    feed's title is "Feed"; the wordmark is only on first run's intro.
+    feed's title is the wordmark (`FeedTitle`), its logo playing while a
+    full load runs; with chips selected their names take the name's place
+    beside the logo. TalkBack hears the wordmark as the heading "Feed".
     A channel's page (`Screen.ChannelPage`, `ui/ChannelScreen.kt`) opens from a
     card's channel name or a row of the channels tab (`showChannel`; one page
     at a time, and a playing card goes to the corner); its top bar is Back, title,
@@ -452,7 +457,7 @@ every client shares is in `../shared/`.
     so its fin and body (0.4908 of the drawing's height, 0.851 of its
     width) are four fifths of the name's line height; only they take up
     room, and the tower and bubbles rise above. It takes `loading`, which
-    first run's intro, the only place it is shown, gives `viewModel.loading`.
+    first run's intro and the feed's top bar give `viewModel.loading`.
   - `ui/ChipRow.kt` — `Chip` (a toggle, or a removable phrase, which
     TalkBack names "Remove {phrase}") and
     `CycleChip` (shows the current choice, a press moves to the next; as wide
@@ -622,9 +627,8 @@ every client shares is in `../shared/`.
     places. A load that begins while that ending plays starts over from the
     triangle once the logo is still. Where the system's
     animator scale is 0 it is the still logo with the play triangle, loading
-    or not. Nothing shows a logo where a full load runs: the wordmark is
-    only on first run's intro, so the animation is seen only in demo mode
-    (`--es screen setup --es loading reload`).
+    or not. The feed's top bar plays it during every full load (demo:
+    `--es loading reload`).
   - `ui/Theme.kt` — Sunflower light/dark schemes (no dynamic color) on
     slightly blue greys, white page on light and `#121418` on dark, plus
     `MaterialTheme.brand.accent` (dark gold on light) for text-coloured
