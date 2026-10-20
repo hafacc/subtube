@@ -486,9 +486,11 @@ the pbxproj.
   page: the name, large and bold ("Feed", the selected groups' and topics'
   names, or the channel's name; on the feed, not a channel's page, after
   the logo as `Wordmark` draws it, playing while a load runs), the borderless pencil and × after it while
-  chips are selected (a channel's page gets only the ×), and the video count
-  under it; then the chip row, the menu's button first, with no line under
-  it, then the grid; the heading and the chips stay in place and only the
+  chips are selected (a channel's page gets only the ×), then the video count
+  on the name's baseline in smaller secondary text (the name is cut before
+  the count is; hidden during the first load but keeping its place), the heading 14 pt from the top so the logo's tower
+  and bubbles stay under the load bar; then the chip row, the menu's button first,
+  with no line under it, then the grid; the heading and the chips stay in place and only the
   grid scrolls, fading out over 16 pt at its top once scrolled
   (`ScrollTopFade`); all 20 pt in; the load bar lies over the page's top
   edge; a page with nothing to show has `MacEmptyState` centered in place of
