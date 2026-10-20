@@ -124,13 +124,25 @@ class MarkWatchedTest {
     }
 
     @Test
-    fun theCardOfWhatPlaysInTheCornerCannotBeSwiped() = onFeed {
+    fun swipingTheCardOfWhatPlaysInTheCornerClosesThePlayerAndMarks() = onFeed {
         val first = model.feed.items.first()
         model.play(first)
         model.minimizePlayer()
         compose.waitForIdle()
         firstTitle().swipeBy(0.5f)
-        assertFalse(first.id in model.watched)
+        assertNull(model.playing)
+        assertTrue(first.id in model.watched)
+    }
+
+    @Test
+    fun swipingTheCardThatHoldsThePlayerClosesItAndMarks() = onFeed {
+        val first = model.feed.items.first()
+        model.play(first)
+        compose.waitForIdle()
+        firstTitle().swipeBy(-0.5f)
+        assertNull(model.playing)
+        assertTrue(first.id in model.watched)
+        assertEquals(1.0, model.bars[first.id])
     }
 
     @Test

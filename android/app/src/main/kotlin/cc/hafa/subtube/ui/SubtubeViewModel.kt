@@ -37,6 +37,7 @@ import cc.hafa.subtube.core.FeedItem
 import cc.hafa.subtube.core.FeedLoader
 import cc.hafa.subtube.core.FeedSort
 import cc.hafa.subtube.core.InsufficientScopeException
+import cc.hafa.subtube.core.Playback
 import cc.hafa.subtube.core.PlaybackFeed
 import cc.hafa.subtube.core.Playlist
 import cc.hafa.subtube.core.PlaylistPlace
@@ -401,6 +402,9 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
     /** What the one player plays and where it is drawn; null when there is no player. */
     var playing: Playing? by mutableStateOf(null)
         private set
+
+    /** The playing entry's [Playback], set by the player while its page is loaded. */
+    internal var playback: Playback? = null
 
     /** The playing card's thumbnail box, while the player is in a card that is laid out. */
     var playerSlot: PlayerSlot? by mutableStateOf(null)
@@ -2021,6 +2025,18 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         }
         store?.setWatched(id, watched)
         entryChanged(id, itemsById[id]?.lengthSeconds ?: 0.0)
+    }
+
+    /**
+     * A card swiped to mark it: the player, when it has this entry, stops
+     * first and saves its position, so that save can't undo the mark.
+     */
+    fun swipeMark(id: String, watched: Boolean) {
+        if (playing?.item?.id == id) {
+            playback?.close()
+            closePlayer()
+        }
+        setWatched(id, watched)
     }
 
     /** Dismiss the partial-load or daily-limit banner. */

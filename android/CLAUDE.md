@@ -581,8 +581,13 @@ every client shares is in `../shared/`.
     thumbnail, where a screen reader finds "play", carries the mark as a
     custom action. The card stays where it is until the list is next rebuilt. The
     card of the entry the player has, in the card or in the corner, has no
-    strip, no action and no swipe: the player's next save of its position would undo
-    the mark (decided for every client). The card holding the player also
+    strip and no action: the player's next save of its position would undo
+    the mark (decided for every client). Its swipe stays (`onSwipe`,
+    `swipeMark`): the player stops first, its position saved and anything
+    it reports after dropped (`Playback.close`, on the `playback` the host
+    hands the view model), then the mark is made. A card holding the player
+    stays put under the finger (`still`), as with animation off, since the
+    player is laid over the card by where it is. The card holding the player also
     has no `animateItem`, because the player cannot follow a card that
     slides. A watched card is dimmed (thumbnail at half opacity, title
     lighter and grey), the card of the player's entry too, unless the watched chip

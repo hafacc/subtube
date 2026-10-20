@@ -688,7 +688,13 @@ private fun PlayerOverlay(viewModel: SubtubeViewModel, item: FeedItem, boxes: Pl
         }
         // the same web view takes each entry in turn: only its page is replaced
         webView.loadDataWithBaseURL(origin, html, "text/html", "utf-8", null)
-        onDispose { playback.save(ProgressUpload.SOON) }
+        viewModel.playback = playback
+        onDispose {
+            playback.save(ProgressUpload.SOON)
+            if (viewModel.playback === playback) {
+                viewModel.playback = null
+            }
+        }
     }
     LaunchedEffect(playback) {
         while (true) {

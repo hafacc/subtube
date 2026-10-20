@@ -431,7 +431,9 @@ the pbxproj.
   unwatched": a full swipe toggles and the row slides back, a short one
   leaves the button showing to be tapped; how far a full swipe is, its
   haptic, the edge swipe back and VoiceOver's row action are the system's;
-  not on the card of the item the player has, nor during a load), `Brand` (also `LogoMark`, the logo drawn in a `Canvas` from
+  also on the card of the item the player has, in any place, where it
+  closes the player first, saving its position, so that save can't undo
+  the mark; not during a load), `Brand` (also `LogoMark`, the logo drawn in a `Canvas` from
   SubtubeCore's `Logo`, with no image of it in the asset catalog, and sized
   by its body so only the fin and the body take layout room, and `Wordmark`,
   the logo beside the name with the body four fifths of the name's line;
