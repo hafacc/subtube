@@ -92,8 +92,10 @@ private struct MacPlayerOverlay: View {
               .fill(.black)
               .shadow(color: .black.opacity(0.35), radius: isLarge ? 32 : 12, y: isLarge ? 16 : 4)
           }
-          // room for the frame's bar, so the pointer over it still counts as over the player
+          // room for the frame's bar, so the pointer where it sits counts as over the player
+          // also while it is hidden, when only the shape makes that room hoverable
           .padding(.top, PlayerFrame.barHeight)
+          .contentShape(Rectangle())
           .onHover { session.showsFrame = $0 }
           .padding(.trailing, isLarge ? 0 : minimizedPlayerMargin + panelWidth)
           .padding(.bottom, isLarge ? 0 : minimizedPlayerMargin)
