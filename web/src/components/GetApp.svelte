@@ -38,8 +38,8 @@
       footer: PHONE_FOOTER,
     },
     ipados: {
-      heading: "Get SubTube for iPad",
-      body: "On an iPad, SubTube is an app. Your channels, filters and what you've watched come with you when you sign in.",
+      heading: "Get SubTube for iPhone and iPad",
+      body: "On an iPad, SubTube runs as its iPhone app. Your channels, filters and what you've watched come with you when you sign in.",
       badgeSmall: "Download on the",
       badgeLarge: "App Store",
       url: appStoreUrl,
