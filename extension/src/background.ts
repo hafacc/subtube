@@ -19,6 +19,8 @@ const OAUTH_SCOPES = [
 /** A cached token is handed out only while it has at least this long left. */
 const TOKEN_MIN_REMAINING_MS = 5 * 60 * 1000;
 const TOKEN_STORAGE_KEY = "token";
+/** How long a silent sign-in may run before it gives up. */
+const SILENT_TIMEOUT_MS = 15 * 1000;
 
 const SHORTS_PROBE_BASE = "https://www.youtube.com/shorts/";
 const SHORTS_PROBE_TIMEOUT_MS = 5000;
@@ -78,6 +80,8 @@ async function mintToken(
     responseUrl = await chrome.identity.launchWebAuthFlow({
       url: authUrl.toString(),
       interactive,
+      // a silent run whose page never finishes loading would otherwise hold every later one
+      ...(interactive ? {} : { timeoutMsForNonInteractive: SILENT_TIMEOUT_MS }),
     });
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);

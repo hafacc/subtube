@@ -16,7 +16,9 @@ manifest, so a store install answers the site alone.
   cached in `chrome.storage.session`. A kept token is handed out only to a
   silent request that doesn't say `fresh` (Google refused the last one);
   an interactive request always mints, with `prompt=select_account`, and a
-  silent one passes the page's `loginHint` as `login_hint`. Two requests for
+  silent one passes the page's `loginHint` as `login_hint` and gives up
+  after 15 s (`timeoutMsForNonInteractive`), so a page that never loads
+  can't hold every later request. Two requests for
   the same sign-in share one window. An error answer has `cancelled` when
   the user closed Google's page or refused, and `signInRequired`: false when
   a silent attempt itself failed (no network), so the page keeps the session
