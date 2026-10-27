@@ -1202,6 +1202,20 @@ describe("FeedController loads", () => {
     expect(feed.error).toBe("The SubTube extension didn't answer.");
   });
 
+  test("a renewal that fails by itself keeps the session and offers a sign-in", async () => {
+    const { feed, lost } = controller();
+    google.token = () => ({
+      error: "Authorization page could not be loaded.",
+      signInRequired: false,
+    });
+    await feed.load();
+    expect(lost()).toBe(0);
+    expect(feed.error).toBe(
+      "Couldn't reach Google. Check your connection and try again.",
+    );
+    expect(feed.signInMayHelp).toBe(true);
+  });
+
   test("no token without a sign-in is a lost session", async () => {
     const { feed, lost } = controller();
     google.token = () => ({ error: "interaction required" });

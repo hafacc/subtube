@@ -378,8 +378,13 @@ values, named by the page's `h1`.
     not the error banner; a failure signing in fixes goes to the session
     (`needsSignIn`), which shows the banner with "Sign in". A silent
     renewal the extension says failed by itself (`signInRequired: false`,
-    as without a network) is an ordinary error and keeps the session; an
-    older extension doesn't say, and is read as before. The empty text
+    as without a network, or one that takes over 20 s) is a
+    `RenewalFailedError`: an ordinary error that keeps the session, whose
+    banner also has "Sign in" (`FeedController.signInMayHelp`); an
+    older extension doesn't say, and is read as before. A sign-in whose
+    Google window is closed tries a silent renewal for the account signed
+    in before it counts as called off: Google's window can end on an error
+    page after the sign-in in it worked. The empty text
     is not shown beside an error. `Prefetch` fetches
     the items of the channels `fetchOnly` names, 6 at a time, before the feed
     opens; a later `fetchOnly` keeps what is fetched or being fetched for

@@ -208,6 +208,13 @@
     }
   }
 
+  /** Sign in while the session still counts as signed in, then load: no change of `ready` will start the load. */
+  async function signInAgain(): Promise<void> {
+    if (await session.signIn()) {
+      void feed.load();
+    }
+  }
+
   /** The logo: the feed, refreshed. */
   function home(): void {
     open(null);
@@ -509,6 +516,15 @@
             {#if session.error || feed.error}
               <div class="banner error" role="alert">
                 <span>{feed.error ?? session.error}</span>
+                {#if feed.signInMayHelp && session.ready && !session.connecting}
+                  <button
+                    type="button"
+                    class="button-small"
+                    onclick={() => void signInAgain()}
+                  >
+                    Sign in
+                  </button>
+                {/if}
               </div>
             {/if}
             {#if feed.notice}

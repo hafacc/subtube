@@ -18,6 +18,17 @@ export class SignInRequiredError extends ShownError {
   }
 }
 
+/**
+ * Thrown when a renewal without UI failed by itself, as without a network or
+ * when it timed out: the session is kept, though signing in again may help.
+ */
+export class RenewalFailedError extends ShownError {
+  constructor(options?: ErrorOptions) {
+    super(UNREACHABLE_MESSAGE, options);
+    this.name = "RenewalFailedError";
+  }
+}
+
 /** Thrown when the user closed Google's sign-in page or refused there: nothing to report. */
 export class SignInCancelledError extends Error {
   constructor() {

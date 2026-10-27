@@ -1,9 +1,16 @@
-import { ExtensionMissingError, SignInRequiredError } from "./errors";
+import {
+  ExtensionMissingError,
+  RenewalFailedError,
+  ShownError,
+  SignInRequiredError,
+} from "./errors";
 import { type Platform, platform, type Token } from "./platform";
 import { TokenExpiredError } from "./youtube";
 
 // Renew a little before expiry so in-flight calls never 401.
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+/** How long a silent renewal may take before it counts as failed. */
+const RENEWAL_TIMEOUT_MS = 20 * 1000;
 
 /** The account a token renewed without UI must be for. */
 export interface ExpectedAccount {
@@ -58,20 +65,42 @@ async function required(): Promise<Platform> {
 
 async function renew(current: Platform, fresh: boolean): Promise<string> {
   const account = expected;
-  const token = await current.silentToken({
-    ...(account?.loginHint ? { loginHint: account.loginHint } : {}),
-    ...(fresh ? { fresh } : {}),
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("silent renewal timed out")),
+      RENEWAL_TIMEOUT_MS,
+    );
   });
-  if (token && (!account || (await account.owns(token.accessToken)))) {
-    return apply(token);
-  } else {
-    throw new SignInRequiredError();
+  try {
+    const token = await Promise.race([
+      current.silentToken({
+        ...(account?.loginHint ? { loginHint: account.loginHint } : {}),
+        ...(fresh ? { fresh } : {}),
+      }),
+      timeout,
+    ]);
+    if (token && (!account || (await account.owns(token.accessToken)))) {
+      return apply(token);
+    } else {
+      throw new SignInRequiredError();
+    }
+  } catch (caught) {
+    // the extension's own failures keep their message: signing in goes through it too
+    if (caught instanceof ShownError) {
+      throw caught;
+    } else {
+      throw new RenewalFailedError({ cause: caught });
+    }
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 /**
  * A new token without UI; rejects with {@link SignInRequiredError} when there
- * is none, or when Google answers for another account than the one signed in.
+ * is none, or when Google answers for another account than the one signed in,
+ * and with {@link RenewalFailedError} when the attempt itself failed.
  * `refused` says Google refused the token at hand, so the extension must not
  * hand that one back.
  */

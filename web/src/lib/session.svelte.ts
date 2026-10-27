@@ -290,14 +290,29 @@ export class Session {
       this.expired = false;
       return true;
     } catch (caught) {
-      if (!(caught instanceof SignInCancelledError)) {
+      if (caught instanceof SignInCancelledError) {
+        // Google's window can end on an error page after the sign-in in it worked, so closing it is the only way out
+        return this.account !== null && (await this.renewAfterCancel());
+      } else {
         console.error(caught);
         this.error = shownMessage(caught);
+        return false;
       }
-      return false;
     } finally {
       this.switching = false;
       this.connecting = false;
+    }
+  }
+
+  /** Whether a silent renewal for the account signed in works once Google's window is closed. */
+  private async renewAfterCancel(): Promise<boolean> {
+    try {
+      await silentRefresh(true);
+      this.ready = true;
+      this.expired = false;
+      return true;
+    } catch {
+      return false;
     }
   }
 
