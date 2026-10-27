@@ -8,7 +8,11 @@ import {
   passingCompiled,
 } from "./channel-chips";
 import { chipFiltered, chipRow } from "./chips";
-import { SignInRequiredError, shownMessage } from "./errors";
+import {
+  RenewalFailedError,
+  SignInRequiredError,
+  shownMessage,
+} from "./errors";
 import { feedItemId } from "./feed-item";
 import { newShuffleSeed, sortFeed } from "./feed-order";
 import { videoPassesFilter } from "./filters";
@@ -486,6 +490,8 @@ export class FeedController {
   loadCount = $state(0);
   /** why the last load failed */
   error: string | null = $state(null);
+  /** whether the error is a token renewal that failed by itself, which signing in again may fix */
+  signInMayHelp = $state(false);
   /** a load that only partly worked */
   notice: string | null = $state(null);
   /** which of watched and unwatched items the page lists; kept for this visit only */
@@ -1005,6 +1011,7 @@ export class FeedController {
     this.loading = true;
     this.loadProgress = loadFraction(0, null);
     this.error = null;
+    this.signInMayHelp = false;
     this.notice = null;
     try {
       const token = await getValidToken();
@@ -1064,6 +1071,7 @@ export class FeedController {
     } else {
       console.error(caught);
       this.error = shownMessage(caught);
+      this.signInMayHelp = caught instanceof RenewalFailedError;
     }
   }
 
