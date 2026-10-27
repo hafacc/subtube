@@ -270,6 +270,35 @@ describe("Session", () => {
     expect(session.error).toBeNull();
   });
 
+  test("a sign-in window closed after Google signed the account in back in still signs in", async () => {
+    const session = new Session();
+    await session.signIn();
+    session.tokenLost();
+    forgetToken();
+    tokenAnswer = (message) =>
+      message.interactive
+        ? { error: "The user did not approve access.", cancelled: true }
+        : { accessToken: "token-A", expiresIn: 3600 };
+    expect(await session.signIn()).toBe(true);
+    expect(session.ready).toBe(true);
+    expect(session.expired).toBe(false);
+    expect(session.error).toBeNull();
+    session.store?.close();
+  });
+
+  test("a silent renewal that fails by itself keeps the session and says sign-in may help", async () => {
+    const session = new Session();
+    await session.signIn();
+    forgetToken();
+    tokenAnswer = () => ({
+      error: "Authorization page could not be loaded.",
+      signInRequired: false,
+    });
+    const { RenewalFailedError } = await import("./errors");
+    await expect(getValidToken()).rejects.toBeInstanceOf(RenewalFailedError);
+    session.store?.close();
+  });
+
   test("a sign-in that fails shows the one message, never the extension's text", async () => {
     const session = new Session();
     tokenAnswer = () => ({ error: "sign-in state mismatch" });
