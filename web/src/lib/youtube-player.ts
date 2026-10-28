@@ -39,6 +39,38 @@ export interface YouTubePlayer {
   getPlaylistIndex(): number;
 }
 
+/** The part of the player that the keyboard's shortcuts use. */
+export interface YouTubeKeyControls
+  extends Pick<
+    YouTubePlayer,
+    "getCurrentTime" | "getDuration" | "pauseVideo" | "playVideo"
+  > {
+  /** The player's state, one of `YT.PlayerState`. */
+  getPlayerState(): number;
+  /** Jump to `seconds` into the video, fetching what isn't buffered when `allowSeekAhead`. */
+  seekTo(seconds: number, allowSeekAhead: boolean): void;
+  /** The volume, 0 to 100. */
+  getVolume(): number;
+  /** Set the volume, 0 to 100. */
+  setVolume(volume: number): void;
+  /** Whether the player is muted. */
+  isMuted(): boolean;
+  /** Mute the player. */
+  mute(): void;
+  /** Unmute the player. */
+  unMute(): void;
+  /** The playback rate. */
+  getPlaybackRate(): number;
+  /** Set the playback rate. */
+  setPlaybackRate(rate: number): void;
+  /** The rates the playing video can play at. */
+  getAvailablePlaybackRates(): number[];
+  /** Play the playlist's next video. */
+  nextVideo(): void;
+  /** Play the playlist's previous video. */
+  previousVideo(): void;
+}
+
 /** A player state change. */
 export interface PlayerStateChangeEvent {
   /** the new state, one of `YT.PlayerState` */
@@ -57,12 +89,14 @@ export interface YouTubeNamespace {
       height?: string | number;
       playerVars?: Record<string, string | number>;
       events?: {
-        onReady?: (event: { target: YouTubePlayer }) => void;
+        onReady?: (event: {
+          target: YouTubePlayer & YouTubeKeyControls;
+        }) => void;
         onStateChange?: (event: PlayerStateChangeEvent) => void;
         onError?: (event: { data: number; target: YouTubePlayer }) => void;
       };
     },
-  ) => YouTubePlayer;
+  ) => YouTubePlayer & YouTubeKeyControls;
   /** Player states. */
   PlayerState: { PLAYING: number; PAUSED: number; ENDED: number };
 }

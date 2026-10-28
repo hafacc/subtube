@@ -11,7 +11,8 @@
     minimizedBox,
   } from "../lib/player";
   import type { PlayerController } from "../lib/player.svelte";
-  import type { VideoData } from "../lib/youtube-player";
+  import { applyPlayerKey, playerKeyAction } from "../lib/player-keys";
+  import type { VideoData, YouTubeKeyControls } from "../lib/youtube-player";
   import Icon from "./Icon.svelte";
   import PlayerFrame from "./PlayerFrame.svelte";
 
@@ -43,6 +44,8 @@
   let framed = $state(false);
   let covered = $state(false);
   let reported = $state<{ id: string; data: VideoData } | null>(null);
+  let ready: { frame: HTMLIFrameElement; player: YouTubeKeyControls } | null =
+    null;
   // the playing card's thumbnail box and the scrolling pane it is in
   let slot: { box: Box; view: Box } | null = $state.raw(null);
   const playing = $derived(player.playing);
@@ -252,21 +255,50 @@
   }
 
   function keyed(event: KeyboardEvent): void {
-    if (
-      event.key === "Escape" &&
-      place === "large" &&
-      !event.defaultPrevented
-    ) {
+    if (event.defaultPrevented) {
+      return;
+    }
+    if (event.key === "Escape" && place === "large") {
       event.preventDefault();
       player.minimize();
+    } else {
+      forwardKey(event);
     }
   }
 
-  function embedReady(frame: HTMLIFrameElement): void {
-    if (place === "card") {
-      // so the player's keyboard shortcuts work without a click first
-      frame.focus({ preventScroll: true });
+  // keys on the page reach the player only from the player's box or from
+  // nowhere in particular, so they never take over a button or a field
+  function forwardKey(event: KeyboardEvent): void {
+    const target = event.target;
+    const frame = embed();
+    const action =
+      event.ctrlKey || event.metaKey || event.altKey
+        ? null
+        : playerKeyAction(event.key, event.shiftKey);
+    if (
+      action &&
+      frame &&
+      ready?.frame === frame &&
+      (target === wrapper || target === document.body)
+    ) {
+      event.preventDefault();
+      if (action.kind === "fullscreen") {
+        if (document.fullscreenElement) {
+          void document.exitFullscreen();
+        } else {
+          void frame.requestFullscreen();
+        }
+      } else {
+        applyPlayerKey(action, ready.player);
+      }
     }
+  }
+
+  function embedReady(
+    frame: HTMLIFrameElement,
+    embedded: YouTubeKeyControls,
+  ): void {
+    ready = { frame, player: embedded };
   }
 
   onMount(() => {
@@ -311,9 +343,11 @@
     }
   });
 
-  // Escape reaches the page only from outside the embed, so the large player takes focus itself
+  // so the keys reach the player without a click first; the page hears
+  // them only while the focus is outside the embed
   $effect(() => {
-    if (place === "large") {
+    void playing?.item.id;
+    if (place === "large" || place === "card") {
       wrapper?.focus({ preventScroll: true });
     }
   });
