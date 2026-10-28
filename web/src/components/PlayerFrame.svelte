@@ -5,6 +5,7 @@
   import {
     loadIframeApi,
     type VideoData,
+    type YouTubeKeyControls,
     type YouTubePlayer,
   } from "../lib/youtube-player";
 
@@ -30,7 +31,7 @@
     /** the user paused the video, or played it again */
     ontoggle?: () => void;
     /** the player is ready, in this frame */
-    onready?: (frame: HTMLIFrameElement) => void;
+    onready?: (frame: HTMLIFrameElement, player: YouTubeKeyControls) => void;
   } = $props();
 
   /** How often the playing position is saved on this device. */
@@ -84,7 +85,7 @@
             onReady: (event) => {
               if (!cancelled) {
                 current.ready(event.target);
-                onready?.(event.target.getIframe());
+                onready?.(event.target.getIframe(), event.target);
               }
             },
             onStateChange: (event) => {

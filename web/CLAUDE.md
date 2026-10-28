@@ -715,8 +715,14 @@ values, named by the page's `h1`.
   minimized player stay, stopped on the ended video, until Close or Expand;
   a card's player closes. A player opened from a link has no
   list and uses the page's `autoplayNext`.
-  Focus returns to the card of what was playing when the large player
-  minimizes or closes. Its accessible name is the video's title, else
+  **Keys**: playing an item large or in a card, and Expand, give the box
+  the focus, and YouTube's shortcuts pressed on the box or on nothing in
+  particular (`document.body`) are carried out through the IFrame API
+  (`player-keys.ts`: Space and K, the arrows, J and L, 0–9, Home and End,
+  M, F, `<` and `>`, Shift+N and Shift+P), so they work without a click
+  and Escape still reaches the page; a key on a button or a field is left
+  to it. Inside the embed YouTube handles its keys itself. Focus returns to the card of
+  what was playing when the large player minimizes or closes. Its accessible name is the video's title, else
   "Player". The embed's own button is the way to full screen
   (`allowfullscreen` is set on the frame).
   `Settings`, `Nux` (setup uses the app's own controls, never its own
