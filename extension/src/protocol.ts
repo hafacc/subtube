@@ -5,9 +5,9 @@
  */
 
 /**
- * The pages that may message the extension while it is developed: the
- * manifest's `externally_connectable.matches`, kept equal by a test. The
- * store build (`bun pack`) drops every `http:` one.
+ * The pages that may message the development build: `manifest.dev.json`'s
+ * `externally_connectable.matches`, kept equal by a test. The store build's
+ * `manifest.json` names only the `https:` ones.
  */
 export const EXTENSION_ORIGIN_MATCHES = [
   "https://subtube.hafa.cc/*",

@@ -9,12 +9,20 @@
  * wrote it, and every platform has to see the same files.
  */
 
+/** The Chrome Web Store extension's id. */
+const storeExtensionId = "gobcnmccpjhlgpnohehgkahhknkfbmfo";
+
+/** The id of the unpacked development build, fixed by the `key` in its manifest. */
+const devExtensionId = "dhiidepocengihahncjbhmcnlhmphbhh";
+
 /**
- * The Chrome extension's id, fixed by the `key` in its manifest. `VITE_EXTENSION_ID`
- * (e.g. in web/.env.local) overrides it.
+ * The extension's id: the development build's under `bun dev`, which only it
+ * answers, and the store's otherwise. `VITE_EXTENSION_ID` (e.g. in
+ * web/.env.local) overrides it.
  */
 export const extensionId: string =
-  import.meta.env.VITE_EXTENSION_ID || "gobcnmccpjhlgpnohehgkahhknkfbmfo";
+  import.meta.env.VITE_EXTENSION_ID ||
+  (import.meta.env.DEV ? devExtensionId : storeExtensionId);
 
 /** The web OAuth client the extension signs in with; the delete page signs in with it too, by a redirect to itself. */
 export const oauthClientId =
@@ -33,8 +41,7 @@ export const feedbackUrl = "https://github.com/hafacc/subtube/issues";
 export const youtubeUrl = "https://www.youtube.com/";
 
 /** The extension's Chrome Web Store page. */
-export const chromeWebStoreUrl =
-  "https://chromewebstore.google.com/detail/gobcnmccpjhlgpnohehgkahhknkfbmfo";
+export const chromeWebStoreUrl = `https://chromewebstore.google.com/detail/${storeExtensionId}`;
 
 /** The iPhone and iPad app on the App Store. */
 export const appStoreUrl = "https://apps.apple.com/app/id6819027297";

@@ -16,7 +16,6 @@
   "permissions": ["identity", "storage"],
   "host_permissions": ["https://www.youtube.com/*"],
   "externally_connectable": {
-    "matches": ["https://subtube.hafa.cc/*", "http://localhost/*"]
-  },
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqjDMMMsqB1c+JNfbNuU+A5gv6kp+jFsCaFtwtDDPcbPW+AKgFUNe9xpFo2ZbjdHvQ8m6whj9QLeYGyKqvCazRjIblYomjNE9jM92UHZkTbMFOf1ZbKt/LFcsUXeSMhRyt1PuqO4o59vOr7SscUxXNu8ViSsQLB4GZerdHi7B+wsuIYN/Cx4sQCRAubztbxL2zjIkUoFctzr5nKF8xVUa3bMRflhmPKdcK31ZYO2mNzT94Q71koX8kA3McAPIRyam+cz3jJwcBiecTKhWP4ib5StJbLsqUZIG0u1MidiZP0yhJEjwmspdUSxylhCZdyZakkf3Uw5Ui+Mo5GaVouLGlQIDAQAB"
+    "matches": ["https://subtube.hafa.cc/*"]
+  }
 }
