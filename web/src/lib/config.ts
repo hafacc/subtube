@@ -20,11 +20,14 @@ export const extensionId: string =
 export const oauthClientId =
   "932619996481-qtf3mtbe40o315ptk6rm7ieuvn61akkm.apps.googleusercontent.com";
 
-/** The privacy policy, a page of its own beside the app (`src/routes/(policy)/privacy`), built with no script. */
+/** The privacy policy, a page of its own beside the app (`src/routes/(policy)/privacy`), built with no script; the app shows it in `InfoDialog`. */
 export const privacyUrl = "/privacy";
 
 /** The terms of service, a page of its own beside the app (`src/routes/(policy)/terms`), like the privacy policy. */
 export const termsUrl = "/terms";
+
+/** Where feedback goes: the project's GitHub issues. */
+export const feedbackUrl = "https://github.com/hafacc/subtube/issues";
 
 /** Where the "Videos from YouTube" attribution links. */
 export const youtubeUrl = "https://www.youtube.com/";

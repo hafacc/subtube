@@ -107,32 +107,59 @@ struct DeleteProfileFootnote: View {
   }
 }
 
-/// The pages the apps link to, all opened in the browser.
+/// The addresses the apps link to: the two pages they also show themselves,
+/// and those opened in the browser.
 enum Links {
   static let privacyPolicy = URL(string: "https://subtube.hafa.cc/privacy")!
   static let terms = URL(string: "https://subtube.hafa.cc/terms")!
+  static let feedback = URL(string: "https://github.com/hafacc/subtube/issues")!
   static let youTube = URL(string: "https://www.youtube.com/")!
 }
 
-/// "Privacy Policy" and "Terms" side by side, each opening its page.
+/// "Privacy Policy", "Terms" and "Feedback" side by side: the first two show
+/// their page through `show`, Feedback opens the issue list in the browser.
 struct LegalLinks: View {
+  let show: (InfoPageKind) -> Void
+
   var body: some View {
     HStack(spacing: 16) {
-      Link(Strings.privacyPolicy, destination: Links.privacyPolicy)
-      Link(Strings.terms, destination: Links.terms)
+      Button(Strings.privacyPolicy) { show(.privacy) }
+      Button(Strings.terms) { show(.terms) }
+      Link(Strings.feedback, destination: Links.feedback)
     }
-    // each link takes its own taps in a list row
-    .buttonStyle(.borderless)
+    #if os(macOS)
+      // the link style draws the system's blue, whatever the tint
+      .buttonStyle(.plain)
+      .foregroundStyle(Color.gold)
+    #else
+      // each link takes its own taps in a list row
+      .buttonStyle(.borderless)
+    #endif
   }
 }
 
-/// What signing in agrees to, for directly under a sign-in button.
+/// What signing in agrees to, for directly under a sign-in button; its two
+/// links show their page in a sheet.
 struct SignInAgreement: View {
+  @State private var shown: InfoPageKind?
+
   var body: some View {
     Text(Strings.signInAgreement)
       .font(.footnote)
       .foregroundStyle(.secondary)
       .tint(Color.gold)
+      .environment(
+        \.openURL,
+        OpenURLAction { url in
+          if let kind = InfoPageKind(web: url) {
+            shown = kind
+            return .handled
+          } else {
+            return .systemAction
+          }
+        }
+      )
+      .sheet(item: $shown) { InfoPageSheet(kind: $0) }
   }
 }
 

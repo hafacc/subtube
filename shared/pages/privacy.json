@@ -1,0 +1,59 @@
+{
+  "title": "SubTube privacy policy",
+  "description": "What SubTube reads, what it stores and where, and how to delete it.",
+  "web": "https://subtube.hafa.cc/privacy",
+  "updated": "2026-10-13",
+  "intro": [
+    "SubTube shows new videos from the YouTube channels you subscribe to. It has no server of its own, and nothing you do in SubTube is sent to us."
+  ],
+  "sections": [
+    {
+      "heading": "What SubTube reads",
+      "items": [
+        "Your YouTube subscriptions and the public details of those channels' videos, through YouTube API Services. SubTube can't change anything on your YouTube account.",
+        "The name, email address and picture of your Google account, to show which account is signed in."
+      ]
+    },
+    {
+      "heading": "What SubTube stores, and where",
+      "items": [
+        "Your filters, which videos you've watched and how far you've played each one, in a hidden folder in your own Google Drive that only SubTube can open. This is how they follow you between devices. SubTube can't see your other Drive files.",
+        "A copy of the same on each device, so the app opens quickly.",
+        "Each device deletes its own watched marks 30 days after it last loaded the video. A device you stop using keeps its marks in your Google Drive until you use Delete profile, which removes everything.",
+        "Your Google sign-in, on the device only."
+      ]
+    },
+    {
+      "heading": "How your data is protected",
+      "items": [
+        "Everything SubTube reads travels straight between Google and your device over an encrypted connection.",
+        "Your Google sign-in is kept by your device's own secure storage: the Keychain on Apple devices, Google Play services on Android, Chrome on the web.",
+        "What SubTube saves in your Google Drive is protected by your Google account."
+      ]
+    },
+    {
+      "heading": "What SubTube doesn't do",
+      "items": [
+        "It has no accounts of its own, no analytics and no ads of its own. Your data is never sold or shared, because we never receive it."
+      ]
+    },
+    {
+      "heading": "YouTube and Google",
+      "items": [
+        "Videos play in YouTube's own player, so YouTube may collect data and show ads as it does on any site. Google's privacy policy applies: [https://policies.google.com/privacy](https://policies.google.com/privacy). By using SubTube you also agree to the YouTube Terms of Service: [https://www.youtube.com/t/terms](https://www.youtube.com/t/terms). SubTube's own terms are at [https://subtube.hafa.cc/terms](https://subtube.hafa.cc/terms).",
+        "SubTube's use of information received from Google APIs follows the Google API Services User Data Policy, including its Limited Use requirements."
+      ]
+    },
+    {
+      "heading": "Deleting your data",
+      "items": [
+        "Delete profile, in Settings, removes everything SubTube stored in your Google Drive and on that device.",
+        "You can remove SubTube's access at any time at [https://myaccount.google.com/permissions](https://myaccount.google.com/permissions)."
+      ]
+    },
+    {
+      "heading": "Contact",
+      "items": ["[support@subtube.hafa.cc](mailto:support@subtube.hafa.cc)"]
+    }
+  ]
+}

@@ -42,6 +42,7 @@ struct MacSettingsView: View {
 
 private struct MacAccountPane: View {
   let app: AppModel
+  @State private var shownPage: InfoPageKind?
 
   var body: some View {
     Form {
@@ -80,9 +81,18 @@ private struct MacAccountPane: View {
         }
       }
       Section {
-        LegalLinks()
+        LegalLinks { shownPage = $0 }
       }
     }
     .formStyle(.grouped)
+    .sheet(item: $shownPage) { InfoPageSheet(kind: $0) }
+    #if DEBUG
+      .onAppear {
+        let prefix = "-infoPage:"
+        if let argument = CommandLine.arguments.first(where: { $0.hasPrefix(prefix) }) {
+          shownPage = InfoPageKind(rawValue: String(argument.dropFirst(prefix.count)))
+        }
+      }
+    #endif
   }
 }
