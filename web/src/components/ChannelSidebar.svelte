@@ -1,10 +1,11 @@
 <script lang="ts">
   import { Toggle } from "bits-ui";
   import { HeldChannelOrder, orderChannels } from "../lib/channel-order";
-  import { privacyUrl, termsUrl } from "../lib/config";
+  import { feedbackUrl } from "../lib/config";
   import type { FeedController } from "../lib/feed.svelte";
   import Avatar from "./Avatar.svelte";
   import Icon from "./Icon.svelte";
+  import InfoLink from "./InfoLink.svelte";
   import Logo from "./Logo.svelte";
   import YouTubeAttribution from "./YouTubeAttribution.svelte";
 
@@ -139,10 +140,11 @@
     {/each}
     <div class="foot wide-only">
       <div class="legal">
-        <a href={privacyUrl} target="_blank" rel="noopener noreferrer">
-          Privacy policy
-        </a>
-        <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
+        <InfoLink page="privacy">Privacy policy</InfoLink>
+        <InfoLink page="terms">Terms</InfoLink>
+        <a href={feedbackUrl} target="_blank" rel="noopener noreferrer"
+          >Feedback</a
+        >
       </div>
       <div class="attribution">
         <YouTubeAttribution />

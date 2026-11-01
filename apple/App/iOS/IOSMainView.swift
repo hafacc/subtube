@@ -439,6 +439,7 @@ private struct IOSChannelsTab: View {
 private struct IOSSettingsTab: View {
   let app: AppModel
   let feed: FeedModel
+  @State private var shownPage: InfoPageKind?
   private static let endID = "end"
 
   var body: some View {
@@ -474,13 +475,16 @@ private struct IOSSettingsTab: View {
           DeleteProfileFootnote(app: app)
         }
         Section {
-          LegalLinks()
+          LegalLinks { shownPage = $0 }
         }
         .id(Self.endID)
       }
       .minimizedPlayerRoom(feed)
       .startsAtEndWhenAsked(Self.endID)
       .navigationTitle(Strings.settings)
+      .navigationDestination(item: $shownPage) { kind in
+        InfoPageView(kind: kind).minimizedPlayerRoom(feed)
+      }
     }
   }
 }

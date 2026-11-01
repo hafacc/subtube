@@ -4,7 +4,7 @@
   import GoogleButton from "../../components/GoogleButton.svelte";
   import Icon from "../../components/Icon.svelte";
   import Logo from "../../components/Logo.svelte";
-  import { privacyUrl, termsUrl } from "../../lib/config";
+  import { feedbackUrl, privacyUrl, termsUrl } from "../../lib/config";
   import { fetchDriveUser } from "../../lib/drive";
   import {
     deleteEverything,
@@ -148,6 +148,9 @@
         The apps have the same option in Settings.
         <a href={privacyUrl}>Privacy policy</a>
         <a href={termsUrl}>Terms</a>
+        <a href={feedbackUrl} target="_blank" rel="noopener noreferrer"
+          >Feedback</a
+        >
       </p>
     </section>
   </main>

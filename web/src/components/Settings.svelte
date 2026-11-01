@@ -1,9 +1,10 @@
 <script lang="ts">
   import { AlertDialog, Popover } from "bits-ui";
-  import { privacyUrl, termsUrl } from "../lib/config";
+  import { feedbackUrl } from "../lib/config";
   import type { Account } from "../lib/session.svelte";
   import Avatar from "./Avatar.svelte";
   import Icon from "./Icon.svelte";
+  import InfoLink from "./InfoLink.svelte";
 
   let {
     account,
@@ -151,10 +152,11 @@
         </div>
 
         <div class="legal">
-          <a href={privacyUrl} target="_blank" rel="noopener noreferrer">
-            Privacy policy
-          </a>
-          <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
+          <InfoLink page="privacy">Privacy policy</InfoLink>
+          <InfoLink page="terms">Terms</InfoLink>
+          <a href={feedbackUrl} target="_blank" rel="noopener noreferrer"
+            >Feedback</a
+          >
         </div>
 
         <AlertDialog.Overlay>

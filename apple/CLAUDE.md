@@ -17,6 +17,11 @@ and those one folder down (the patterns' `*` stops at a `/`, so a deeper
 folder needs one more pattern). Settings that differ by platform are
 `[sdk=macosx*]` / `[sdk=iphone*]` conditionals on the target.
 
+Outside `Config/`, the one file reference is `pages`, a folder reference to `../shared/pages`
+in the target's resources, so both apps bundle the privacy policy and the
+terms from there as `pages/privacy.json` and `pages/terms.json`; no copy is
+kept here.
+
 `App/Resources/PrivacyInfo.xcprivacy` is the privacy manifest for both apps:
 no tracking, no collected data, and the two required-reason APIs the code
 uses — `UserDefaults` (CA92.1) and the system uptime the player's save timer
@@ -197,7 +202,10 @@ the pbxproj.
   sign-in page always asks which account, `prompt=select_account`;
   `signOut(revoke:)` forgets the sign-in here and withdraws Google's grant
   only when asked; declining the permissions is `AuthError.declined`, shown
-  as nothing; a Keychain that won't keep the token fails the sign-in).
+  as nothing; a Keychain that won't keep the token fails the sign-in),
+  `InfoPage` (a `shared/pages` file, Codable; `updatedDay`; `spans(of:)`
+  splits a paragraph into plain runs and its `[label](url)` links, https:
+  and mailto: only).
 - `App/Shared/` — SwiftUI shared by both apps: `AppModel` (sign-in, first
   run, theme; the web authentication session is started by `SignInButton`;
   the account is the Google account as Drive's `about` reports it —
@@ -391,7 +399,7 @@ the pbxproj.
   `SignInAgreement`, the line "By signing in, you agree to SubTube's Terms
   and Privacy Policy." with its two links, sits directly under every
   `GoogleSignInButton`: setup's and the Mac Settings window's when signed
-  out.
+  out; its links show their page in an `InfoPageSheet`.
   "Choose channels" shows only skeleton rows while it loads, its rows by
   name (`channelsByName`), and under a failed load "Refresh", or the sign-in
   when only that helps.
@@ -402,8 +410,16 @@ the pbxproj.
   full load takes the prefetch when the feed opens; the starting point is
   kept on the device, with the channels that were on, until each has been
   fetched; the decisions are in `Setup.swift`),
-  `SettingsViews` (also `Links`, the three addresses the apps open;
-  `LegalLinks`, "Privacy Policy" and "Terms" side by side in Settings;
+  `InfoPageView` (`InfoPageKind`, the two bundled pages, loaded once; the
+  page: its title as the heading, "Open on the Web" to its address,
+  "Last updated" and the day as a long date, the intro, then each section's
+  heading over its items as bullets; selectable, links in `Color.gold`;
+  `InfoPageSheet`, the page with "Done": in a `NavigationStack` on iOS),
+  `SettingsViews` (also `Links`, the addresses the apps link to;
+  `LegalLinks`, "Privacy Policy", "Terms" and "Feedback" side by side in
+  Settings: the first two show their page — pushed on iOS's Settings
+  stack, a sheet from the Mac Settings window's Account pane — and Feedback
+  opens the GitHub issue list in the browser;
   `YouTubeAttribution`, "Videos from YouTube" as a small muted link to
   youtube.com, text only: after the last card or the empty text of the feed
   and of a channel's page, not while `FeedModel.showsSkeletons`, and at the
@@ -664,7 +680,8 @@ and `Strings.summary` words each.
   seconds after launch: a Mac's closes when the app stops being the active
   one, so it opens late, shortly before a snapshot is taken) and `-confirmDelete` (the Delete
   Profile confirmation, once Settings shows); macOS `-settings` opens the
-  Settings window, on the pane `-settingsPane:<general|account>` names. Values ride in the same
+  Settings window, on the pane `-settingsPane:<general|account>` names, and
+  `-infoPage:<privacy|terms>` shows that page over the Account pane. Values ride in the same
   argument: macOS opens any bare argument as a file and then skips the main
   window.
 - macOS screenshots without screen-recording permission:

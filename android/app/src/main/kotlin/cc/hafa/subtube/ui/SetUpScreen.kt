@@ -169,7 +169,7 @@ private fun ColumnScope.SignInStep(viewModel: SubtubeViewModel) {
         }
     }
     GoogleSignInButton(onClick = viewModel::signIn, busy = viewModel.signingIn)
-    SignInAgreement(Modifier.padding(top = 12.dp))
+    SignInAgreement(viewModel::showInfo, Modifier.padding(top = 12.dp))
 }
 
 @Composable

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		39B5CF2EA357C08036BAC82E /* SubtubeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0BBD0DFD4C6BF1F6C4A50FA1 /* SubtubeCore */; };
+		7D3A1C52E8B94F06A1D2C3E5 /* pages in Resources */ = {isa = PBXBuildFile; fileRef = 7D3A1C52E8B94F06A1D2C3E4 /* pages */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +19,7 @@
 		4FCD57DCD566D8457E888803 /* SubTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SubTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		61566686FA74EA7DC7D51AF6 /* SubTube-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "SubTube-macOS.entitlements"; sourceTree = "<group>"; };
 		EBF5AA3ED958701957BDCCB3 /* SubtubeCore */ = {isa = PBXFileReference; lastKnownFileType = folder; path = SubtubeCore; sourceTree = SOURCE_ROOT; };
+		7D3A1C52E8B94F06A1D2C3E4 /* pages */ = {isa = PBXFileReference; lastKnownFileType = folder; name = pages; path = ../shared/pages; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -63,6 +65,7 @@
 				5E9E0EFF8E24788E9800FB47 /* App/Resources */,
 				971911F74738B91653C310A1 /* App/Shared */,
 				9B37F6B44D8894ADB01F5E45 /* Config */,
+				7D3A1C52E8B94F06A1D2C3E4 /* pages */,
 				5A2F585A617C37051B2B1336 /* Packages */,
 				CFAC4D16D823DF989C0C24EE /* Products */,
 			);
@@ -166,6 +169,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7D3A1C52E8B94F06A1D2C3E5 /* pages in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -3,6 +3,7 @@ package cc.hafa.subtube.ui
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,7 +45,7 @@ import kotlinx.coroutines.delay
 /** How often the "Last synced" line is worked out again. */
 private const val SYNC_STATUS_REFRESH_MS = 30_000L
 
-/** The settings tab: account, sync status, theme, sign out, delete profile, privacy policy and terms. */
+/** The settings tab: account, sync status, theme, sign out, delete profile, then the privacy policy, terms and feedback links. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: SubtubeViewModel) {
@@ -156,9 +157,11 @@ fun SettingsScreen(viewModel: SubtubeViewModel) {
                 }
             }
             val context = LocalContext.current
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                AccentTextButton(stringResource(R.string.privacy_policy), onClick = { context.openInBrowser(PRIVACY_POLICY_URL) })
-                AccentTextButton(stringResource(R.string.terms), onClick = { context.openInBrowser(TERMS_URL) })
+            // wraps under a large font
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                AccentTextButton(stringResource(R.string.privacy_policy), onClick = { viewModel.showInfo(InfoPageName.PRIVACY) })
+                AccentTextButton(stringResource(R.string.terms), onClick = { viewModel.showInfo(InfoPageName.TERMS) })
+                AccentTextButton(stringResource(R.string.feedback), onClick = { context.openInBrowser(FEEDBACK_URL) })
             }
         }
     }

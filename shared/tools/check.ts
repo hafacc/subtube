@@ -2,7 +2,8 @@
  * Checks shared/ is consistent: every fixture is valid JSON with a description
  * and uniquely named cases, the example device files pass or fail the schema
  * as their names say (valid-* / invalid-*), and the meta regex in
- * patterns/meta-regex.txt, in the schema and in tools/pattern.ts is the same.
+ * patterns/meta-regex.txt, in the schema and in tools/pattern.ts is the same,
+ * and every page in pages/ passes schema/page.schema.json.
  *
  *   cd shared && bun install && bun tools/check.ts
  */
@@ -74,6 +75,18 @@ for (const name of readdirSync(examples)) {
     failures.push(
       `device-files/${name}: expected ${expected ? "valid" : "invalid"}${expected ? `: ${JSON.stringify(validate.errors)}` : ""}`,
     );
+  }
+}
+
+const pageSchema = readJson(join(SHARED, "schema", "page.schema.json"));
+const validatePage = new Ajv2020({ strict: true, allErrors: true }).compile(
+  pageSchema as object,
+);
+const pages = join(SHARED, "pages");
+for (const name of readdirSync(pages)) {
+  const page = readJson(join(pages, name));
+  if (page !== undefined && !validatePage(page)) {
+    failures.push(`pages/${name}: ${JSON.stringify(validatePage.errors)}`);
   }
 }
 

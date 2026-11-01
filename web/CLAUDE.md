@@ -36,30 +36,43 @@ settings; no CNAME file).
   `web/.env.local` and a restart of `bun dev`. The
   extension's redirect URI must be on the web OAuth client.
 
-## Privacy policy and terms (`src/routes/(policy)/`)
+## Privacy policy and terms (`src/routes/(policy)/`, `InfoDialog`)
 
-Two more routes, `privacy/+page.svelte` and `terms/+page.svelte`, built to
-`dist/privacy.html` and `dist/terms.html` and served by Pages at
-https://subtube.hafa.cc/privacy and `/terms`; the dev server serves them at
-`/privacy` and `/terms` too. Links use `privacyUrl` and `termsUrl` in
-`src/lib/config.ts`. Their shared `+layout.svelte` is the header and
-`src/policy.css` (its header logo is sized in CSS by `Logo.svelte`'s rule),
-over `src/app.css` for the brand tokens and theme; `+layout.ts` sets
-`csr = false`, so they are built as plain HTML with no script but the theme
-script and render in any browser. Setup's
-footer, the channel sidebar's foot, Settings and the `GetApp` /
-`ExtensionRequired` footers link to them as "Privacy policy" and "Terms",
-side by side; setup's sign-in screen has the line "By signing in, you agree
-to SubTube's Terms and Privacy Policy." under its button. Their wording is
-approved text; don't reword it.
+Their text is `../shared/pages/privacy.json` and `terms.json`, which every
+client shows in its app; `lib/pages.ts` imports them (`INFO_PAGES`), splits
+their `[label](url)` links out (`textParts`) and writes the date
+(`updatedLabel`, "Last updated October 13, 2026"); `PageText.svelte` draws
+the paragraphs and headed lists. Two routes, `privacy/+page.svelte` and
+`terms/+page.svelte`, draw them as pages, built to `dist/privacy.html` and
+`dist/terms.html` and served by Pages at https://subtube.hafa.cc/privacy and
+`/terms`; the dev server serves them at `/privacy` and `/terms` too. Their
+shared `+layout.svelte` is the header and `src/policy.css` (its header logo
+is sized in CSS by `Logo.svelte`'s rule), over `src/app.css` for the brand
+tokens and theme; `+layout.ts` sets `csr = false`, so they are built as
+plain HTML with no script but the theme script and render in any browser.
+
+In the app they open over the page instead: `InfoLink` is a link to the
+page (`privacyUrl`, `termsUrl` in `src/lib/config.ts`) whose plain click
+sets `infoPage.open` (`lib/info-page.svelte.ts`), and `InfoDialog`, mounted
+once in `App.svelte`, shows that page in a Bits `Dialog` (not portalled, no
+scroll lock): the title, an "Open on the web" link to the website's page
+beside it and Close, then the date and the text, which scrolls. Its
+backdrop is at z-index 25: under the player in a wide window, over it in a
+narrow one, as Settings is. A click with a modifier key still opens the
+website's page. Setup's footer, the channel sidebar's foot, Settings and
+the `GetApp` / `ExtensionRequired` footers have "Privacy policy", "Terms"
+and "Feedback" side by side; "Feedback" opens the project's GitHub issues
+(`feedbackUrl`) in a new tab. Setup's sign-in screen has the line "By
+signing in, you agree to SubTube's Terms and Privacy Policy." under its
+button. Their wording is approved text; don't reword it.
 
 ## Delete page (`src/routes/delete/`)
 
 https://subtube.hafa.cc/delete, the address the stores ask for: sign in and
 delete the profile in any browser, with no extension. It is laid out as
 `ExtensionRequired` and `GetApp` are: the brand over one card (a trash badge,
-the title, the text, one button, and the footer's "Privacy policy" and
-"Terms"), with the feed's Sunflower check disk once deleted. "Sign in with
+the title, the text, one button, and the footer's "Privacy policy", "Terms"
+and "Feedback", plain links to the website's pages), with the feed's Sunflower check disk once deleted. "Sign in with
 Google" sends the browser to Google (`signInUrl` in `lib/web-sign-in.ts`:
 the extension's web client, `oauthClientId` in `config.ts`, the app-folder
 scope only, always the account chooser), which returns to the page with a
