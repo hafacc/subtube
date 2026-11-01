@@ -3,14 +3,15 @@
 MV3 service worker with no UI. The web app talks to it with
 `chrome.runtime.sendMessage(extensionId, request)`; `externally_connectable`
 lets in `https://subtube.hafa.cc/*` and, in a development build only,
-`http://localhost/*` (any port): the store zip's manifest has no `http:` page
-(`bun pack`), and `isAllowedOrigin` reads the running
+`http://localhost/*` (any port). `manifest.json` is the store's manifest
+exactly; `bun export` merges `manifest.dev.json` over it (the dev name, the
+dev `key` and the localhost page). `isAllowedOrigin` reads the running
 manifest, so a store install answers the site alone.
 
 - `src/protocol.ts` — the message types (`ping`, `token`, `signOut`,
   `revoke`, `probeShort`) and `isAllowedOrigin`. Dependency-free: the web app imports its
   types from here, so it is the single source. Keep `EXTENSION_ORIGIN_MATCHES`
-  equal to the manifest (a test checks).
+  equal to `manifest.dev.json`'s (a test checks).
 - `src/background.ts` — `token`: Google's implicit flow through
   `chrome.identity.launchWebAuthFlow` (`prompt=none` when not interactive),
   cached in `chrome.storage.session`. A kept token is handed out only to a
@@ -29,13 +30,13 @@ manifest, so a store install answers the site alone.
   `web/src/lib/config.ts`.
 - `bun install`, `bun export` (→ `dist/`, load unpacked), `bun lint`
   (tsc + biome), `bun test`, `bun pack` (→ `subtube-extension.zip` for the Web Store,
-  without the manifest `key`), `bun icons` (regenerates `icons/` from
+  from `manifest.json` alone), `bun icons` (regenerates `icons/` from
   `../design/icons/sub-play-centred.svg`, the logo centered in its square, and the 16 pixel one from `sub-play-centred-small.svg`, with one large bubble; needs rsvg-convert; output committed).
 - Releases: run the `ext-cut` workflow by hand with a patch/minor/major bump.
   It bumps `manifest.json`'s version (the source of truth), tags
   `extension-v<version>` and starts `ext-release`, which attaches
   `subtube-extension.zip` to a GitHub release for uploading to the Web Store.
 
-Gotchas: the manifest's `key` is the Web Store listing's public key, so an
-unpacked build has the store id (see README); the id's `https://<id>.chromiumapp.org/` redirect must
+Gotchas: `manifest.dev.json`'s `key` is the dev build's own public key, so an
+unpacked build has the dev id, not the store's (see README); the id's `https://<id>.chromiumapp.org/` redirect must
 be on the web OAuth client. `manifest.json` name/description are user-facing.

@@ -27,9 +27,12 @@ Sign-in redirects to `https://<id>.chromiumapp.org/`. Add that exact URL as an
 
 ## The ID
 
-The extension's ID is `gobcnmccpjhlgpnohehgkahhknkfbmfo`, the Chrome Web Store
-listing's. An unpacked build gets the same ID because `manifest.json` carries
-the listing's public key as `key` (store dashboard → Package → View public
-key, as one base64 line). `bun pack` leaves `key` out of the upload,
-which the store requires, and `http://localhost/*` out of the pages that may
-message it.
+The store version's ID is `gobcnmccpjhlgpnohehgkahhknkfbmfo`, the Chrome Web
+Store listing's. An unpacked build, named "SubTube (dev)", has its own ID,
+`dhiidepocengihahncjbhmcnlhmphbhh`, fixed by the public key
+`manifest.dev.json` carries as `key` (no private key is kept; an unpacked
+build needs none), so both can be installed at once. The web app's dev server
+talks to the dev ID, its published build to the store's. `bun export` merges
+`manifest.dev.json` over `manifest.json`, adding that key, the name and
+`http://localhost/*` to the pages that may message it; `bun pack` uploads
+`manifest.json` as it is.
