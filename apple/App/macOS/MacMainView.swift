@@ -2,7 +2,7 @@ import SubtubeCore
 import SwiftUI
 
 /// macOS: channels in the sidebar, the headed feed grid in the detail, a channel's
-/// filters in the inspector, opened from its sidebar row; the player lies over the dimmed app,
+/// filters in the inspector, opened from the toolbar on its page; the player lies over the dimmed app,
 /// or minimized in the window's bottom trailing corner with the app in use
 /// behind it.
 struct PlatformMainView: View {
@@ -181,7 +181,7 @@ private struct MacFeedSplitView: View {
 
   var body: some View {
     NavigationSplitView(columnVisibility: $columns) {
-      MacSidebar(feed: feed, filtersChannel: filtersChannel, onFilters: toggleFilters)
+      MacSidebar(feed: feed)
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
         .toolbar(removing: .sidebarToggle)
         .toolbar {
@@ -193,13 +193,28 @@ private struct MacFeedSplitView: View {
         }
     } detail: {
       MacFeedGrid(app: app, feed: feed, onGroup: editGroup)
+        .toolbar {
+          if let channel = feed.selectedChannel.flatMap(feed.channel) {
+            // pushes the button to the page's trailing edge
+            if #available(macOS 26.0, *) {
+              ToolbarSpacer(.flexible)
+            } else {
+              ToolbarItem { Spacer() }
+            }
+            ToolbarItem {
+              PageFiltersButton(title: channel.title, isOn: filtersChannel == channel.channelId) {
+                toggleFilters(channel.channelId)
+              }
+            }
+          }
+        }
         .inspector(isPresented: $showInspector) {
           Group {
             if let groupTarget {
               GroupEditor(feed: feed, target: groupTarget, onClose: closeGroupEditor)
                 .id(groupTarget)
             } else if let channel = feed.selectedChannel.flatMap(feed.channel) {
-              MacFiltersPanel(feed: feed, channel: channel) { showInspector = false }
+              MacFiltersPanel(feed: feed, channel: channel)
             }
           }
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -230,66 +245,52 @@ private struct MacFeedSplitView: View {
   }
 }
 
-/// A channel's filters in the details panel, under a header: the channel's
-/// avatar, its name over where it comes from, and the × that closes the
-/// panel.
+/// A channel's filters in the details panel, headed "Filters" in the
+/// toolbar's row, beside the button that closes them; the page already
+/// names the channel.
 private struct MacFiltersPanel: View {
   let feed: FeedModel
   let channel: ChannelFilter
-  let onClose: () -> Void
+  /// The toolbar's height over the panel; 0 when it is hidden, as in full screen.
+  @State private var toolbarHeight: CGFloat = 0
 
   var body: some View {
-    VStack(spacing: 0) {
-      HStack(spacing: 10) {
-        Avatar(url: channel.thumbnail, title: channel.title, size: 36)
-        VStack(alignment: .leading, spacing: 1) {
-          Text(channel.title)
-            .font(.title3.bold())
-            .lineLimit(1)
-          Text(Strings.subscribedOnYouTube)
-            .font(.subheadline)
-            .foregroundStyle(Color.secondary)
-            .lineLimit(1)
-        }
-        Spacer(minLength: 8)
-        Button(action: onClose) {
-          Image(systemName: "xmark")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(Color.secondary)
-            .frame(width: 24, height: 24)
-            .overlay { Circle().strokeBorder(Color.secondary.opacity(0.35)) }
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Strings.close)
-        .help(Strings.close)
+    FilterForm(feed: feed, channelId: channel.channelId)
+      // flush with the toolbar, the form's scroll view drew nothing
+      .padding(.top, 8)
+      .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: {
+        toolbarHeight = $0
       }
-      .padding(.horizontal, panelInset)
-      .padding(.top, 14)
-      .padding(.bottom, 12)
-      FilterForm(feed: feed, channelId: channel.channelId)
-    }
+      .overlay(alignment: .topLeading) {
+        if toolbarHeight > 0 {
+          Text(Strings.filters)
+            .font(.headline)
+            .accessibilityAddTraits(.isHeader)
+            // lined up with the form's section headings
+            .padding(.horizontal, panelInset + 12)
+            .frame(height: toolbarHeight)
+            .offset(y: -toolbarHeight)
+        }
+      }
   }
 }
 
-/// Opens a channel's filters from its sidebar row; drawn only while `shown`.
-private struct RowFiltersButton: View {
+/// Opens the page's channel's filters in the details panel, or closes them.
+private struct PageFiltersButton: View {
+  /// The channel's name, for VoiceOver.
   let title: String
-  let isSelected: Bool
-  let shown: Bool
+  /// Whether the panel shows them; the icon is gold while it does.
+  let isOn: Bool
   let action: () -> Void
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: "line.3.horizontal.decrease")
-        .foregroundStyle(isSelected ? Color.ink : Color.secondary)
-        .frame(width: 22, height: 22)
-        .contentShape(Rectangle())
+      Label(Strings.filters, systemImage: "line.3.horizontal.decrease")
+        .foregroundStyle(isOn ? Color.gold : Color.primary)
     }
-    .buttonStyle(.plain)
     .help(Strings.filters)
     .accessibilityLabel(Strings.filtersFor(title))
-    .opacity(shown ? 1 : 0)
+    .accessibilityAddTraits(isOn ? .isSelected : [])
   }
 }
 
@@ -325,10 +326,6 @@ private struct ChannelsButton: View {
 /// move the selection.
 private struct MacSidebar: View {
   @Bindable var feed: FeedModel
-  /// The channel whose filters the details panel shows.
-  let filtersChannel: String?
-  /// Opens a channel's filters, or closes them when they show.
-  let onFilters: (String) -> Void
   /// The row the pointer is over.
   @State private var hovered: Row?
   @FocusState private var isFocused: Bool
@@ -381,22 +378,18 @@ private struct MacSidebar: View {
 
   /// A row's box: its fill when selected or under the pointer, and the
   /// press that selects or refreshes it, on `label` only.
-  private func row<Label: View, Trailing: View>(
-    _ row: Row, height: CGFloat, @ViewBuilder label: () -> Label,
-    @ViewBuilder trailing: () -> Trailing = { EmptyView() }
+  private func row<Label: View>(
+    _ row: Row, height: CGFloat, @ViewBuilder label: () -> Label
   ) -> some View {
     let isSelected = row == selected
-    return HStack(spacing: 6) {
-      label()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .onTapGesture { press(row) }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction { press(row) }
-      trailing()
-    }
+    return label()
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(maxHeight: .infinity)
+      .contentShape(Rectangle())
+      .onTapGesture { press(row) }
+      .accessibilityElement(children: .combine)
+      .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+      .accessibilityAction { press(row) }
     .padding(.horizontal, 8)
     .frame(height: height)
     .foregroundStyle(isSelected ? Color.ink : Color.primary)
@@ -445,13 +438,6 @@ private struct MacSidebar: View {
         }
       }
       .opacity(channel.enabled ? 1 : offChannelOpacity)
-    } trailing: {
-      RowFiltersButton(
-        title: channel.title, isSelected: isSelected,
-        shown: isSelected || hovered == .channel(channel.channelId)
-      ) {
-        onFilters(channel.channelId)
-      }
     }
   }
 
@@ -494,8 +480,8 @@ private struct MacSidebar: View {
   }
 }
 
-/// What heads a page, in the toolbar title's place: the name, large (on
-/// the feed after the logo, which plays while a load runs), with the
+/// What heads a page, in the toolbar title's place: the name (on the feed
+/// after the logo, which plays while a load runs), with the
 /// pencil "Edit Group" and the × "Clear" after it while chips are
 /// selected, then the video count on the name's baseline.
 private struct MacPageHeading: View {
@@ -509,10 +495,10 @@ private struct MacPageHeading: View {
       HStack(spacing: 8) {
         Group {
           if feed.selectedChannel == nil {
-            Wordmark(font: .largeTitle.bold(), loading: feed.loading, name: title)
+            Wordmark(font: .title2.bold(), loading: feed.loading, name: title)
           } else {
             Text(title)
-              .font(.largeTitle.bold())
+              .font(.title2.bold())
               .lineLimit(1)
               .truncationMode(.tail)
           }
@@ -525,7 +511,7 @@ private struct MacPageHeading: View {
         .buttonStyle(.borderless)
       }
       Text(Strings.videoCount(feed.shown.count))
-        .font(.callout)
+        .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize()
         // the name is cut before the count is
@@ -533,7 +519,6 @@ private struct MacPageHeading: View {
         // a count of the stand-in cards would be none
         .opacity(feed.showsSkeletons ? 0 : 1)
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -607,6 +592,30 @@ private struct MacFeedGrid: View {
 
   /// The space beside the heading, the chips and the cards.
   private static let margin: CGFloat = 20
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  /// How many columns of cards fit; set from the grid's width, so a change
+  /// of it moves the cards to their new places instead of jumping.
+  @State private var columnCount: Int?
+
+  /// The page's width, which the heading in the toolbar is kept within.
+  @State private var pageWidth: CGFloat = 0
+
+  /// The heading, as wide as the page leaves beside the Filters button, so
+  /// a long name is cut rather than pushing the button out of the toolbar.
+  private var heading: some View {
+    MacPageHeading(feed: feed, title: title, onGroup: onGroup)
+      .padding(.leading, 8)
+      .frame(width: max(0, pageWidth - Self.headingRoom), alignment: .leading)
+  }
+
+  /// What the toolbar keeps beside the heading: its edge and the Filters button.
+  private static let headingRoom: CGFloat = 90
+
+  private var columns: [GridItem] {
+    Array(
+      repeating: GridItem(.flexible(), spacing: feedCardSpacing, alignment: .top),
+      count: columnCount ?? 1)
+  }
 
   private var showsEmptyState: Bool {
     feed.shown.isEmpty && !feed.showsSkeletons && feed.error == nil
@@ -629,7 +638,7 @@ private struct MacFeedGrid: View {
         if feed.error != nil || feed.notice != nil {
           FeedBanners(feed: feed, app: app)
         }
-        LazyVGrid(columns: feedGridColumns, alignment: .leading, spacing: 18) {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
           let hovered = cardShownHovered
           ForEach(feed.shown) { item in
             ItemCard(
@@ -639,6 +648,14 @@ private struct MacFeedGrid: View {
               showsAvatar: feed.selectedChannel == nil,
               asHovered: item.id == hovered
             )
+          }
+        }
+        .onGeometryChange(for: Int.self) { proxy in
+          max(1, Int((proxy.size.width + feedCardSpacing) / (feedCardMinimum + feedCardSpacing)))
+        } action: { count in
+          // the first count is the grid's own, not a change to show
+          withAnimation(reduceMotion || columnCount == nil ? nil : .smooth(duration: 0.3)) {
+            columnCount = count
           }
         }
         .loadingDimmed(feed.loading)
@@ -671,11 +688,6 @@ private struct MacFeedGrid: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      MacPageHeading(feed: feed, title: title, onGroup: onGroup)
-        .padding(.horizontal, Self.margin)
-        // the logo's tower and bubbles rise about 10 pt above the name's
-        // line; this keeps them under the load bar
-        .padding(.top, 14)
       FeedChipRow(feed: feed, inset: Self.margin, onNewGroup: { onGroup(.new) })
       if showsEmptyState {
         emptyPage
@@ -686,9 +698,22 @@ private struct MacFeedGrid: View {
     .overlay(alignment: .top) {
       LoadProgressBar(feed: feed)
     }
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
     // kept for the Window menu and Mission Control; the page shows it itself
     .navigationTitle(title)
     .toolbar(removing: .title)
+    .toolbar {
+      if #available(macOS 26.0, *) {
+        ToolbarItem(placement: .navigation) {
+          heading
+        }
+        .sharedBackgroundVisibility(.hidden)
+      } else {
+        ToolbarItem(placement: .navigation) {
+          heading
+        }
+      }
+    }
     .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
   }
 }
