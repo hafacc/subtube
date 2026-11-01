@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import devManifest from "../manifest.dev.json";
 import manifest from "../manifest.json";
 import {
   EXTENSION_ORIGIN_MATCHES,
@@ -7,10 +8,17 @@ import {
 } from "./protocol";
 
 describe("protocol", () => {
-  test("the manifest lets in exactly the pages the protocol names", () => {
-    expect(manifest.externally_connectable.matches).toEqual([
+  test("the dev manifest lets in exactly the pages the protocol names", () => {
+    expect(devManifest.externally_connectable.matches).toEqual([
       ...EXTENSION_ORIGIN_MATCHES,
     ]);
+  });
+
+  test("the store manifest lets in only the protocol's https pages", () => {
+    expect(manifest.externally_connectable.matches).toEqual(
+      EXTENSION_ORIGIN_MATCHES.filter((match) => match.startsWith("https:")),
+    );
+    expect(manifest).not.toHaveProperty("key");
   });
 
   test("isAllowedOrigin lets in what the given match patterns name, on any port", () => {

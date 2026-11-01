@@ -1,0 +1,7 @@
+{
+  "name": "SubTube (dev)",
+  "externally_connectable": {
+    "matches": ["https://subtube.hafa.cc/*", "http://localhost/*"]
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmONFgeGiF8KkS4S3F9fsGOFBKEmpUmGs/gzbTeL/PIC2oMGANfWWqbc7s2d24YZyRFYps6hWGhaQhCzApUHVBxp7S1uDzn6LGm8cfgmE6wdQ6g2frJHYUC4L60vlvIlQPZT+CmKuu4GTlBbbZ4fsSbKXRjG7/hwkPo9fxE+XG5KVMvnqvzbixlR+Fy92/RHazZK4jdr6e31ldr47ismJ2pHwrQHYkwC8wnyd6PHJq97VAtWjH7B91FT1Bm5endY4vtdAycTlR4nKJwk28p8QGvmF+i5SYlsa3WQKcClzX5sb7tUALDsBTD0VWKsjC+DvUy/WDjBwTeuDAOYQQUx2iwIDAQAB"
+}
