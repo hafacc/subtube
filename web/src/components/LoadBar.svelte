@@ -40,9 +40,7 @@
 
 {#if shown !== null}
   <Progress.Root value={Math.round(shown * 100)} aria-labelledby={labelledby}>
-    {#snippet child({
-      props,
-    })}
+    {#snippet child({ props })}
       <div {...props} class="load-bar" class:leaving={leaving}>
         <div
           class="fill"

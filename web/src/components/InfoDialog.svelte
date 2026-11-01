@@ -23,20 +23,14 @@
   }}
 >
   <Dialog.Overlay>
-    {#snippet child({
-      props: overlay,
-    })}
+    {#snippet child({ props: overlay })}
       <div {...overlay} class="backdrop fades">
         <Dialog.Content forceMount preventScroll={false}>
-          {#snippet child({
-            props: content,
-          })}
+          {#snippet child({ props: content })}
             <div {...content} class="sheet" style:contain="none">
               <header>
                 <Dialog.Title level={2}>
-                  {#snippet child({
-                    props: title,
-                  })}
+                  {#snippet child({ props: title })}
                     <h2 {...title}>{shown.title}</h2>
                   {/snippet}
                 </Dialog.Title>
@@ -51,9 +45,7 @@
                   <Icon name="external" size={18} />
                 </a>
                 <Dialog.Close>
-                  {#snippet child({
-                    props: close,
-                  })}
+                  {#snippet child({ props: close })}
                     <button
                       {...close}
                       type="button"

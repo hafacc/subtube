@@ -4,9 +4,7 @@
   let { page, level = 2 }: { page: InfoPage; level?: number } = $props();
 </script>
 
-{#snippet text(
-  value: string,
-)}
+{#snippet text(value: string)}
   {#each textParts(value) as part, index (index)}
     {#if part.href === undefined}
       {part.text}
