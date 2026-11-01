@@ -27,9 +27,9 @@ Independent clients that share behaviour, not code. Each directory has its own
   filter, merge, prune, Shorts or feed-order semantics starts here, then goes to
   every client.
 - `design/icons/` — the logo, a submarine on YouTube's shape: body, a
-  tail that narrows and then flares, tower, two bubbles behind and the play
-  triangle. `make.py` draws
-  every `sub-` file (needs shapely); change the logo there. `sub-play.svg`
+  tail that narrows with a fin above and below leaning back, tower, two
+  bubbles behind and the play triangle. `make.py` draws every `sub-` file
+  (needs shapely); change the logo there. `sub-play.svg`
   is the logo as it stands beside the name: fin and body centered across
   and the body centered down, so it sits on the name's line with the tower
   and bubbles above. `sub-play-centred.svg` has all of it centered, for

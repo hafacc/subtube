@@ -23,8 +23,8 @@ android {
         applicationId = "cc.hafa.subtube"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.3.1"
+        versionCode = 7
+        versionName = "0.3.2"
     }
 
     // storeFile, storePassword, keyAlias and keyPassword come from android/keystore.properties
