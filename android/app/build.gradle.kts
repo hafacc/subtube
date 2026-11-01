@@ -72,6 +72,32 @@ android {
     }
 }
 
+// the privacy policy and terms, bundled as assets/pages/*.json straight from shared/pages
+abstract class SharedPagesTask : DefaultTask() {
+    @get:InputDirectory
+    abstract val pages: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val root = output.get().asFile
+        root.deleteRecursively()
+        pages.get().asFile.copyRecursively(root.resolve("pages"))
+    }
+}
+
+val sharedPages = tasks.register<SharedPagesTask>("sharedPages") {
+    pages.set(rootProject.layout.projectDirectory.dir("../shared/pages"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(sharedPages, SharedPagesTask::output)
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)

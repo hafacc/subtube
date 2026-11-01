@@ -108,6 +108,12 @@ object SubtubeIcons {
         filled = listOf("M14 12.5h4a1 1 0 0 1 1 1V16a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-2.5a1 1 0 0 1 1-1z"),
     )
 
+    /** Open a page in the browser: an arrow leaving a box. */
+    val OpenInNew: ImageVector = strokeIcon(
+        "OpenInNew",
+        "M14 4h6v6", "M20 4 11 13", "M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4",
+    )
+
     /** The player's play glyph, filled. */
     val PlayFilled: ImageVector = strokeIcon("PlayFilled", filled = listOf("M8 5.5v13l10.5-6.5z"))
 }

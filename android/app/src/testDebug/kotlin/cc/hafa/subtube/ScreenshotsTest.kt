@@ -22,6 +22,7 @@ import cc.hafa.subtube.core.Settings
 import cc.hafa.subtube.core.TimeChip
 import cc.hafa.subtube.core.WatchedMode
 import cc.hafa.subtube.ui.DemoData
+import cc.hafa.subtube.ui.InfoPageName
 import cc.hafa.subtube.ui.SetUpStep
 import cc.hafa.subtube.ui.SubtubeViewModel
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
@@ -211,6 +212,18 @@ class ScreenshotsTest {
         capture("15-settings", demoData(screen = "settings"))
         capture("16-settings-delete-confirmation", demoData(screen = "settings")) {
             compose.onNodeWithText(app.getString(R.string.delete_profile)).performClick()
+        }
+        capture("54-settings-end", demoData(screen = "settings")) {
+            compose.onNodeWithText(app.getString(R.string.feedback)).performScrollTo()
+        }
+        capture("55-privacy-policy", demoData(screen = "settings")) {
+            compose.onNodeWithText(app.getString(R.string.privacy_policy)).performScrollTo().performClick()
+        }
+        capture("56-dark-terms", demoData(screen = "settings"), dark = true) {
+            compose.onNodeWithText(app.getString(R.string.terms)).performScrollTo().performClick()
+        }
+        capture("57-setup-sign-in-terms", demoData(screen = "setup", step = SetUpStep.SIGN_IN)) {
+            compose.runOnUiThread { model.showInfo(InfoPageName.TERMS) }
         }
     }
 }

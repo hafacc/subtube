@@ -18,7 +18,7 @@
   import { withToken } from "../lib/auth";
   import { mostCommonShorts, SHORTS_OPTIONS } from "../lib/channel-summary";
   import { START_OPTIONS, type StartFrom } from "../lib/chips";
-  import { chromeWebStoreUrl, privacyUrl, termsUrl } from "../lib/config";
+  import { chromeWebStoreUrl, feedbackUrl } from "../lib/config";
   import { SignInRequiredError, shownMessage } from "../lib/errors";
   import { handOffPrefetched, Prefetch } from "../lib/feed.svelte";
   import { recheckPlatform } from "../lib/platform";
@@ -36,6 +36,7 @@
   import ChoiceRow from "./ChoiceRow.svelte";
   import GoogleButton from "./GoogleButton.svelte";
   import Icon from "./Icon.svelte";
+  import InfoLink from "./InfoLink.svelte";
   import Logo from "./Logo.svelte";
   import Switch from "./Switch.svelte";
 
@@ -470,13 +471,9 @@
           </div>
           <p class="agree secondary small">
             By signing in, you agree to SubTube's
-            <a href={termsUrl} target="_blank" rel="noopener noreferrer"
-              >Terms</a
-            >
+            <InfoLink page="terms">Terms</InfoLink>
             and
-            <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
-              >Privacy Policy</a
-            >.
+            <InfoLink page="privacy">Privacy Policy</InfoLink>.
           </p>
         {:else if step === "channels"}
           <div class="content tight">
@@ -672,10 +669,9 @@
     </div>
   </main>
   <footer>
-    <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
-      >Privacy policy</a
-    >
-    <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
+    <InfoLink page="privacy">Privacy policy</InfoLink>
+    <InfoLink page="terms">Terms</InfoLink>
+    <a href={feedbackUrl} target="_blank" rel="noopener noreferrer">Feedback</a>
   </footer>
 </div>
 

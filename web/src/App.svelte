@@ -1,6 +1,7 @@
 <script lang="ts">
   import ExtensionRequired from "./components/ExtensionRequired.svelte";
   import GetApp from "./components/GetApp.svelte";
+  import InfoDialog from "./components/InfoDialog.svelte";
   import Logo from "./components/Logo.svelte";
   import Shell from "./components/Shell.svelte";
   import { currentEnvironment } from "./lib/environment";
@@ -32,6 +33,7 @@
 {:else if waiting}
   <main class="waiting" aria-busy="true"><Logo hull={28.8} loading /></main>
 {/if}
+<InfoDialog />
 
 <style>
   .waiting {

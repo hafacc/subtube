@@ -29,6 +29,7 @@ import androidx.navigation3.ui.NavDisplay
 import cc.hafa.subtube.ui.ChannelScreen
 import cc.hafa.subtube.ui.ChannelsScreen
 import cc.hafa.subtube.ui.FeedScreen
+import cc.hafa.subtube.ui.InfoScreen
 import cc.hafa.subtube.ui.PlayerHost
 import cc.hafa.subtube.ui.Screen
 import cc.hafa.subtube.ui.SetUpScreen
@@ -108,6 +109,7 @@ private fun Screens(viewModel: SubtubeViewModel) {
                 Screen.Channels -> NavEntry(screen, metadata = tabTransition) { ChannelsScreen(viewModel) }
                 Screen.Settings -> NavEntry(screen, metadata = tabTransition) { SettingsScreen(viewModel) }
                 is Screen.ChannelPage -> NavEntry(screen) { ChannelScreen(viewModel, screen.channelId) }
+                is Screen.Info -> NavEntry(screen) { InfoScreen(viewModel, screen.page) }
             }
         }
     }

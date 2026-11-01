@@ -1,11 +1,11 @@
 <script lang="ts">
   import {
     appStoreUrl,
+    feedbackUrl,
     macAppStoreUrl,
     playStoreUrl,
-    privacyUrl,
-    termsUrl,
   } from "../lib/config";
+  import InfoLink from "./InfoLink.svelte";
   import Logo from "./Logo.svelte";
 
   let {
@@ -78,10 +78,9 @@
   </div>
   <p class="footer">
     {offer.footer}
-    <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
-      >Privacy policy</a
-    >
-    <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
+    <InfoLink page="privacy">Privacy policy</InfoLink>
+    <InfoLink page="terms">Terms</InfoLink>
+    <a href={feedbackUrl} target="_blank" rel="noopener noreferrer">Feedback</a>
   </p>
 </div>
 

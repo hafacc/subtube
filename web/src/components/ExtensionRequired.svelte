@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { privacyUrl, termsUrl } from "../lib/config";
+  import { feedbackUrl } from "../lib/config";
   import Icon from "./Icon.svelte";
+  import InfoLink from "./InfoLink.svelte";
   import Logo from "./Logo.svelte";
 </script>
 
@@ -34,10 +35,11 @@
       </div>
       <p class="footer">
         SubTube runs in Chrome on a computer. On a phone, use the SubTube app.
-        <a href={privacyUrl} target="_blank" rel="noopener noreferrer"
-          >Privacy policy</a
+        <InfoLink page="privacy">Privacy policy</InfoLink>
+        <InfoLink page="terms">Terms</InfoLink>
+        <a href={feedbackUrl} target="_blank" rel="noopener noreferrer"
+          >Feedback</a
         >
-        <a href={termsUrl} target="_blank" rel="noopener noreferrer">Terms</a>
       </p>
     </section>
   </main>

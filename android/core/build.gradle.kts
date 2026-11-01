@@ -36,5 +36,6 @@ tasks.test {
     val shared = rootProject.file("../shared")
     systemProperty("subtube.shared", shared.absolutePath)
     inputs.dir(shared.resolve("fixtures")).withPropertyName("sharedFixtures")
+    inputs.dir(shared.resolve("pages")).withPropertyName("sharedPages")
     inputs.file(shared.resolve("patterns/meta-regex.txt")).withPropertyName("sharedMetaRegex")
 }

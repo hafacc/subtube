@@ -317,6 +317,12 @@ enum Strings {
   static let signInShort = String(localized: "Sign In")
   static let privacyPolicy = String(localized: "Privacy Policy")
   static let terms = String(localized: "Terms")
+  static let feedback = String(localized: "Feedback")
+  static let openOnWeb = String(localized: "Open on the Web")
+  /// The line under a privacy policy's or terms' heading, with the day as a long date.
+  static func lastUpdated(_ day: String) -> String {
+    String(localized: "Last updated \(day)")
+  }
   static let videosFromYouTube = String(localized: "Videos from YouTube")
 
   /// The line under a sign-in button, with "Terms" and "Privacy Policy" as links.

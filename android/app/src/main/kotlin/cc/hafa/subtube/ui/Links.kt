@@ -28,11 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import cc.hafa.subtube.R
 
-/** Where the privacy policy is published. */
-const val PRIVACY_POLICY_URL: String = "https://subtube.hafa.cc/privacy"
-
-/** Where the terms are published. */
-const val TERMS_URL: String = "https://subtube.hafa.cc/terms"
+/** Where Settings' "Feedback" leads. */
+const val FEEDBACK_URL: String = "https://github.com/hafacc/subtube/issues"
 
 /** Where the "Videos from YouTube" line leads. */
 const val YOUTUBE_URL: String = "https://www.youtube.com/"
@@ -46,21 +43,25 @@ fun Context.openInBrowser(url: String) {
     }
 }
 
-/** The line under a sign-in button: signing in agrees to the terms and the privacy policy, each a link. */
+/** How a link in running text looks. */
 @Composable
-fun SignInAgreement(modifier: Modifier = Modifier) {
+fun linkStyles(): TextLinkStyles = TextLinkStyles(SpanStyle(color = MaterialTheme.brand.accent, textDecoration = TextDecoration.Underline))
+
+/** The line under a sign-in button: signing in agrees to the terms and the privacy policy, each a link to its page in the app. */
+@Composable
+fun SignInAgreement(onPage: (InfoPageName) -> Unit, modifier: Modifier = Modifier) {
     val terms = stringResource(R.string.terms)
     val privacy = stringResource(R.string.sign_in_agreement_privacy)
     val sentence = stringResource(R.string.sign_in_agreement, terms, privacy)
-    val linkStyles = TextLinkStyles(SpanStyle(color = MaterialTheme.brand.accent, textDecoration = TextDecoration.Underline))
+    val linkStyles = linkStyles()
     val text = buildAnnotatedString {
         var written = 0
         // in the order they stand in the sentence, whatever a translation makes it
-        for ((label, url) in listOf(terms to TERMS_URL, privacy to PRIVACY_POLICY_URL).sortedBy { (label, _) -> sentence.indexOf(label) }) {
+        for ((label, page) in listOf(terms to InfoPageName.TERMS, privacy to InfoPageName.PRIVACY).sortedBy { (label, _) -> sentence.indexOf(label) }) {
             val start = sentence.indexOf(label, written)
             if (start >= 0) {
                 append(sentence.substring(written, start))
-                withLink(LinkAnnotation.Url(url, linkStyles)) { append(label) }
+                withLink(LinkAnnotation.Clickable(page.name, linkStyles) { onPage(page) }) { append(label) }
                 written = start + label.length
             }
         }

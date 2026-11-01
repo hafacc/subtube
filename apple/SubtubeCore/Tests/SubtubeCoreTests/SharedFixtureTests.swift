@@ -1014,3 +1014,24 @@ private func channelGroups(_ testCase: JSONObject) -> [String: [String]] {
     }
   }
 }
+
+@Suite struct SharedPageTests {
+  @Test(arguments: ["privacy", "terms"])
+  func decodes(_ name: String) throws {
+    let data = try Data(contentsOf: sharedURL.appendingPathComponent("pages/\(name).json"))
+    let page = try InfoPage.decode(data)
+    #expect(!page.title.isEmpty)
+    #expect(page.web.absoluteString.hasPrefix("https://subtube.hafa.cc/"))
+    #expect(page.updatedDay != nil)
+    for text in page.intro + page.sections.flatMap(\.items) {
+      #expect(!text.contains("](") || spans(of: text).contains { $0.link != nil })
+    }
+  }
+
+  @Test func splitsLinks() {
+    let parts = spans(of: "See [the terms](https://x.example/t) or [mail](mailto:a@b.c).")
+    #expect(parts.map(\.text) == ["See ", "the terms", " or ", "mail", "."])
+    #expect(parts.map(\.link) == [nil, URL(string: "https://x.example/t"), nil, URL(string: "mailto:a@b.c"), nil])
+    #expect(spans(of: "[x](http://no)") == [InfoSpan(text: "[x](http://no)")])
+  }
+}

@@ -4,8 +4,9 @@ The behaviour every subtube client — web (`web/`), Chrome extension
 (`extension/`), Apple (`apple/`), Android (`android/`) — must agree on, written
 down as language-neutral data. The clients share no code; they all sign in to
 the same Google account and read and write the same files in its Drive app
-folder, so they must store and interpret that data identically. Nothing here is
-imported at runtime; each client's tests load the fixtures and must pass them.
+folder, so they must store and interpret that data identically. Each client's
+tests load the fixtures and must pass them. Only `pages/` goes into the
+clients themselves, at build time.
 
 | Path | What |
 | --- | --- |
@@ -27,6 +28,8 @@ imported at runtime; each client's tests load the fixtures and must pass them.
 | `fixtures/channel-chips.json` | the channel list's chip row: the topic chips it offers and their order, and which channels its time, topic and group chips keep |
 | `fixtures/groups.json` | groups of channels: what a name is, which groups exist and their chip order, what a row's title shows while chips are selected, the edits (add or remove a channel, rename incl. merging, delete, the selected chips following), and the editor, which writes only on "Save" |
 | `fixtures/player.json` | the one player: what plays after an item ends (the next unwatched item of the list it was started from; nothing with auto-play off or a list started in Watched), what the end does to a large, minimized or card player (play the next where it is; with nothing next the large and the minimized player stay on the ended item and the card player closes), and the minimized player's size |
+| `schema/page.schema.json` | JSON Schema of an info page: title, description, website address, date updated, paragraphs and headed lists; text is plain but for `[label](url)` links (https: or mailto:) |
+| `pages/privacy.json`, `pages/terms.json` | the privacy policy and the terms, which every app shows in the app and the website publishes; each client builds them in, so a change here reaches every client's next build |
 | `fixtures/device-files/` | example files; `valid-*` pass the schema, `invalid-*` fail it |
 | `tools/` | checks for this folder (Bun, plus `swift` and a JDK for the engines) |
 
@@ -157,7 +160,7 @@ new version must keep reading the old.
 ## Checks
 
 ```sh
-cd shared && bun install && bun tools/check.ts   # JSON, schema examples, meta regex copies agree
+cd shared && bun install && bun tools/check.ts   # JSON, schema examples, pages, meta regex copies agree
 bun shared/tools/cross-engine.ts                 # JS, ICU and Java agree on every pattern
 ```
 

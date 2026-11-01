@@ -190,6 +190,9 @@ sealed interface Screen {
 
     /** One channel's page, over the feed or the channels tab. */
     data class ChannelPage(val channelId: String) : Screen
+
+    /** The privacy policy or the terms, over the screen it was opened from. */
+    data class Info(val page: InfoPageName) : Screen
 }
 
 /** A card a page's list is asked to bring into view. */
@@ -917,6 +920,15 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Open the privacy policy or the terms over the screen showing; a card that is playing goes to the corner. */
+    fun showInfo(page: InfoPageName) {
+        val screen = Screen.Info(page)
+        if (backStack.lastOrNull() != screen) {
+            backStack.add(screen)
+            pageChanged()
+        }
+    }
+
     /** Leave the top screen; a card that is playing on it goes to the corner. */
     fun pop() {
         if (backStack.size > 1) {
@@ -1034,14 +1046,14 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         signingIn = false
         error = null
         if (app.prefs.isSetUpDone(account.id)) {
-            if (backStack.lastOrNull() == Screen.SetUp) {
+            if (Screen.SetUp in backStack) {
                 backStack.clear()
                 backStack.add(Screen.Feed)
             }
             loadFeed()
         } else {
             // an account that hasn't finished first run here goes through it, wherever it signed in from
-            if (backStack.lastOrNull() != Screen.SetUp) {
+            if (Screen.SetUp !in backStack) {
                 backStack.clear()
                 backStack.add(Screen.SetUp)
             }
@@ -1055,7 +1067,7 @@ class SubtubeViewModel(application: Application) : AndroidViewModel(application)
         if ((caught as? ApiException)?.statusCode != CommonStatusCodes.CANCELED) {
             val message = describe(caught)
             signInError = message
-            if (backStack.lastOrNull() != Screen.SetUp) {
+            if (Screen.SetUp !in backStack) {
                 error = message
             }
         }
