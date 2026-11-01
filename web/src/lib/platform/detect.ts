@@ -46,20 +46,30 @@ export const QUICK_PING_MS = 3_000;
 // a waking service worker can take longer than the quick ping allows
 const WAITING_PING_MS = 2_000;
 
+function reloadedRecently(deps: DetectionDeps): boolean {
+  const lastReload = deps.lastReload();
+  return lastReload !== null && deps.now() - lastReload < RELOAD_GAP_MS;
+}
+
 /**
  * Whether the extension is there, waiting for it after a browser restart.
  *
  * One quick ping decides for a browser that has never had the extension. One
  * that has keeps pinging for up to {@link EXTENSION_WAIT_MS}, reloading once
  * after {@link RELOAD_AFTER_MS} when the page has no `chrome.runtime`
- * (the promise then never settles). A wait that ends with no answer forgets
- * the extension, so the next page load checks quickly again.
+ * (the promise then never settles). A page that still has none after that
+ * reload gives up at once, since a page never gains it without loading
+ * again. A wait that ends with no answer forgets the extension, so the next
+ * page load checks quickly again.
  */
 export async function detectExtension(deps: DetectionDeps): Promise<boolean> {
   if (await deps.ping(QUICK_PING_MS)) {
     deps.setSeen(true);
     return true;
   } else if (!deps.seenBefore()) {
+    return false;
+  } else if (!deps.hasRuntime() && reloadedRecently(deps)) {
+    deps.setSeen(false);
     return false;
   } else {
     deps.onWaiting?.();
@@ -76,11 +86,10 @@ export async function detectExtension(deps: DetectionDeps): Promise<boolean> {
       ) {
         return true;
       }
-      const lastReload = deps.lastReload();
       if (
         !deps.hasRuntime() &&
         deps.now() - start >= RELOAD_AFTER_MS &&
-        (lastReload === null || deps.now() - lastReload >= RELOAD_GAP_MS)
+        !reloadedRecently(deps)
       ) {
         deps.reload(deps.now());
         return new Promise<boolean>(() => undefined);

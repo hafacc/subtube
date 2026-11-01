@@ -116,13 +116,26 @@ describe("detectExtension", () => {
     expect(reloadAt).toBeLessThan(EXTENSION_WAIT_MS);
   });
 
-  test("a page that reloaded just now waits instead of reloading again", async () => {
+  test("a page that reloaded just now and still can't reach it gives up at once", async () => {
     const fake = fakeBrowser({
       seen: true,
       runtimeAt: Infinity,
       lastReload: -1_000,
     });
     expect(await detectExtension(fake.deps)).toBe(false);
+    expect(fake.reloads).toEqual([]);
+    expect(fake.pings).toHaveLength(1);
+    expect(fake.waited).toBe(false);
+    expect(fake.seen).toBe(false);
+  });
+
+  test("a page that reloaded just now and can reach it still waits", async () => {
+    const fake = fakeBrowser({
+      seen: true,
+      answersAt: 1_500,
+      lastReload: -1_000,
+    });
+    expect(await detectExtension(fake.deps)).toBe(true);
     expect(fake.reloads).toEqual([]);
   });
 
