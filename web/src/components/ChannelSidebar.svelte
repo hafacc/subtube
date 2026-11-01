@@ -66,9 +66,7 @@
         aria-expanded={!collapsed}
         bind:pressed={() => !collapsed, () => ontoggle()}
       >
-        {#snippet child({
-          props,
-        })}
+        {#snippet child({ props })}
           <button {...props} type="button" class="icon-button">
             <Icon name="channels" />
           </button>

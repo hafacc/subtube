@@ -23,15 +23,11 @@
   aria-label={label}
   bind:value={() => value, (next) => onchange(next as Value)}
 >
-  {#snippet child({
-    props,
-  })}
+  {#snippet child({ props })}
     <fieldset {...props} class="segmented">
       {#each options as option (option.value)}
         <RadioGroup.Item value={option.value}>
-          {#snippet child({
-            props: item,
-          })}
+          {#snippet child({ props: item })}
             <button {...item} type="button">{option.label}</button>
           {/snippet}
         </RadioGroup.Item>

@@ -19,15 +19,11 @@
   aria-label={label}
   bind:checked={() => checked, (next) => onchange(next)}
 >
-  {#snippet child({
-    props,
-  })}
+  {#snippet child({ props })}
     <button {...props} type="button" class="switch">
       <span class="track">
         <Switch.Thumb>
-          {#snippet child({
-            props: thumb,
-          })}
+          {#snippet child({ props: thumb })}
             <span {...thumb} class="knob"></span>
           {/snippet}
         </Switch.Thumb>
