@@ -106,8 +106,8 @@ extension has answered on before (`subtube.extensionSeen` in localStorage)
 keeps pinging for up to 10 s (`detectExtension` in `lib/platform/detect.ts`)
 with the loading `Logo` in the middle of the page; a page that still has no
 `chrome.runtime` after 2 s reloads once (`subtube.extensionReload` in
-sessionStorage, not again within 30 s), and a wait that ends unanswered
-drops the mark, so the next load checks quickly. With the extension: first-run `Nux` until setup is done
+sessionStorage, not again within 30 s) and gives up at once if it still has
+none after that reload, and a wait that ends unanswered drops the mark, so the next load checks quickly. With the extension: first-run `Nux` until setup is done
 for the account on this browser (`subtube.setupDone.<account>`, one mark per
 account; signing out clears none), then `Feed`; signed out, Nux opens at its
 first step, and an account with no mark here goes on through setup. Without it
