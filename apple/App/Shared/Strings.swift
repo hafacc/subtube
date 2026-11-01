@@ -182,7 +182,6 @@ enum Strings {
   static let summaryShortsOnly = String(localized: "Shorts only")
   static let summaryNoLive = String(localized: "No live")
   static let summaryLiveOnly = String(localized: "Live only")
-  static let subscribedOnYouTube = String(localized: "Subscribed on YouTube")
 
   static func summaryOnlyMatching(_ pattern: String, scope: FilterScope) -> String {
     switch scope {

@@ -13,9 +13,7 @@
     feed,
     selected,
     whereabouts,
-    filtersChannel,
     onselect,
-    onfilters,
     onhome,
     collapsed,
     ontoggle,
@@ -26,12 +24,8 @@
     selected: string | null;
     /** where the user is in the app; the list is put in order again when it changes */
     whereabouts: string;
-    /** the channel whose filters the details panel shows, or null */
-    filtersChannel: string | null;
     /** a row was clicked: the feed (null) or a channel; the current one again refreshes */
     onselect: (channelId: string | null) => void;
-    /** a row's filters button was clicked: open that channel's filters, or close them when they show */
-    onfilters: (channelId: string) => void;
     /** the logo was clicked: show the feed and refresh it */
     onhome: () => void;
     /** whether the sidebar is collapsed to its icons, widening only on hover */
@@ -124,17 +118,6 @@
               <span class="detail">{unwatched} unwatched</span>
             {/if}
           </span>
-        </button>
-        <button
-          type="button"
-          class="filters wide-only"
-          class:shown={channel.channelId === filtersChannel}
-          aria-label={`Filters for ${channel.title}`}
-          title="Filters"
-          aria-expanded={channel.channelId === filtersChannel}
-          onclick={() => onfilters(channel.channelId)}
-        >
-          <Icon name="filterLines" />
         </button>
       </div>
     {/each}
@@ -253,7 +236,6 @@
   }
 
   .row {
-    position: relative;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -312,61 +294,6 @@
 
   .row.current .detail {
     color: var(--ink);
-  }
-
-  /* drawn only for the row under the pointer, the keyboard's, the open page's and the one whose filters show */
-  .filters {
-    position: absolute;
-    top: 8px;
-    right: 6px;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-secondary);
-    opacity: 0;
-  }
-
-  .row:hover > .filters,
-  .row.current > .filters,
-  .filters.shown,
-  .row:has(:focus-visible) > .filters {
-    opacity: 1;
-  }
-
-  /* the name gives the button room only while it is drawn */
-  .row:hover > .go,
-  .row.current > .go,
-  .row:has(:focus-visible) > .go,
-  .row:has(.filters.shown) > .go {
-    padding-right: 40px;
-  }
-
-  .filters:hover {
-    background: var(--border);
-  }
-
-  .row.current > .filters {
-    color: var(--ink);
-  }
-
-  .row.current > .filters:hover {
-    background: rgb(0 0 0 / 0.1);
-  }
-
-  /* a touch screen has no pointer to be under */
-  @media (hover: none) {
-    .filters {
-      opacity: 1;
-    }
-
-    .row:not(.feed) > .go {
-      padding-right: 40px;
-    }
   }
 
   .feed-icon {

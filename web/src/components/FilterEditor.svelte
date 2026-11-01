@@ -14,7 +14,6 @@
     phrasesToPattern,
   } from "../lib/phrases";
   import type { Channel, ChannelFilter, FilterScope } from "../lib/types";
-  import Avatar from "./Avatar.svelte";
   import Chip from "./Chip.svelte";
   import ChoiceRow from "./ChoiceRow.svelte";
   import Icon from "./Icon.svelte";
@@ -62,12 +61,9 @@
   }
 </script>
 
+<!-- the page beside the panel already names the channel -->
 <header>
-  <Avatar title={channel.title} thumbnail={channel.thumbnail} size={36} />
-  <div class="names">
-    <h2>{channel.title}</h2>
-    <span class="secondary">Subscribed on YouTube</span>
-  </div>
+  <h2>Filters</h2>
   <button
     type="button"
     class="close"
@@ -186,17 +182,10 @@
     padding: 14px 12px 12px;
   }
 
-  .names {
+  h2 {
     flex: 1;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    font-size: 13px;
-  }
-
-  h2 {
-    margin: 0;
+    margin: 0 0 0 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

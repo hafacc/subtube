@@ -485,8 +485,14 @@ struct SkeletonCard: View {
 }
 
 #if os(macOS)
-  /// The Mac grid's columns: cards at least 300 pt wide.
-  let feedGridColumns = [GridItem(.adaptive(minimum: 300), spacing: 16, alignment: .top)]
+  /// The narrowest a card of the Mac grid gets.
+  let feedCardMinimum: CGFloat = 300
+  /// The space between the Mac grid's columns.
+  let feedCardSpacing: CGFloat = 16
+  /// The Mac grid's columns: cards at least `feedCardMinimum` wide.
+  let feedGridColumns = [
+    GridItem(.adaptive(minimum: feedCardMinimum), spacing: feedCardSpacing, alignment: .top)
+  ]
 #endif
 
 /// What the grid shows when it has nothing: skeleton cards while loading,
