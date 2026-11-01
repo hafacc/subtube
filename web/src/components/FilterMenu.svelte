@@ -56,9 +56,7 @@
 
 <Popover.Root bind:open>
   <Popover.Trigger aria-label="Sort and filter">
-    {#snippet child({
-      props,
-    })}
+    {#snippet child({ props })}
       <button
         {...props}
         type="button"
@@ -72,9 +70,7 @@
     {/snippet}
   </Popover.Trigger>
   <Popover.ContentStatic trapFocus={false}>
-    {#snippet child({
-      props,
-    })}
+    {#snippet child({ props })}
       <section
         {...props}
         class="fades menu"

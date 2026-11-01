@@ -36,9 +36,7 @@
   </button>
 {:else}
   <Toggle.Root bind:pressed={() => pressed === true, () => onclick()}>
-    {#snippet child({
-      props,
-    })}
+    {#snippet child({ props })}
       <button
         {...props}
         type="button"

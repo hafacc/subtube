@@ -66,9 +66,7 @@
 </script>
 
 <Popover.ContentStatic trapFocus={false}>
-  {#snippet child({
-    props,
-  })}
+  {#snippet child({ props })}
     <section
       {...props}
       class="fades"
@@ -136,9 +134,7 @@
               deleteFailed = false;
             }}
           >
-            {#snippet child({
-              props: trigger,
-            })}
+            {#snippet child({ props: trigger })}
               <button {...trigger} type="button">
                 <Icon name="trash" />
                 Delete profile
@@ -160,30 +156,22 @@
         </div>
 
         <AlertDialog.Overlay>
-          {#snippet child({
-            props: overlay,
-          })}
+          {#snippet child({ props: overlay })}
             <div {...overlay} class="backdrop fades">
               <AlertDialog.Content
                 forceMount
                 preventScroll={false}
                 escapeKeydownBehavior={deleting ? "ignore" : "close"}
               >
-                {#snippet child({
-                  props: content,
-                })}
+                {#snippet child({ props: content })}
                   <div {...content} class="confirm" style:contain="none">
                     <AlertDialog.Title id="delete-title" level={2}>
-                      {#snippet child({
-                        props: title,
-                      })}
+                      {#snippet child({ props: title })}
                         <h2 {...title}>Delete your profile?</h2>
                       {/snippet}
                     </AlertDialog.Title>
                     <AlertDialog.Description id="delete-text">
-                      {#snippet child({
-                        props: description,
-                      })}
+                      {#snippet child({ props: description })}
                         <p {...description}>
                           This deletes your filters and what you've watched from
                           Google Drive and from this device. It can't be undone.
@@ -198,9 +186,7 @@
                     {/if}
                     <div class="confirm-actions">
                       <AlertDialog.Cancel disabled={deleting}>
-                        {#snippet child({
-                          props: cancel,
-                        })}
+                        {#snippet child({ props: cancel })}
                           <button
                             {...cancel}
                             type="button"
@@ -214,9 +200,7 @@
                         disabled={deleting}
                         onclick={() => void deleteProfile()}
                       >
-                        {#snippet child({
-                          props: action,
-                        })}
+                        {#snippet child({ props: action })}
                           <button {...action} type="button" class="destructive">
                             Delete profile
                           </button>

@@ -445,9 +445,7 @@
             </button>
             {#if account}
               <Popover.Trigger aria-label="Account and settings">
-                {#snippet child({
-                  props,
-                })}
+                {#snippet child({ props })}
                   <button
                     {...props}
                     type="button"
