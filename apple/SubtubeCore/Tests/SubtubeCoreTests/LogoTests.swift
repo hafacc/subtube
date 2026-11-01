@@ -23,9 +23,9 @@ import Testing
   }
 
   @Test func theOutlinesAreReadWhole() {
-    #expect(Logo.hull.count == 232)
+    #expect(Logo.hull.count == 252)
     #expect(Logo.hull.map(\.x).min() == Logo.left)
-    #expect(Logo.hull.map(\.y).min() == 4)
+    #expect(Logo.hull.map(\.y).min() == 5.2)
     #expect(Logo.hull.map(\.x).max() == Logo.right)
     #expect(Logo.hull.map(\.y).max() == Logo.bottom)
   }

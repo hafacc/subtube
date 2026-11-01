@@ -653,7 +653,7 @@ every client shares is in `../shared/`.
     as paths, since a vector drawable has no circle; the monochrome one has
     the triangle cut out of the outline), placed so the smallest circle
     holding all of the logo, fin, tower and bubbles included, is centered on
-    the 108dp canvas (that circle is 59dp across): launchers cut the
+    the 108dp canvas (that circle is 59.5dp across): launchers cut the
     icon to a circle, and centering the logo's box instead leaves it looking
     low. It sits inside the 66dp safe circle. `ui/SubtubeIcons.kt` — the
     mockups' stroke icons as `ImageVector`s.
