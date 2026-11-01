@@ -515,19 +515,21 @@ values, named by the page's `h1`.
   brand, drawn as a stack of videos, is "Hide channels" / "Show channels"; "Feed" with its unwatched count,
   under the "Channels" heading, which has no chips, every
   channel in `channel-order.ts` order: its name over "{n} unwatched" or
-  "Off", off channels dimmed. A row is a `.row` box holding two buttons:
-  `.go`, which opens the page, and `.filters` ("Filters", named "Filters
-  for {channel}"), which calls `onfilters` and is drawn only for the row
-  under the pointer, the keyboard's, the open page's and the one whose
-  filters show — always where there is no pointer to hover with. The open
+  "Off", off channels dimmed. A row is a `.row` box holding `.go`, the
+  button that opens the page. The open
   page's row is Sunflower with ink text; in the rail a row is
   a 40px box around its icon, so the selected one's highlight stays inside); the feed or a channel's page
   (`?channel=`) in the middle under its heading (the name at 28px, then
   the video count at 14px on its baseline, after the pencil and × when they
   show; the name is cut before the count is, and the count is kept hidden
-  but in place during the first load; at the right
-  the theme button and the account → `Settings`), with no line under it,
-  and the feed's `ChipRow`; the cards scroll under both and fade out over
+  but in place during the first load; at the right,
+  on a channel's page, once the channel is loaded, "Filters" (named "Filters for {channel}"), which
+  opens the details panel on its filters or closes it when it shows them,
+  gold while it does, then the theme button and the account → `Settings`), with no line under it,
+  and the feed's `ChipRow`; when the number of columns changes (the details
+  panel opening or closing, the window resized) `glideOnReflow`
+  (`grid-reflow.ts`) moves each card in the window from where it is drawn to its
+  new place over 300ms, not under reduced motion; the cards scroll under both and fade out over
   their top 16px once scrolled (`.content.scrolled`). A page with nothing
   to show and nothing wrong (`showsEmptyState`) has, in the middle of the
   pane, a Sunflower disk with a check mark, the empty text as an `h2` and
@@ -605,7 +607,7 @@ values, named by the page's `h1`.
   going to the feed; there is no button for it in the heading. The panel
   runs the window's whole height, beside the heading. It edits the open
   channel's filter with no preview (the page beside it is the preview)
-  under a header (the avatar, the name over "Subscribed on YouTube", the ×), in cards with no lines between rows:
+  under a header ("Filters" and the ×, with no channel name: the page beside it names it), in cards with no lines between rows:
   "Show in feed" alone, then "Videos" (Show, Shorts, Live, "Hide videos
   under", saved when the field is left or Enter pressed, not at each key; only Show for playlists), the phrases under their heading, and
   "Topics", each title above its card.

@@ -486,37 +486,42 @@ the pbxproj.
   sidebar when it is collapsed; `ChannelsButton` (`play.square.stack`) is the
   sidebar's own toolbar item in the removed system toggle's place, so it
   sits at the sidebar's trailing edge and moves to the page's toolbar when the
-  sidebar is collapsed; the details panel has no toolbar button: each
-  channel's row has `RowFiltersButton` (`line.3.horizontal.decrease`, named
-  "Filters for {channel}", ink on the selected row) at its trailing edge,
-  drawn on the selected row and on the row under
-  the pointer, which selects the channel and opens the panel on its filters,
-  or closes the panel when it shows them; a click on the rest of the row
-  selects it, or refreshes when it is already selected; the details panel's width (280 to 420, 320 to start)
+  sidebar is collapsed; on a channel's page `PageFiltersButton`
+  (`line.3.horizontal.decrease`, "Filters", named "Filters for {channel}",
+  gold while the panel shows the filters) is the toolbar's last item, at
+  its trailing edge, and opens the details panel on that channel's
+  filters, or closes the panel when it shows them; a click on a sidebar
+  row selects it, or refreshes when it is already selected; the details panel's width (280 to 420, 320 to start)
   is set on the outermost view in the inspector, where it takes effect;
   every channel list but setup's uses `FeedModel.orderedChannels`; the
   sidebar is always on screen, so it asks for a new order when Feed or a
   channel is selected, when the player opens or closes and when the
   Settings window appears or goes; detail: the toolbar shows no title —
-  the window keeps one for the Window menu — and `MacPageHeading` heads the
-  page: the name, large and bold ("Feed", the selected groups' and topics'
+  the window keeps one for the Window menu — and `MacPageHeading`, the
+  toolbar's leading item, as wide as the page leaves beside the Filters
+  button so a long name is cut, takes its place: the name, `title2` bold ("Feed", the selected groups' and topics'
   names, or the channel's name; on the feed, not a channel's page, after
   the logo as `Wordmark` draws it, playing while a load runs), the borderless pencil and × after it while
   chips are selected (a channel's page gets only the ×), then the video count
-  on the name's baseline in smaller secondary text (the name is cut before
-  the count is; hidden during the first load but keeping its place), the heading 14 pt from the top so the logo's tower
-  and bubbles stay under the load bar; then the chip row, the menu's button first,
-  with no line under it, then the grid; the heading and the chips stay in place and only the
+  on the name's baseline in caption-sized secondary text (hidden during the
+  first load but keeping its place); the page starts with the chip row, the menu's button first,
+  with no line under it, then the grid, whose number of columns is worked
+  out from its width so a change of it (the panel opening or closing, the
+  window resized) moves the cards to their new places over 0.3 s, not
+  under reduced motion and not for the grid's first count; the chips stay in place and only the
   grid scrolls, fading out over 16 pt at its top once scrolled
   (`ScrollTopFade`); all 20 pt in; the load bar lies over the page's top
   edge; a page with nothing to show has `MacEmptyState` centered in place of
   the grid: a 64 pt Sunflower disk with an ink check mark, the empty text as
   a heading, and "Refresh"; inspector: on the page's background
   (`Color.page`), not the inspector's material; filters, opened
-  only from a sidebar row and never by selecting a channel, under
-  `MacFiltersPanel`'s header — the channel's avatar (36 pt), its name over
-  "Subscribed on YouTube", and the round ×
-  "Close"; selecting another channel keeps the panel open on that one and
+  only from the toolbar's Filters button and never by selecting a channel,
+  in `MacFiltersPanel`, headed "Filters" in the toolbar's row (drawn over
+  the form, moved up by the panel's top safe-area inset into that row,
+  which is otherwise empty over the panel, and left out while the toolbar
+  is hidden; the form keeps 8 pt at its top, without which its scroll view
+  draws nothing in a snapshot), with no channel name, since the page beside
+  it names the channel; selecting another channel keeps the panel open on that one and
   selecting Feed closes it; the group editor takes the same panel: opening
   one replaces the other, a change of page drops the draft, and the editor
   gives the panel back as it was, closed if it was closed; no Refresh

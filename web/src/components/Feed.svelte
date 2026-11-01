@@ -6,6 +6,7 @@
   import { videoCount } from "../lib/duration";
   import { FeedController } from "../lib/feed.svelte";
   import { feedItemId } from "../lib/feed-item";
+  import { glideOnReflow } from "../lib/grid-reflow";
   import { chipTitle } from "../lib/groups";
   import { MINIMIZED_ROOM } from "../lib/player";
   import { PlayerController } from "../lib/player.svelte";
@@ -228,7 +229,7 @@
     showSidebar = false;
   }
 
-  /** A sidebar row's filters button: that channel's page with its filters beside it, or the panel closed when it already shows them. */
+  /** The filters button: the channel's filters beside its page, or the panel closed when it already shows them. */
   function toggleFilters(channelId: string): void {
     if (filtersChannel === channelId) {
       showDetails = false;
@@ -342,9 +343,7 @@
         {feed}
         selected={route.channel}
         {whereabouts}
-        {filtersChannel}
         onselect={select}
-        onfilters={toggleFilters}
         onhome={home}
         collapsed={!narrow && collapsed}
         ontoggle={toggleSidebar}
@@ -419,6 +418,20 @@
             </div>
           </div>
           <div class="tools">
+            {#if feed.channelEntry}
+              {@const channelId = feed.channelEntry.channelId}
+              <button
+                type="button"
+                class="icon-button"
+                class:on={filtersChannel === channelId}
+                aria-label={`Filters for ${feed.channelEntry.title}`}
+                title="Filters"
+                aria-expanded={filtersChannel === channelId}
+                onclick={() => toggleFilters(channelId)}
+              >
+                <Icon name="filterLines" />
+              </button>
+            {/if}
             <button
               type="button"
               class="icon-button"
@@ -544,6 +557,7 @@
             {/if}
 
             <main
+              {@attach glideOnReflow}
               class:stale={feed.loading}
               class:shimmer={firstLoad}
               inert={feed.loading || firstLoad}
@@ -777,6 +791,11 @@
     align-items: center;
     gap: 8px;
     height: 34px;
+  }
+
+  /* the filters button while its panel shows them */
+  .tools .on {
+    color: var(--gold);
   }
 
   .sidebar-toggle {
