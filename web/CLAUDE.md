@@ -27,7 +27,8 @@ settings; no CNAME file).
   alone; `favicon.svg` and `favicon-32.png`, the browser tab's, are
   `sub-play-centred-small.svg`, with one large bubble. In the collapsed
   sidebar, where the name is hidden, the logo is moved down to the same
-  place.
+  place and across to the middle of the rail, over the icons, and slides
+  back beside the name as the rail widens.
 - Dev sign-in: `bun export` in `../extension` and load its `dist` unpacked,
   as "SubTube (dev)". It has its own id (the `key` in `manifest.dev.json`), which `bun
   dev` talks to (`config.ts`); the store version stays installed beside it
