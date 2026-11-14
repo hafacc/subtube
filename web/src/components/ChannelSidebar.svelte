@@ -218,9 +218,13 @@
   }
 
   @container (max-width: 120px) {
-    /* the body's center is 12.07% of the drawing below the whole logo's */
+    /*
+     * Centered over the rail's icons, 28px in: the logo starts 16px in and is
+     * fin and body wide (17.6px / 0.4908 * 0.851). The body's center is 12.07%
+     * of the drawing below the whole logo's.
+     */
     .home :global(.logo) {
-      translate: 0 12.07%;
+      translate: calc(12px - 17.6px / 0.4908 * 0.851 / 2) 12.07%;
     }
   }
 
