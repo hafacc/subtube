@@ -18,8 +18,9 @@ folder needs one more pattern). Settings that differ by platform are
 `[sdk=macosx*]` / `[sdk=iphone*]` conditionals on the target.
 
 Outside `Config/`, the one file reference is `pages`, a folder reference to `../shared/pages`
-in the target's resources, so both apps bundle the privacy policy and the
-terms from there as `pages/privacy.json` and `pages/terms.json`; no copy is
+in the target's resources, so both apps bundle the privacy policy, the
+terms and the support page from there as `pages/privacy.json`,
+`pages/terms.json` and `pages/support.json`; no copy is
 kept here.
 
 `App/Resources/PrivacyInfo.xcprivacy` is the privacy manifest for both apps:
@@ -410,16 +411,17 @@ the pbxproj.
   full load takes the prefetch when the feed opens; the starting point is
   kept on the device, with the channels that were on, until each has been
   fetched; the decisions are in `Setup.swift`),
-  `InfoPageView` (`InfoPageKind`, the two bundled pages, loaded once; the
+  `InfoPageView` (`InfoPageKind`, the three bundled pages, loaded once; the
   page: its title as the heading, "Open on the Web" to its address,
   "Last updated" and the day as a long date, the intro, then each section's
   heading over its items as bullets; selectable, links in `Color.gold`;
   `InfoPageSheet`, the page with "Done": in a `NavigationStack` on iOS),
   `SettingsViews` (also `Links`, the addresses the apps link to;
-  `LegalLinks`, "Privacy Policy", "Terms" and "Feedback" side by side in
-  Settings: the first two show their page — pushed on iOS's Settings
+  `LegalLinks`, "Privacy Policy", "Terms", "Support", "Feedback" and
+  "Source Code" side by side in Settings, in two rows where one doesn't fit:
+  the first three show their page — pushed on iOS's Settings
   stack, a sheet from the Mac Settings window's Account pane — and Feedback
-  opens the GitHub issue list in the browser;
+  and Source Code open the GitHub issue list and the repository in the browser;
   `YouTubeAttribution`, "Videos from YouTube" as a small muted link to
   youtube.com, text only: after the last card or the empty text of the feed
   and of a channel's page, not while `FeedModel.showsSkeletons`, and at the
@@ -686,7 +688,7 @@ and `Strings.summary` words each.
   one, so it opens late, shortly before a snapshot is taken) and `-confirmDelete` (the Delete
   Profile confirmation, once Settings shows); macOS `-settings` opens the
   Settings window, on the pane `-settingsPane:<general|account>` names, and
-  `-infoPage:<privacy|terms>` shows that page over the Account pane. Values ride in the same
+  `-infoPage:<privacy|terms|support>` shows that page over the Account pane. Values ride in the same
   argument: macOS opens any bare argument as a file and then skips the main
   window.
 - macOS screenshots without screen-recording permission:

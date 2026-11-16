@@ -316,7 +316,9 @@ enum Strings {
   static let signInShort = String(localized: "Sign In")
   static let privacyPolicy = String(localized: "Privacy Policy")
   static let terms = String(localized: "Terms")
+  static let support = String(localized: "Support")
   static let feedback = String(localized: "Feedback")
+  static let sourceCode = String(localized: "Source Code")
   static let openOnWeb = String(localized: "Open on the Web")
   /// The line under a privacy policy's or terms' heading, with the day as a long date.
   static func lastUpdated(_ day: String) -> String {
