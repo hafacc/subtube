@@ -107,25 +107,34 @@ struct DeleteProfileFootnote: View {
   }
 }
 
-/// The addresses the apps link to: the two pages they also show themselves,
+/// The addresses the apps link to: the three pages they also show themselves,
 /// and those opened in the browser.
 enum Links {
   static let privacyPolicy = URL(string: "https://subtube.hafa.cc/privacy")!
   static let terms = URL(string: "https://subtube.hafa.cc/terms")!
+  static let support = URL(string: "https://subtube.hafa.cc/support")!
   static let feedback = URL(string: "https://github.com/hafacc/subtube/issues")!
+  static let source = URL(string: "https://github.com/hafacc/subtube")!
   static let youTube = URL(string: "https://www.youtube.com/")!
 }
 
-/// "Privacy Policy", "Terms" and "Feedback" side by side: the first two show
-/// their page through `show`, Feedback opens the issue list in the browser.
+/// "Privacy Policy", "Terms", "Support", "Feedback" and "Source Code" side by
+/// side, or in two rows where one doesn't fit: the first three show their page
+/// through `show`, the last two open the issue list and the repository in the
+/// browser.
 struct LegalLinks: View {
   let show: (InfoPageKind) -> Void
 
   var body: some View {
-    HStack(spacing: 16) {
-      Button(Strings.privacyPolicy) { show(.privacy) }
-      Button(Strings.terms) { show(.terms) }
-      Link(Strings.feedback, destination: Links.feedback)
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 16) {
+        pages
+        browserLinks
+      }
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 16) { pages }
+        HStack(spacing: 16) { browserLinks }
+      }
     }
     #if os(macOS)
       // the link style draws the system's blue, whatever the tint
@@ -135,6 +144,17 @@ struct LegalLinks: View {
       // each link takes its own taps in a list row
       .buttonStyle(.borderless)
     #endif
+  }
+
+  @ViewBuilder private var pages: some View {
+    Button(Strings.privacyPolicy) { show(.privacy) }
+    Button(Strings.terms) { show(.terms) }
+    Button(Strings.support) { show(.support) }
+  }
+
+  @ViewBuilder private var browserLinks: some View {
+    Link(Strings.feedback, destination: Links.feedback)
+    Link(Strings.sourceCode, destination: Links.source)
   }
 }
 

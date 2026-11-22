@@ -1,6 +1,6 @@
 <script lang="ts">
   import { AlertDialog, Popover } from "bits-ui";
-  import { feedbackUrl } from "../lib/config";
+  import { feedbackUrl, sourceUrl } from "../lib/config";
   import type { Account } from "../lib/session.svelte";
   import Avatar from "./Avatar.svelte";
   import Icon from "./Icon.svelte";
@@ -150,8 +150,12 @@
         <div class="legal">
           <InfoLink page="privacy">Privacy policy</InfoLink>
           <InfoLink page="terms">Terms</InfoLink>
+          <InfoLink page="support">Support</InfoLink>
           <a href={feedbackUrl} target="_blank" rel="noopener noreferrer"
             >Feedback</a
+          >
+          <a href={sourceUrl} target="_blank" rel="noopener noreferrer"
+            >Source code</a
           >
         </div>
 
@@ -324,7 +328,8 @@
 
   .legal {
     display: flex;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     padding: 0 8px;
     font-size: 12px;
   }

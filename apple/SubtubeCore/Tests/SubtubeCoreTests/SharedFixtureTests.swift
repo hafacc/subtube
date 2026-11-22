@@ -1016,7 +1016,7 @@ private func channelGroups(_ testCase: JSONObject) -> [String: [String]] {
 }
 
 @Suite struct SharedPageTests {
-  @Test(arguments: ["privacy", "terms"])
+  @Test(arguments: ["privacy", "terms", "support"])
   func decodes(_ name: String) throws {
     let data = try Data(contentsOf: sharedURL.appendingPathComponent("pages/\(name).json"))
     let page = try InfoPage.decode(data)

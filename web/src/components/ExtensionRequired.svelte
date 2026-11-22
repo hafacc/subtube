@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { feedbackUrl } from "../lib/config";
+  import { feedbackUrl, sourceUrl } from "../lib/config";
   import Icon from "./Icon.svelte";
   import InfoLink from "./InfoLink.svelte";
   import Logo from "./Logo.svelte";
@@ -37,8 +37,12 @@
         SubTube runs in Chrome on a computer. On a phone, use the SubTube app.
         <InfoLink page="privacy">Privacy policy</InfoLink>
         <InfoLink page="terms">Terms</InfoLink>
+        <InfoLink page="support">Support</InfoLink>
         <a href={feedbackUrl} target="_blank" rel="noopener noreferrer"
           >Feedback</a
+        >
+        <a href={sourceUrl} target="_blank" rel="noopener noreferrer"
+          >Source code</a
         >
       </p>
     </section>

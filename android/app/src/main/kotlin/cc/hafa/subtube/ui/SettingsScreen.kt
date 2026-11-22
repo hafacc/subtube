@@ -45,7 +45,7 @@ import kotlinx.coroutines.delay
 /** How often the "Last synced" line is worked out again. */
 private const val SYNC_STATUS_REFRESH_MS = 30_000L
 
-/** The settings tab: account, sync status, theme, sign out, delete profile, then the privacy policy, terms and feedback links. */
+/** The settings tab: account, sync status, theme, sign out, delete profile, then the privacy policy, terms, support, feedback and source code links. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: SubtubeViewModel) {
@@ -161,7 +161,9 @@ fun SettingsScreen(viewModel: SubtubeViewModel) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 AccentTextButton(stringResource(R.string.privacy_policy), onClick = { viewModel.showInfo(InfoPageName.PRIVACY) })
                 AccentTextButton(stringResource(R.string.terms), onClick = { viewModel.showInfo(InfoPageName.TERMS) })
+                AccentTextButton(stringResource(R.string.support), onClick = { viewModel.showInfo(InfoPageName.SUPPORT) })
                 AccentTextButton(stringResource(R.string.feedback), onClick = { context.openInBrowser(FEEDBACK_URL) })
+                AccentTextButton(stringResource(R.string.source_code), onClick = { context.openInBrowser(SOURCE_URL) })
             }
         }
     }

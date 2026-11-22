@@ -130,7 +130,9 @@
     <string name="cancel">Cancel</string>
     <string name="privacy_policy">Privacy policy</string>
     <string name="terms">Terms</string>
+    <string name="support">Support</string>
     <string name="feedback">Feedback</string>
+    <string name="source_code">Source code</string>
     <string name="open_on_web">Open on the web</string>
     <!-- %1$s is the day, in the locale's long form -->
     <string name="last_updated">Last updated %1$s</string>

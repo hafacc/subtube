@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://subtube.hafa.cc/schema/page.schema.json",
   "title": "SubTube info page",
-  "description": "A page every client shows in the app and the website publishes: the privacy policy and the terms. Text is plain except for links, written [label](url) with an https: or mailto: address.",
+  "description": "A page every client shows in the app and the website publishes: the privacy policy, the terms and the support page. Text is plain except for links, written [label](url) with an https: or mailto: address.",
   "type": "object",
   "additionalProperties": false,
   "required": [

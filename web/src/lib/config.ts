@@ -34,8 +34,14 @@ export const privacyUrl = "/privacy";
 /** The terms of service, a page of its own beside the app (`src/routes/(policy)/terms`), like the privacy policy. */
 export const termsUrl = "/terms";
 
+/** The support page, a page of its own beside the app (`src/routes/(policy)/support`), like the privacy policy. */
+export const supportUrl = "/support";
+
 /** Where feedback goes: the project's GitHub issues. */
 export const feedbackUrl = "https://github.com/hafacc/subtube/issues";
+
+/** The project's source code on GitHub. */
+export const sourceUrl = "https://github.com/hafacc/subtube";
 
 /** Where the "Videos from YouTube" attribution links. */
 export const youtubeUrl = "https://www.youtube.com/";

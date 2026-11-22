@@ -31,6 +31,9 @@ import cc.hafa.subtube.R
 /** Where Settings' "Feedback" leads. */
 const val FEEDBACK_URL: String = "https://github.com/hafacc/subtube/issues"
 
+/** Where Settings' "Source code" leads. */
+const val SOURCE_URL: String = "https://github.com/hafacc/subtube"
+
 /** Where the "Videos from YouTube" line leads. */
 const val YOUTUBE_URL: String = "https://www.youtube.com/"
 
