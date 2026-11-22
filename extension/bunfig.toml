@@ -1,0 +1,3 @@
+[install]
+# a version published less than a week ago is skipped; Dependabot waits the same week
+minimumReleaseAge = 604800
