@@ -1,10 +1,11 @@
 import SubtubeCore
 import SwiftUI
 
-/// The pages bundled from `shared/pages`: the privacy policy and the terms.
+/// The pages bundled from `shared/pages`: the privacy policy, the terms and support.
 enum InfoPageKind: String, Identifiable, CaseIterable {
   case privacy
   case terms
+  case support
 
   var id: String { rawValue }
 
@@ -16,6 +17,7 @@ enum InfoPageKind: String, Identifiable, CaseIterable {
     switch url {
     case Links.privacyPolicy: self = .privacy
     case Links.terms: self = .terms
+    case Links.support: self = .support
     default: return nil
     }
   }
@@ -29,7 +31,7 @@ enum InfoPageKind: String, Identifiable, CaseIterable {
     })
 }
 
-/// A privacy policy or terms page: the heading, a link to it on the web, the
+/// A privacy policy, terms or support page: the heading, a link to it on the web, the
 /// day it last changed, its paragraphs and its headed lists.
 struct InfoPageView: View {
   let kind: InfoPageKind

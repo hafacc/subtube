@@ -5,6 +5,7 @@ describe("info pages", () => {
   test("every shared page reads", () => {
     expect(INFO_PAGES.privacy.sections.length).toBeGreaterThan(0);
     expect(INFO_PAGES.terms.intro.length).toBe(1);
+    expect(INFO_PAGES.support.intro.length).toBeGreaterThan(0);
   });
 
   test("links split out of the text", () => {

@@ -18,7 +18,7 @@
   import { withToken } from "../lib/auth";
   import { mostCommonShorts, SHORTS_OPTIONS } from "../lib/channel-summary";
   import { START_OPTIONS, type StartFrom } from "../lib/chips";
-  import { chromeWebStoreUrl, feedbackUrl } from "../lib/config";
+  import { chromeWebStoreUrl, feedbackUrl, sourceUrl } from "../lib/config";
   import { SignInRequiredError, shownMessage } from "../lib/errors";
   import { handOffPrefetched, Prefetch } from "../lib/feed.svelte";
   import { recheckPlatform } from "../lib/platform";
@@ -671,7 +671,11 @@
   <footer>
     <InfoLink page="privacy">Privacy policy</InfoLink>
     <InfoLink page="terms">Terms</InfoLink>
+    <InfoLink page="support">Support</InfoLink>
     <a href={feedbackUrl} target="_blank" rel="noopener noreferrer">Feedback</a>
+    <a href={sourceUrl} target="_blank" rel="noopener noreferrer"
+      >Source code</a
+    >
   </footer>
 </div>
 
@@ -697,7 +701,8 @@
   footer {
     display: flex;
     justify-content: center;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     padding: 0 16px 20px;
     font-size: 12px;
   }

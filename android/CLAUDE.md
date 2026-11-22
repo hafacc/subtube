@@ -120,10 +120,10 @@ every client shares is in `../shared/`.
     a filter has come to need it), queues the new ones and takes the others
     out of the queue; it stops asking after the daily limit. The `load` given
     one builds on what it has for each enabled channel.
-  - `InfoPage.kt` — `readInfoPage`, the privacy policy and terms of
+  - `InfoPage.kt` — `readInfoPage`, the privacy policy, terms and support page of
     `shared/pages` (`shared/schema/page.schema.json`), and `infoText`, which
     splits a page's text into plain runs and its `[label](url)` links.
-    `InfoPageTest` decodes both shared pages.
+    `InfoPageTest` decodes every shared page.
   - `UnwatchedPassing.kt` — `unwatchedPassing`: a channel's entries of the
     kind it shows that pass its filter and aren't watched (the channel
     list's counts).
@@ -443,9 +443,9 @@ every client shares is in `../shared/`.
     `SearchField` there (first run, the channels tab's top bar, the group
     editor); chips are only for
     what can have several on (topics, phrases).
-  - `ui/InfoScreen.kt` — the privacy policy and the terms, shown in the
+  - `ui/InfoScreen.kt` — the privacy policy, the terms and the support page, shown in the
     app (`Screen.Info`, pushed over the screen it was opened from by
-    `showInfo`; Back pops it): `shared/pages/privacy.json` and `terms.json`,
+    `showInfo`; Back pops it): `shared/pages/privacy.json`, `terms.json` and `support.json`,
     bundled as `assets/pages/` by `app/build.gradle.kts`'s `sharedPages`
     task straight from `../shared/pages` (no copy in `android/`). A top bar
     with Back, the page's title and "Open on the web" (its `web` address in
@@ -454,9 +454,10 @@ every client shares is in `../shared/`.
     each `[label](url)` a link.
   - `ui/Links.kt` — the links out of the app (`openInBrowser`, and
     `linkStyles`, how a link in running text looks). Settings
-    ends with "Privacy policy", "Terms" (both the in-app pages) and
-    "Feedback" (https://github.com/hafacc/subtube/issues, in the browser)
-    side by side; first run's sign-in step has
+    ends with "Privacy policy", "Terms", "Support" (the in-app pages),
+    "Feedback" (https://github.com/hafacc/subtube/issues) and "Source code"
+    (https://github.com/hafacc/subtube), both in the browser, side by side,
+    wrapping under a large font; first run's sign-in step has
     `SignInAgreement` ("By signing in, you agree to SubTube's Terms and
     Privacy Policy.", both linked to the in-app pages) under its button, which is
     `GoogleSignInButton` (`ui/Components.kt`): Google's standard button, its

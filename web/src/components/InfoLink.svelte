@@ -1,12 +1,17 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { privacyUrl, termsUrl } from "../lib/config";
+  import { privacyUrl, supportUrl, termsUrl } from "../lib/config";
   import { infoPage } from "../lib/info-page.svelte";
   import type { InfoPageName } from "../lib/pages";
 
   let { page, children }: { page: InfoPageName; children: Snippet } = $props();
 
-  const href = $derived(page === "privacy" ? privacyUrl : termsUrl);
+  const urls: Record<InfoPageName, string> = {
+    privacy: privacyUrl,
+    terms: termsUrl,
+    support: supportUrl,
+  };
+  const href = $derived(urls[page]);
 
   function open(event: MouseEvent): void {
     // a new tab or window still gets the website's page

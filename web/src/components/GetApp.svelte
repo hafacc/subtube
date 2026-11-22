@@ -4,6 +4,7 @@
     feedbackUrl,
     macAppStoreUrl,
     playStoreUrl,
+    sourceUrl,
   } from "../lib/config";
   import InfoLink from "./InfoLink.svelte";
   import Logo from "./Logo.svelte";
@@ -80,7 +81,11 @@
     {offer.footer}
     <InfoLink page="privacy">Privacy policy</InfoLink>
     <InfoLink page="terms">Terms</InfoLink>
+    <InfoLink page="support">Support</InfoLink>
     <a href={feedbackUrl} target="_blank" rel="noopener noreferrer">Feedback</a>
+    <a href={sourceUrl} target="_blank" rel="noopener noreferrer"
+      >Source code</a
+    >
   </p>
 </div>
 

@@ -3,7 +3,7 @@ package cc.hafa.subtube.core
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** A page the app shows in place of the website: the privacy policy or the terms (`shared/pages`). */
+/** A page the app shows in place of the website: the privacy policy, the terms or the support page (`shared/pages`). */
 @Serializable
 data class InfoPage(
     /** The page's title. */

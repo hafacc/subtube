@@ -72,7 +72,7 @@ android {
     }
 }
 
-// the privacy policy and terms, bundled as assets/pages/*.json straight from shared/pages
+// the privacy policy, terms and support page, bundled as assets/pages/*.json straight from shared/pages
 abstract class SharedPagesTask : DefaultTask() {
     @get:InputDirectory
     abstract val pages: DirectoryProperty

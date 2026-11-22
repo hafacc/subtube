@@ -1,4 +1,5 @@
 import privacy from "../../../shared/pages/privacy.json";
+import support from "../../../shared/pages/support.json";
 import terms from "../../../shared/pages/terms.json";
 
 /** An info page every client shows in the app, as `shared/pages/*.json` holds it. */
@@ -18,10 +19,14 @@ export interface InfoPage {
 }
 
 /** The info pages' names. */
-export type InfoPageName = "privacy" | "terms";
+export type InfoPageName = "privacy" | "terms" | "support";
 
 /** Every info page, by name. */
-export const INFO_PAGES: Record<InfoPageName, InfoPage> = { privacy, terms };
+export const INFO_PAGES: Record<InfoPageName, InfoPage> = {
+  privacy,
+  terms,
+  support,
+};
 
 /** A run of a page's text, a link when it has `href`. */
 export interface TextPart {

@@ -47,10 +47,13 @@ enum class InfoPageName(
 
     /** The terms. */
     TERMS("pages/terms.json"),
+
+    /** The support page. */
+    SUPPORT("pages/support.json"),
 }
 
 /**
- * The privacy policy or the terms, shown in the app: the title in the top
+ * The privacy policy, the terms or the support page, shown in the app: the title in the top
  * bar with Back and "Open on the web" (the page's `web` address), then
  * "Last updated", the intro and each section's bulleted items, all selectable.
  */

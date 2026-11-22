@@ -10,7 +10,7 @@ class InfoPageTest {
 
     @Test
     fun sharedPagesDecode() {
-        for (name in listOf("privacy", "terms")) {
+        for (name in listOf("privacy", "terms", "support")) {
             val page = readInfoPage(File(pages, "$name.json").readText())
             assertEquals("https://subtube.hafa.cc/$name", page.web)
             assertTrue(page.title.isNotEmpty())
