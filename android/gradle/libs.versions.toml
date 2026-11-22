@@ -15,7 +15,7 @@ webkit = "1.18.0"
 playServicesAuth = "22.0.0"
 coil = "3.6.3"
 junit4 = "4.13.2"
-robolectric = "4.17"
+robolectric = "4.18"
 roborazzi = "1.77.0"
 playPublisher = "4.1.1"
 
