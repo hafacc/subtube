@@ -117,7 +117,8 @@ there is no warning page: `Nux` runs, from its start or, when an account is
 known or the extension's page sent it back, at its "Add the Chrome extension"
 step. That step links to the Chrome Web
 Store (`chromeWebStoreUrl`), pings every 1.5 s, and keeps Next disabled until
-the extension answers. A page can only message an extension that was there
+the extension answers; when it answers there with an account already signed in,
+setup goes on by itself. A page can only message an extension that was there
 when it loaded, so on coming back to the tab with no answer the step reloads
 the page and reopens there (`subtube.setupAtExtension` in sessionStorage).
 After sign-in, before "Choose channels", `Nux` loads the Drive folder: any

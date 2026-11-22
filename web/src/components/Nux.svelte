@@ -61,7 +61,7 @@
     start?: Step;
     /** whether the extension answered when the page loaded */
     extension: boolean;
-    /** called once setup moves on with the extension added */
+    /** called once the extension answers after the page loaded */
     onextension: () => void;
   } = $props();
 
@@ -130,8 +130,10 @@
   }
 
   async function lookForExtension(): Promise<boolean> {
-    if ((await recheckPlatform()) !== null) {
+    if (!extensionFound && (await recheckPlatform()) !== null) {
       extensionFound = true;
+      // the shell opens the app at once when an account is signed in
+      onextension();
     }
     return extensionFound;
   }
@@ -156,13 +158,6 @@
       document.removeEventListener("visibilitychange", onVisible);
     };
   });
-
-  function leaveExtensionStep(): void {
-    if (!extension) {
-      onextension();
-    }
-    go("signin");
-  }
 
   function go(target: Step): void {
     error = null;
@@ -418,7 +413,7 @@
               type="button"
               class="button-primary push"
               disabled={!extensionFound}
-              onclick={leaveExtensionStep}
+              onclick={() => go("signin")}
             >
               Next
             </button>
